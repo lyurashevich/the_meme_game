@@ -1,5 +1,126 @@
 ---
 services:
+  db: &db
+    image: postgres:17
+    restart: always
+    env_file:
+      - .env-dev
+    environment:
+      POSTGRES_DB: ${DB_NAME:-docker_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d docker_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db_prod:
+    <<: *db
+    env_file:
+      - .env-prod
+    environment:
+      POSTGRES_DB: ${DB_NAME:-game_bd_prod}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - ./postgres_data_prod:/var/lib/postgresql/data_prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d game_db_prod"]
+
+  django: &django
+    build:
+      context: django_app
+      dockerfile: Dockerfile
+      target: base
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env-dev
+    environment:
+      DB_NAME: ${DB_NAME:-docker_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://127.0.0.1:8000/admin/ || exit 0" ]
+      interval: 15s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    restart: always
+    command:
+      - sh
+      - -c
+      - "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+
+  django_prod:
+    <<: *django
+    depends_on:
+      db_prod:
+        condition: service_healthy
+    env_file:
+      - .env-prod
+    environment:
+      DB_NAME: ${DB_NAME:-game_db_prod}
+    command:
+      - sh
+      - -c
+      - |
+          "gunicorn --workers $((2 * $(nproc)))
+          meme_game.wsgi:application --bind 0.0.0.0:8000"
+
+  tests:
+    build:
+      context: django_app
+      target: tests
+    volumes:
+      - ./django_app/src:/app/src
+      - ./.env.example:/app/.env.example
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env-dev
+    environment:
+      DB_NAME: ${DB_NAME:-docker_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+    command:
+      - sh
+      - -c
+      - "python manage.py migrate && pytest"
+
+  pip-compile-django: &pip-compile-django
+    build:
+      context: django_app
+      target: tests
+    volumes:
+      - ./django_app:/app
+    working_dir: /app
+    entrypoint: [ "sh", "-c" ]
+    command:
+      - pip-compile requirements.in
+      - pip-compile requirements-tests.in
+
+  pre-commit-django:
+    <<: *pip-compile-django
+    volumes:
+      - ./.pre-commit-config.yaml:/app/.pre-commit-config.yaml
+      - ./.git:/app/.git
+      - ./.gitignore:/app/.gitignore
+    command:
+      - pre-commit run --all-files
+
   fastapi: &fastapi
     build:
       context: websockets
@@ -67,7 +188,7 @@ services:
       - --requirepass
       - ${REDIS_PASSWORD}
 
-  pip-compile: &pip-compile
+  pip-compile-fastapi: &pip-compile-fastapi
     build:
       context: websockets
       target: tests
@@ -79,14 +200,14 @@ services:
       - pip-compile requirements.in
       - pip-compile requirements-tests.in
 
-  pre-commit:
-    <<: *pip-compile
+  pre-commit-fastapi:
+    <<: *pip-compile-fastapi
     volumes:
       - ./.pre-commit-config.yaml:/app/.pre-commit-config.yaml
       - ./.git:/app/.git
       - ./.gitignore:/app/.gitignore
     command:
-      - pre-commit run
+      - pre-commit run --all-files
 
   nginx:
     build: .
@@ -102,5 +223,6 @@ services:
         condition: service_healthy
 
 volumes:
+  postgres_data:
   static_volume:
   redis_data:

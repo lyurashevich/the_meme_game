@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        .page {
+            display: none;
+        }
+        .active {
+        display: block;
+        }
+
+<!--        body {-->
+<!--        background-color: pink;-->
+<!--        }-->
+    </style>
+</head>
+<body>
+    <nav>
+        <button onclick="navigateTo('home')">home</button>
+        <button onclick="navigateTo('about')">about</button>
+        <button onclick="navigateTo('contact')">contact</button>
+    </nav>
+
+    <h1 id="greeting">hello</h1>
+    <button onclick="changeText()">change text</button>
+
+    <div id="home" class="page active">
+        <h1>home page</h1>
+        <p>welcome to home page</p>
+    </div>
+
+    <div id="about" class="page">
+        <h1>about page</h1>
+        <p>this is the about page</p>
+    </div>
+
+    <div id="contact" class="page">
+        <h1>contact page</h1>
+        <p>contact us here</p>
+    </div>
+
+    <button onclick="changeBackgroundColor()">change background color</button>
+
+    <script src="script.js"></script>
+</body>
+</html>
