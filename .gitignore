@@ -52,5 +52,5 @@ postgres_data
 .env
 .env-dev
 .env-staging
-django-app/
-websockets/
+.env-prod
+django_app/src/api_app/.coverage
