@@ -48,6 +48,7 @@ Thumbs.db
 *.mov
 *.wmv
 
+
 postgres_data
 .env
 .env-dev
