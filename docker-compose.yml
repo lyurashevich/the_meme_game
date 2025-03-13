@@ -1,0 +1,16 @@
+services:
+  nginx:
+    build: .
+    volumes:
+      - ./ReactUI:/usr/share/nginx/html/
+      - static_volume:/app/static
+    ports:
+      - "8080:80"
+    depends_on:
+      django:
+        condition: service_healthy
+      fastapi:
+        condition: service_healthy
+
+volumes:
+  static_volume:

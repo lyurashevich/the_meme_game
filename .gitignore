@@ -48,3 +48,9 @@ Thumbs.db
 *.mov
 *.wmv
 
+postgres_data
+.env
+.env-dev
+.env-staging
+django-app/
+websockets/
