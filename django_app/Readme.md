@@ -13,7 +13,7 @@ git clone https://bitbucket.org/Panfillich/training/src/KAN-3/
 2. (Optional) Create a `.env` file based on the `.env.example`:
 
 ```bash
-cp env.example .env-dev
+cp env.example .env
 ```
 
 3. Generate requirements files

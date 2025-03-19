@@ -1,3 +1,5 @@
+from django.db import connections
+from django.http import HttpResponse, JsonResponse
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import (
     CreateModelMixin,
@@ -13,6 +15,25 @@ from swagger.decorator import (
 
 from .models import ApiModel
 from .serializers import TestSerializer
+
+
+def health_check(request):
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute("SELECT 1")
+        return JsonResponse({"message": "ok"}, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+def get_test_image(request):
+
+    filename = "previewfile_3029449878.jpg"
+
+    response = HttpResponse()
+    response["X-Accel-Redirect"] = f"/images/{filename}"
+
+    return response
 
 
 @add_description_to_test_view

@@ -149,11 +149,10 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
-    "SERVERS": [
-        {"url": "http://localhost:8080/api/"},
-    ],
+    # "SERVERS": [
+    #     {"url": "http://localhost:8080/api/"},
+    # ],
 }
 
-FORCE_SCRIPT_NAME = "/api"
 CSRF_TRUSTED_ORIGINS = ["http://localhost:8080"]
 STATIC_ROOT = "/app/static/"

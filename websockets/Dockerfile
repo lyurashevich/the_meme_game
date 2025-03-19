@@ -1,7 +1,7 @@
 FROM python:3.13-slim-bookworm AS base
 
 RUN pip install --no-cache-dir uv==0.6.4 && \
-    apt-get update && apt-get install -y --no-install-recommends curl=7.88.1-10+deb12u8 && \
+    apt-get update && apt-get install -y --no-install-recommends curl=7.88.1-10+deb12u12 && \
     uv venv /opt/venv && \
     rm -rf /var/lib/apt/lists/*
 

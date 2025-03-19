@@ -1,10 +1,8 @@
 ---
 services:
-  db: &db
+  db:
     image: postgres:17
     restart: always
-    env_file:
-      - .env-dev
     environment:
       POSTGRES_DB: ${DB_NAME:-docker_db}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -19,18 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  db_prod:
-    <<: *db
-    env_file:
-      - .env-prod
-    environment:
-      POSTGRES_DB: ${DB_NAME:-game_bd_prod}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    volumes:
-      - ./postgres_data_prod:/var/lib/postgresql/data_prod
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d game_db_prod"]
-
   django: &django
     build:
       context: django_app
@@ -39,8 +25,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env-dev
+    volumes:
+      - ./django_app/src:/app
     environment:
       DB_NAME: ${DB_NAME:-docker_db}
       DB_USER: ${DB_USER:-postgres}
@@ -48,9 +34,9 @@ services:
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
     ports:
-      - "8000:8000"
+      - "8001:8000"
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://127.0.0.1:8000/admin/ || exit 0" ]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/healthcheck/"]
       interval: 15s
       retries: 5
       start_period: 30s
@@ -60,22 +46,6 @@ services:
       - sh
       - -c
       - "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-
-  django_prod:
-    <<: *django
-    depends_on:
-      db_prod:
-        condition: service_healthy
-    env_file:
-      - .env-prod
-    environment:
-      DB_NAME: ${DB_NAME:-game_db_prod}
-    command:
-      - sh
-      - -c
-      - |
-          "gunicorn --workers $((2 * $(nproc)))
-          meme_game.wsgi:application --bind 0.0.0.0:8000"
 
   tests:
     build:
@@ -87,8 +57,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env-dev
     environment:
       DB_NAME: ${DB_NAME:-docker_db}
       DB_USER: ${DB_USER:-postgres}
@@ -100,26 +68,17 @@ services:
       - -c
       - "python manage.py migrate && pytest"
 
-  pip-compile-django: &pip-compile-django
+  pip-compile-django:
     build:
       context: django_app
       target: tests
     volumes:
       - ./django_app:/app
     working_dir: /app
-    entrypoint: [ "sh", "-c" ]
+    entrypoint: ["sh", "-c"]
     command:
       - pip-compile requirements.in
       - pip-compile requirements-tests.in
-
-  pre-commit-django:
-    <<: *pip-compile-django
-    volumes:
-      - ./.pre-commit-config.yaml:/app/.pre-commit-config.yaml
-      - ./.git:/app/.git
-      - ./.gitignore:/app/.gitignore
-    command:
-      - pre-commit run --all-files
 
   fastapi: &fastapi
     build:
@@ -155,19 +114,7 @@ services:
       - -c
       - pytest
 
-  fastapi_prod:
-    <<: *fastapi
-    depends_on:
-      redis_prod:
-        condition: service_healthy
-    environment:
-      - REDIS_URL=redis://redis_prod:6379/0
-    command:
-      - sh
-      - -c
-      - uvicorn main:app --host 0.0.0.0 --port 8000 --workers $(( 2 * $(nproc)))
-
-  redis: &redis
+  redis:
     image: redis:8.0-M03-alpine
     ports:
       - "6380:6379"
@@ -177,18 +124,7 @@ services:
       timeout: 10s
       retries: 3
 
-  redis_prod:
-    <<: *redis
-    volumes:
-      - redis_data:/redis_data
-    env_file:
-      - .env_redis
-    command:
-      - redis-server
-      - --requirepass
-      - ${REDIS_PASSWORD}
-
-  pip-compile-fastapi: &pip-compile-fastapi
+  pip-compile-fastapi:
     build:
       context: websockets
       target: tests
@@ -200,27 +136,52 @@ services:
       - pip-compile requirements.in
       - pip-compile requirements-tests.in
 
-  pre-commit-fastapi:
-    <<: *pip-compile-fastapi
+  pre-commit:
+    build:
+      context: django_app
+      target: tests
     volumes:
-      - ./.pre-commit-config.yaml:/app/.pre-commit-config.yaml
+      - ./websockets/src:/app/websockets
+      - ./django_app/src:/app/django_app
       - ./.git:/app/.git
       - ./.gitignore:/app/.gitignore
+      - ./.pre-commit-config.yaml:/app/.pre-commit-config.yaml
+    entrypoint: ["sh", "-c"]
     command:
       - pre-commit run --all-files
 
   nginx:
-    build: .
+    build: nginx
     volumes:
       - ./ReactUI:/usr/share/nginx/html/
       - static_volume:/app/static
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
     ports:
       - "8080:80"
+    environment:
+      - SWS_AUTH=${SWS_AUTH:-YWRtaW46YWRtaW4=}
+    command: >-
+      /bin/sh -c "envsubst '$$SWS_AUTH' < /etc/nginx/nginx.conf.template > \
+      /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
     depends_on:
+      sws:
+        condition: service_started
       django:
         condition: service_healthy
       fastapi:
         condition: service_healthy
+
+  sws:
+    image: joseluisq/static-web-server:2-alpine
+    ports:
+      - "8787:80"
+    restart: unless-stopped
+    environment:
+      - SERVER_BASIC_AUTH=${SWS_USER}:${SWS_PASSWORD}
+      - SERVER_ROOT=/var/public
+    volumes:
+      - ./sws/static:/var/public
 
 volumes:
   postgres_data:
