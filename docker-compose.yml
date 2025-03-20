@@ -36,7 +36,7 @@ services:
     ports:
       - "8001:8000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/healthcheck/"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/healthcheck/"]
       interval: 15s
       retries: 5
       start_period: 30s
@@ -66,7 +66,7 @@ services:
     command:
       - sh
       - -c
-      - "python manage.py migrate && pytest"
+      - "python src/manage.py migrate && cd src && pytest"
 
   pip-compile-django:
     build:
@@ -104,6 +104,7 @@ services:
   fastapi-tests:
     <<: *fastapi
     build:
+      context: websockets
       target: tests
     environment:
       - REDIS_HOST=redis

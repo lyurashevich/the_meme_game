@@ -1,17 +1,11 @@
 from django.db import connections
 from django.http import HttpResponse, JsonResponse
 from rest_framework.generics import GenericAPIView
-from rest_framework.mixins import (
-    CreateModelMixin,
-    DestroyModelMixin,
-    ListModelMixin,
-    RetrieveModelMixin,
-    UpdateModelMixin,
-)
-from swagger.decorator import (
-    add_description_to_test_view,
-    add_description_to_test_view2,
-)
+from rest_framework.mixins import (CreateModelMixin, DestroyModelMixin,
+                                   ListModelMixin, RetrieveModelMixin,
+                                   UpdateModelMixin)
+from swagger.decorator import (add_description_to_test_view,
+                               add_description_to_test_view2)
 
 from .models import ApiModel
 from .serializers import TestSerializer

@@ -1,11 +1,7 @@
 from django.urls import path
 
-from .views import (
-    PostListCreateView,
-    PostRetrieveUpdateDeleteView,
-    get_test_image,
-    health_check,
-)
+from .views import (PostListCreateView, PostRetrieveUpdateDeleteView,
+                    get_test_image, health_check)
 
 urlpatterns = [
     path("tests/", PostListCreateView.as_view(), name="test-list-create"),
