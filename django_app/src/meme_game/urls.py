@@ -25,5 +25,5 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api_app.urls")),
-    path('swagger/', include('swagger.urls')),
+    path("swagger/", include("swagger.urls")),
 ]
