@@ -4,37 +4,12 @@ import uuid
 
 from django.db import migrations, models
 
-# class Migration(migrations.Migration):
-#
-#     initial = True
-#
-#     dependencies = []
-#
-#     operations = [
-#         migrations.CreateModel(
-#             name="Player",
-#             fields=[
-#                 (
-#                     "id",
-#                     models.UUIDField(
-#                         default=uuid.uuid4,
-#                         editable=False,
-#                         primary_key=True,
-#                         serialize=False,
-#                     ),
-#                 ),
-#                 ("username", models.CharField(blank=True, max_length=50)),
-#                 ("created_at", models.DateTimeField(auto_now_add=True)),
-#             ],
-#         ),
-#     ]
-
 
 class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies: list[tuple] = []
+    dependencies: list = []
 
     operations = [
         migrations.CreateModel(
@@ -51,29 +26,6 @@ class Migration(migrations.Migration):
                 ),
                 ("username", models.CharField(blank=True, max_length=50)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-        migrations.CreateModel(
-            name="Card",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                (
-                    "type",
-                    models.CharField(
-                        choices=[("meme", "Meme"), ("situation", "Situation")],
-                        max_length=10,
-                    ),
-                ),
-                ("text", models.TextField(blank=True, null=True)),
-                ("image_url", models.URLField(blank=True, null=True)),
             ],
         ),
     ]

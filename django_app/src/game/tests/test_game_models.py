@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from game.models import Card, Player, Room, TooManyPlayersError
+from game.models import Card, Game, Player, Room, TooManyPlayersError
 
 
 class TestPlayerModel(TestCase):
@@ -111,3 +111,18 @@ class TestRoomModel(TestCase):
     def test_room_owner(self):
         room = Room.objects.create(owner=self.player)
         self.assertEqual(room.owner, self.player)
+
+
+class TestGameModel(TestCase):
+    def setUp(self):
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+
+    def test_game_delete(self):
+        game_id = self.game.id
+        self.game.delete()
+        with self.assertRaises(Game.DoesNotExist):
+            Game.objects.get(id=game_id)
+
+        self.assertFalse(Game.objects.filter(id=game_id).exists())

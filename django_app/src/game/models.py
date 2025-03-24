@@ -48,3 +48,10 @@ class Card(models.Model):
     type = models.CharField(max_length=10, choices=TYPE_CHOICES)
     text = models.TextField(blank=True, null=True)  # for situations
     image_url = models.URLField(blank=True, null=True)  # for memes
+
+
+class Game(models.Model):
+    room = models.ForeignKey("Room", on_delete=models.CASCADE, blank=False)
+
+    def __str__(self):
+        return f"game in room {self.room.name}"
