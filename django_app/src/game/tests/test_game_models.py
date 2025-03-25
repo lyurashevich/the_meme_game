@@ -1,6 +1,14 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from game.models import Card, Game, GameParticipant, Player, Room, TooManyPlayersError
+from game.models import (
+    Card,
+    Game,
+    GameParticipant,
+    GameSettings,
+    Player,
+    Room,
+    TooManyPlayersError,
+)
 
 
 class TestPlayerModel(TestCase):
@@ -153,3 +161,53 @@ class TestGameParticipantModel(TestCase):
 
         self.game.delete()
         self.assertFalse(GameParticipant.objects.exists())
+
+
+class TestGameSettingsModel(TestCase):
+    def setUp(self):
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+
+    def test_create_game_settings(self):
+        settings = GameSettings.objects.create(game=self.game)
+        self.assertEqual(settings.game.id, self.game.id)
+        self.assertEqual(settings.time_per_turn, 60)
+        self.assertEqual(settings.time_to_choose_winner, 60)
+        self.assertEqual(settings.score_limit, 0)
+        self.assertTrue(GameSettings.objects.filter(id=settings.id).exists())
+
+    def test_create_game_settings_with_invalid_data(self):
+        invalid_data = [
+            {"game": self.game, "time_per_turn": 29, "time_to_choose_winner": 10},
+            {"game": self.game, "time_per_turn": 200, "time_to_choose_winner": 200},
+            {"game": self.game, "score_limit": -9},
+        ]
+
+        for data in invalid_data:
+            with self.subTest(data=data):
+                with self.assertRaises(ValidationError):
+                    settings = GameSettings(**data)
+                    settings.full_clean()
+
+    def test_update_game_settings(self):
+        settings = GameSettings.objects.create(game=self.game)
+        settings.time_per_turn = 90
+        settings.save()
+        self.assertEqual(settings.time_per_turn, 90)
+        settings.refresh_from_db()
+        self.assertEqual(settings.time_per_turn, 90)
+        self.assertEqual(settings.time_to_choose_winner, 60)
+        self.assertEqual(settings.score_limit, 0)
+
+    def test_delete_game_settings(self):
+        settings = GameSettings.objects.create(game=self.game)
+        settings_id = settings.id
+        settings.delete()
+        self.assertFalse(GameSettings.objects.filter(id=settings_id).exists())
+
+    def test_delete_game_settings_with_game(self):
+        settings = GameSettings.objects.create(game=self.game)
+        settings_id = settings.id
+        self.game.delete()
+        self.assertFalse(GameSettings.objects.filter(id=settings_id).exists())

@@ -1,8 +1,9 @@
 from django.http import JsonResponse
-from game.models import Card, Game, GameParticipant, Player, Room
+from game.models import Card, Game, GameParticipant, GameSettings, Player, Room
 from game.serializers import (
     CardSerializer,
     GameParticipantSerializer,
+    GameSettingsSerializer,
     PlayerSerializer,
     RoomSerializer,
 )
@@ -184,3 +185,28 @@ class DetailParticipantView(DestroyModelMixin, RetrieveModelMixin, GenericAPIVie
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
+
+
+####################################################
+#                  GAME SETTINGS                   #
+####################################################
+
+
+class DetailSettingsView(
+    RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, GenericAPIView
+):
+    queryset = GameSettings.objects.all()
+    serializer_class = GameSettingsSerializer
+    lookup_field = "game_id"
+
+    def get_object(self):
+        return self.queryset.get(game_id=self.kwargs["pk"])
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)

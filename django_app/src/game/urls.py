@@ -1,6 +1,7 @@
 from django.urls import path
 from game.views import (
     DetailParticipantView,
+    DetailSettingsView,
     HandOutOneCardView,
     ListCreateParticipantView,
     PlayerDetailView,
@@ -13,6 +14,7 @@ from game.views import (
 )
 
 urlpatterns = [
+    path("game/<int:pk>/settings/", DetailSettingsView.as_view(), name="game-settings"),
     path(
         "game_participants/",
         ListCreateParticipantView.as_view(),

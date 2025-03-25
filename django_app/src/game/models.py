@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -66,3 +67,14 @@ class GameParticipant(models.Model):
 
     class Meta:
         unique_together = ("game", "player")
+
+
+class GameSettings(models.Model):
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    time_per_turn = models.PositiveIntegerField(
+        default=60, validators=[MinValueValidator(30), MaxValueValidator(120)]
+    )
+    time_to_choose_winner = models.PositiveIntegerField(
+        default=60, validators=[MinValueValidator(30), MaxValueValidator(120)]
+    )
+    score_limit = models.PositiveIntegerField(default=0)

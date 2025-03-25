@@ -1,5 +1,5 @@
 from django.urls import reverse
-from game.models import Card, Game, GameParticipant, Player, Room
+from game.models import Card, Game, GameParticipant, GameSettings, Player, Room
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -116,7 +116,7 @@ class TestDetailRoomEndpoints(APITestCase):
 
 
 class TestCardsViews(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.meme_cards = [
             Card.objects.create(
                 type="meme", image_url=f"http://example.com/meme{i}.jpg"
@@ -139,7 +139,7 @@ class TestCardsViews(APITestCase):
             self.assertIn("image_url", card)
             self.assertNotIn("text", card)
 
-    def test_hand_out_wrong_type_card(self):
+    def test_hand_out_wrong_type_card(self) -> None:
         self.url = reverse("get_one_card") + "?type=wrong"
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -168,14 +168,14 @@ class TestCardsViews(APITestCase):
 
 
 class TestGameViews(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.owner = Player.objects.create()
         self.player = Player.objects.create()
 
         self.room = Room.objects.create(owner=self.owner)
         self.game = Game.objects.create(room=self.room)
 
-    def test_start_game_not_by_owner(self):
+    def test_start_game_not_by_owner(self) -> None:
         self.url = reverse("start_game", args=[self.room.id])
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -184,10 +184,10 @@ class TestGameViews(APITestCase):
         game = Game.objects.get(id=self.game.id)
         self.assertEqual(game.room, self.room)
 
-    def test_start_game_by_owner(self):
+    def test_start_game_by_owner(self) -> None:
         pass
 
-    def test_end_game(self):
+    def test_end_game(self) -> None:
         self.url = reverse("end_game", args=[str(self.game.id)])
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -210,7 +210,7 @@ class TestListCreateParticipantView(APITestCase):
         self.game = Game.objects.create(room=self.room)
         self.player = Player.objects.create(username="username")
 
-    def test_create_participant(self):
+    def test_create_participant(self) -> None:
         data = {"game": self.game.id, "player": self.player.id, "score": 0}
         initial_count = GameParticipant.objects.count()
         response = self.client.post(self.url, data, format="json")
@@ -220,7 +220,7 @@ class TestListCreateParticipantView(APITestCase):
             GameParticipant.objects.filter(game=self.game, player=self.player).exists()
         )
 
-    def test_get_list_of_participants(self):
+    def test_get_list_of_participants(self) -> None:
         GameParticipant.objects.create(game=self.game, player=self.player)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -229,7 +229,7 @@ class TestListCreateParticipantView(APITestCase):
 
 
 class TestDetailParticipantView(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.owner = Player.objects.create(username="owner")
         self.player = Player.objects.create(username="player")
         self.room = Room.objects.create(owner=self.owner)
@@ -241,18 +241,18 @@ class TestDetailParticipantView(APITestCase):
             "participant-detail", kwargs={"pk": int(self.participant.id)}
         )
 
-    def test_get_detail_participant(self):
+    def test_get_detail_participant(self) -> None:
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(str(response.data["id"]), str(self.participant.id))
         self.assertEqual(response.data["score"], 0)
 
-    def test_get_detail_wrong_participant(self):
+    def test_get_detail_wrong_participant(self) -> None:
         fake_url = reverse("participant-detail", kwargs={"pk": 999})
         response = self.client.get(fake_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_delete_participant(self):
+    def test_delete_participant(self) -> None:
         initial_count = GameParticipant.objects.count()
 
         response = self.client.delete(self.url)
@@ -262,3 +262,43 @@ class TestDetailParticipantView(APITestCase):
         self.assertFalse(
             GameParticipant.objects.filter(id=self.participant.id).exists()
         )
+
+
+####################################################
+#                  GAME SETTINGS                   #
+####################################################
+
+
+class TestDetailSettingsView(APITestCase):
+    def setUp(self) -> None:
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.url = reverse("game-settings", kwargs={"pk": self.game.id})
+
+    def test_create_game_settings_view(self) -> None:
+        initial_count = GameSettings.objects.count()
+
+        data = {"game": self.game.id}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(GameSettings.objects.count(), initial_count + 1)
+
+        settings = GameSettings.objects.get(game=self.game)
+        self.assertEqual(settings.time_per_turn, 60)
+        self.assertEqual(settings.time_to_choose_winner, 60)
+        self.assertEqual(settings.score_limit, 0)
+
+    def test_update_game_settings(self) -> None:
+        settings = GameSettings.objects.create(game=self.game)
+        data = {"time_per_turn": 100}
+
+        response = self.client.patch(self.url, data, format="json")
+        settings.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(settings.time_per_turn, 100)
+        self.assertEqual(settings.time_to_choose_winner, 60)
+        self.assertEqual(settings.score_limit, 0)
