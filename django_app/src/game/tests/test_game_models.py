@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from game.models import Card, Game, Player, Room, TooManyPlayersError
+from game.models import Card, Game, GameParticipant, Player, Room, TooManyPlayersError
 
 
 class TestPlayerModel(TestCase):
@@ -126,3 +126,30 @@ class TestGameModel(TestCase):
             Game.objects.get(id=game_id)
 
         self.assertFalse(Game.objects.filter(id=game_id).exists())
+
+
+class TestGameParticipantModel(TestCase):
+    def setUp(self):
+        self.player = Player.objects.create(username="test player")
+        self.owner = Player.objects.create(username="owner")
+        self.room = Room.objects.create(owner=self.owner)
+        self.game = Game.objects.create(room=self.room)
+
+    def test_create_participant(self):
+        participant = GameParticipant.objects.create(game=self.game, player=self.player)
+        self.assertEqual(participant.game, self.game)
+        self.assertEqual(participant.player, self.player)
+        self.assertEqual(participant.score, 0)
+
+    def test_player_cant_join_same_game_twice(self):
+        GameParticipant.objects.create(game=self.game, player=self.player)
+        with self.assertRaises(Exception):
+            GameParticipant.objects.create(game=self.game, player=self.player)
+
+    def test_game_player_relation(self):
+        participant = GameParticipant.objects.create(game=self.game, player=self.player)
+        self.assertIn(participant, self.game.participants.all())
+        self.assertIn(participant, self.player.games.all())
+
+        self.game.delete()
+        self.assertFalse(GameParticipant.objects.exists())

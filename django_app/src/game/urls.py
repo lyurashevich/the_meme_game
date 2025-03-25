@@ -1,6 +1,8 @@
 from django.urls import path
 from game.views import (
+    DetailParticipantView,
     HandOutOneCardView,
+    ListCreateParticipantView,
     PlayerDetailView,
     PlayerListCreateView,
     RoomDetailView,
@@ -11,6 +13,16 @@ from game.views import (
 )
 
 urlpatterns = [
+    path(
+        "game_participants/",
+        ListCreateParticipantView.as_view(),
+        name="participants-list",
+    ),
+    path(
+        "game_participants/<int:pk>",
+        DetailParticipantView.as_view(),
+        name="participant-detail",
+    ),
     path("game/start/<uuid:room_id>/", start_game, name="start_game"),
     path("game/end/<int:game_id>/", end_game, name="end_game"),
     path("cards/get_six_cards/", StartGameHandOutView.as_view(), name="get_six_cards"),

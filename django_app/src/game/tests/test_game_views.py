@@ -1,5 +1,5 @@
 from django.urls import reverse
-from game.models import Card, Game, Player, Room
+from game.models import Card, Game, GameParticipant, Player, Room
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -195,3 +195,70 @@ class TestGameViews(APITestCase):
 
         with self.assertRaises(Game.DoesNotExist):
             Game.objects.get(id=self.game.id)
+
+
+####################################################
+#               GAME PARTICIPANT                   #
+####################################################
+
+
+class TestListCreateParticipantView(APITestCase):
+    def setUp(self):
+        self.url = reverse("participants-list")
+        self.owner = Player.objects.create(username="owner")
+        self.room = Room.objects.create(owner=self.owner)
+        self.game = Game.objects.create(room=self.room)
+        self.player = Player.objects.create(username="username")
+
+    def test_create_participant(self):
+        data = {"game": self.game.id, "player": self.player.id, "score": 0}
+        initial_count = GameParticipant.objects.count()
+        response = self.client.post(self.url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(GameParticipant.objects.count(), initial_count + 1)
+        self.assertTrue(
+            GameParticipant.objects.filter(game=self.game, player=self.player).exists()
+        )
+
+    def test_get_list_of_participants(self):
+        GameParticipant.objects.create(game=self.game, player=self.player)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(str(response.data[0]["player"]), str(self.player.id))
+
+
+class TestDetailParticipantView(APITestCase):
+    def setUp(self):
+        self.owner = Player.objects.create(username="owner")
+        self.player = Player.objects.create(username="player")
+        self.room = Room.objects.create(owner=self.owner)
+        self.game = Game.objects.create(room=self.room)
+        self.participant = GameParticipant.objects.create(
+            game=self.game, player=self.player
+        )
+        self.url = reverse(
+            "participant-detail", kwargs={"pk": int(self.participant.id)}
+        )
+
+    def test_get_detail_participant(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(response.data["id"]), str(self.participant.id))
+        self.assertEqual(response.data["score"], 0)
+
+    def test_get_detail_wrong_participant(self):
+        fake_url = reverse("participant-detail", kwargs={"pk": 999})
+        response = self.client.get(fake_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_participant(self):
+        initial_count = GameParticipant.objects.count()
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(GameParticipant.objects.count(), initial_count - 1)
+        self.assertFalse(
+            GameParticipant.objects.filter(id=self.participant.id).exists()
+        )

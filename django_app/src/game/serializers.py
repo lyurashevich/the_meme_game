@@ -1,4 +1,4 @@
-from game.models import Card, Player, Room
+from game.models import Card, GameParticipant, Player, Room
 from rest_framework import serializers
 
 
@@ -30,3 +30,9 @@ class CardSerializer(serializers.ModelSerializer):
         elif instance.type == "situation":
             data.pop("image_url")
         return data
+
+
+class GameParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GameParticipant
+        fields = ["id", "game", "player", "score"]

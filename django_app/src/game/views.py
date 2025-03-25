@@ -1,6 +1,11 @@
 from django.http import JsonResponse
-from game.models import Card, Game, Player, Room
-from game.serializers import CardSerializer, PlayerSerializer, RoomSerializer
+from game.models import Card, Game, GameParticipant, Player, Room
+from game.serializers import (
+    CardSerializer,
+    GameParticipantSerializer,
+    PlayerSerializer,
+    RoomSerializer,
+)
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import (
@@ -152,3 +157,30 @@ def end_game(request: Request, game_id: int) -> JsonResponse:
         return JsonResponse(
             {"error": "game not found"}, status=status.HTTP_404_NOT_FOUND
         )
+
+
+####################################################
+#               GAME PARTICIPANT                   #
+####################################################
+
+
+class ListCreateParticipantView(CreateModelMixin, ListModelMixin, GenericAPIView):
+    queryset = GameParticipant.objects.all()
+    serializer_class = GameParticipantSerializer
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+
+class DetailParticipantView(DestroyModelMixin, RetrieveModelMixin, GenericAPIView):
+    queryset = GameParticipant.objects.all()
+    serializer_class = GameParticipantSerializer
+
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)

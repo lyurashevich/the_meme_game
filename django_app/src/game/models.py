@@ -55,3 +55,14 @@ class Game(models.Model):
 
     def __str__(self):
         return f"game in room {self.room.name}"
+
+
+class GameParticipant(models.Model):
+    game = models.ForeignKey(
+        "Game", on_delete=models.CASCADE, related_name="participants"
+    )
+    player = models.ForeignKey("Player", on_delete=models.CASCADE, related_name="games")
+    score = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ("game", "player")
