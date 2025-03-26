@@ -1,20 +1,20 @@
 from django.urls import path
-from game.views import (
+from game.views.card_views import (
+    DiscardPileView,
+    HandOutOneCardView,
+    PlayerCardsView,
+    StartGameHandOutView,
+)
+from game.views.game_views import (
     DetailParticipantView,
     DetailSettingsView,
-    DiscardPileView,
     GetGameRoundView,
-    HandOutOneCardView,
     ListCreateParticipantView,
-    PlayerCardsView,
-    PlayerDetailView,
-    PlayerListCreateView,
-    RoomDetailView,
-    RoomListCreate,
-    StartGameHandOutView,
     end_game,
     start_game,
 )
+from game.views.player_views import PlayerDetailView, PlayerListCreateView
+from game.views.room_views import RoomDetailView, RoomListCreate
 
 urlpatterns = [
     path(
