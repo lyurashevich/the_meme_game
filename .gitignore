@@ -49,9 +49,5 @@ Thumbs.db
 *.wmv
 
 .venv/
-postgres_data/
 .env
-.env-prod
-django_app/src/.coverage
-django_app/src/api_app/.coverage
-nginx/nginx.conf
+**/.coverage
