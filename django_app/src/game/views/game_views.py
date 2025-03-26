@@ -1,5 +1,6 @@
 from typing import Optional
 
+from django.http import JsonResponse
 from game.models.game_models import Game, GameParticipant, GameSettings
 from game.models.game_round_models import GameRound
 from game.models.room_models import Room
@@ -21,7 +22,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 
-def start_game(request: Request, room_id: int) -> Response:
+def start_game(request: Request, room_id: int) -> JsonResponse:
     """
     Starts a game in the given room. Only the room owner can start the game.
     Returns a JsonResponse with the game ID if the is successfully started.
@@ -29,18 +30,18 @@ def start_game(request: Request, room_id: int) -> Response:
     room = Room.objects.get(id=room_id)
 
     if request.user != room.owner:
-        return Response(
+        return JsonResponse(
             {"error": "you can't start the game as you are not the owner"},
             status=status.HTTP_403_FORBIDDEN,
         )
 
     game = Game.objects.create(room=room)
-    return Response(
+    return JsonResponse(
         {"message": "the game started", "game_id": game.id}, status=status.HTTP_200_OK
     )
 
 
-def end_game(request: Request, game_id: int) -> Response:
+def end_game(request: Request, game_id: int) -> JsonResponse:
     """
     Ends the game and deletes it from database.
     Return an error message if the game is not found.
@@ -48,9 +49,11 @@ def end_game(request: Request, game_id: int) -> Response:
     try:
         game = Game.objects.get(id=game_id)
         game.delete()
-        return Response({"message": "the game ended and deleted"})
+        return JsonResponse({"message": "the game ended and deleted"})
     except Game.DoesNotExist:
-        return Response({"error": "game not found"}, status=status.HTTP_404_NOT_FOUND)
+        return JsonResponse(
+            {"error": "game not found"}, status=status.HTTP_404_NOT_FOUND
+        )
 
 
 class DetailSettingsView(

@@ -55,8 +55,10 @@ class TestRoomModel(TestCase):
 
         player1 = Player.objects.create()
         player2 = Player.objects.create()
+        player3 = Player.objects.create()
 
         room.players.add(player1)
+        room.players.add(player3)
 
         with self.assertRaises(TooManyPlayersError):
             room.add_player(player2)

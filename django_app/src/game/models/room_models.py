@@ -34,4 +34,14 @@ class Room(models.Model):
 
         if not self.name:
             self.name = f"room{self.id}"
+
+        is_new = self._state.adding
         super().save(*args, **kwargs)
+
+        if is_new:
+            self.players.add(self.owner)
+
+    def add_player(self, player):
+        if self.players.count() >= self.max_players:
+            raise TooManyPlayersError("the room is already full")
+        self.players.add(player)
