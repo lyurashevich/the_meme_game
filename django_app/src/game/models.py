@@ -78,3 +78,41 @@ class GameSettings(models.Model):
         default=60, validators=[MinValueValidator(30), MaxValueValidator(120)]
     )
     score_limit = models.PositiveIntegerField(default=0)
+
+
+class GameRound(models.Model):
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="rounds")
+    number = models.PositiveIntegerField()
+    leader = models.ForeignKey(GameParticipant, on_delete=models.CASCADE)
+    situation_card = models.ForeignKey(Card, on_delete=models.CASCADE)
+
+    def save(self, *args, **kwargs):
+        if not self.number:
+            last_round = (
+                GameRound.objects.filter(game=self.game).order_by("-number").first()
+            )
+            self.number = (last_round.number + 1) if last_round else 1
+        super().save(*args, **kwargs)
+
+
+class PlayerCard(models.Model):
+    """
+    cards that players have at the moment
+    """
+
+    participant = models.ForeignKey(GameParticipant, on_delete=models.CASCADE)
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+
+
+class DiscardPile(models.Model):
+    """
+    used cards, temporarily unavailable
+    """
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    round_expires = models.IntegerField()
+    # the round after which this card will be available again
+    # for example, card is discarded in round 5 and it appears again
+    # in round 15 (5 + 10)

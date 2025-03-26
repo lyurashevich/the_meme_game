@@ -2,8 +2,11 @@ from django.urls import path
 from game.views import (
     DetailParticipantView,
     DetailSettingsView,
+    DiscardPileView,
+    GetGameRoundView,
     HandOutOneCardView,
     ListCreateParticipantView,
+    PlayerCardsView,
     PlayerDetailView,
     PlayerListCreateView,
     RoomDetailView,
@@ -14,7 +17,26 @@ from game.views import (
 )
 
 urlpatterns = [
-    path("game/<int:pk>/settings/", DetailSettingsView.as_view(), name="game-settings"),
+    path(
+        "game/<int:game_id>/discard_cards/",
+        DiscardPileView.as_view(),
+        name="discard-cards",
+    ),
+    path(
+        "game/<int:game_id>/<int:participant_id>/cards/",
+        PlayerCardsView.as_view(),
+        name="player-cards",
+    ),
+    path(
+        "game/<int:game_id>/round/<int:number>/",
+        GetGameRoundView.as_view(),
+        name="get-round",
+    ),
+    path(
+        "game/<int:game_id>/settings/",
+        DetailSettingsView.as_view(),
+        name="game-settings",
+    ),
     path(
         "game_participants/",
         ListCreateParticipantView.as_view(),

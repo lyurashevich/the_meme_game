@@ -1,14 +1,27 @@
 from django.http import JsonResponse
-from game.models import Card, Game, GameParticipant, GameSettings, Player, Room
+from game.models import (
+    Card,
+    DiscardPile,
+    Game,
+    GameParticipant,
+    GameRound,
+    GameSettings,
+    Player,
+    PlayerCard,
+    Room,
+)
 from game.serializers import (
     CardSerializer,
+    DiscardPileSerializer,
     GameParticipantSerializer,
+    GameRoundSerializer,
     GameSettingsSerializer,
+    PlayerCardSerializer,
     PlayerSerializer,
     RoomSerializer,
 )
 from rest_framework import status
-from rest_framework.generics import GenericAPIView
+from rest_framework.generics import GenericAPIView, get_object_or_404
 from rest_framework.mixins import (
     CreateModelMixin,
     DestroyModelMixin,
@@ -200,13 +213,63 @@ class DetailSettingsView(
     lookup_field = "game_id"
 
     def get_object(self):
-        return self.queryset.get(game_id=self.kwargs["pk"])
-
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
+        return get_object_or_404(GameSettings, game_id=self.kwargs["game_id"])
 
     def get(self, request, *args, **kwargs):
         return self.retrieve(request, *args, **kwargs)
 
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
+
+
+####################################################
+#                     ROUND                        #
+####################################################
+
+
+class GetGameRoundView(RetrieveModelMixin, UpdateModelMixin, GenericAPIView):
+    queryset = GameRound.objects.all()
+    serializer_class = GameRoundSerializer
+    lookup_field = "number"
+
+    def get_object(self):
+        return get_object_or_404(
+            GameRound, game_id=self.kwargs["game_id"], number=self.kwargs["number"]
+        )
+
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+
+####################################################
+#                CARDS IN GAME                     #
+####################################################
+
+
+class PlayerCardsView(RetrieveModelMixin, ListModelMixin, GenericAPIView):
+    queryset = PlayerCard
+    serializer_class = PlayerCardSerializer
+    lookup_field = "participant_id"
+
+    def get_queryset(self):
+        game_id = self.kwargs.get("game_id")
+        participant_id = self.kwargs.get("participant_id")
+        return PlayerCard.objects.filter(game_id=game_id, participant_id=participant_id)
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+
+class DiscardPileView(ListModelMixin, GenericAPIView):
+    queryset = DiscardPile
+    serializer_class = DiscardPileSerializer
+
+    def get_queryset(self):
+        game_id = self.kwargs.get("game_id")
+        return DiscardPile.objects.filter(game_id=game_id)
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)

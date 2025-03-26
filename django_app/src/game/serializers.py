@@ -1,4 +1,13 @@
-from game.models import Card, GameParticipant, GameSettings, Player, Room
+from game.models import (
+    Card,
+    DiscardPile,
+    GameParticipant,
+    GameRound,
+    GameSettings,
+    Player,
+    PlayerCard,
+    Room,
+)
 from rest_framework import serializers
 
 
@@ -42,3 +51,21 @@ class GameSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = GameSettings
         fields = ["id", "game", "time_per_turn", "time_to_choose_winner", "score_limit"]
+
+
+class GameRoundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GameRound
+        fields = "__all__"
+
+
+class PlayerCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlayerCard
+        fields = "__all__"
+
+
+class DiscardPileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiscardPile
+        fields = "__all__"

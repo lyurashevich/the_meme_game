@@ -1,5 +1,15 @@
 from django.urls import reverse
-from game.models import Card, Game, GameParticipant, GameSettings, Player, Room
+from game.models import (
+    Card,
+    DiscardPile,
+    Game,
+    GameParticipant,
+    GameRound,
+    GameSettings,
+    Player,
+    PlayerCard,
+    Room,
+)
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -274,31 +284,134 @@ class TestDetailSettingsView(APITestCase):
         self.player = Player.objects.create()
         self.room = Room.objects.create(owner=self.player)
         self.game = Game.objects.create(room=self.room)
-        self.url = reverse("game-settings", kwargs={"pk": self.game.id})
+        self.settings = GameSettings.objects.create(game=self.game)
+        self.url = reverse("game-settings", kwargs={"game_id": self.game.id})
 
-    def test_create_game_settings_view(self) -> None:
-        initial_count = GameSettings.objects.count()
+    def test_get_game_settings(self) -> None:
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["game"], self.game.id)
+        self.assertEqual(response.data["time_per_turn"], 60)
+        self.assertEqual(response.data["time_to_choose_winner"], 60)
+        self.assertEqual(response.data["score_limit"], 0)
 
-        data = {"game": self.game.id}
-
-        response = self.client.post(self.url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(GameSettings.objects.count(), initial_count + 1)
-
-        settings = GameSettings.objects.get(game=self.game)
-        self.assertEqual(settings.time_per_turn, 60)
-        self.assertEqual(settings.time_to_choose_winner, 60)
-        self.assertEqual(settings.score_limit, 0)
+    def test_get_invalid_game_setting(self):
+        fake_url = reverse("game-settings", kwargs={"game_id": 999})
+        response = self.client.get(fake_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_update_game_settings(self) -> None:
-        settings = GameSettings.objects.create(game=self.game)
         data = {"time_per_turn": 100}
 
         response = self.client.patch(self.url, data, format="json")
-        settings.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(settings.time_per_turn, 100)
-        self.assertEqual(settings.time_to_choose_winner, 60)
-        self.assertEqual(settings.score_limit, 0)
+        self.assertEqual(response.data["time_per_turn"], 100)
+        self.assertEqual(response.data["time_to_choose_winner"], 60)
+        self.assertEqual(response.data["score_limit"], 0)
+
+
+####################################################
+#                     ROUND                        #
+####################################################
+
+
+class TestGameRoundView(APITestCase):
+    def setUp(self) -> None:
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.participant = GameParticipant.objects.create(
+            player=self.player, game=self.game
+        )
+        self.situation_card = Card.objects.create(
+            type="situation", text="some cringe situation"
+        )
+        self.new_situation_card = Card.objects.create(
+            type="situation", text="more cringe situation"
+        )
+        self.game_round = GameRound.objects.create(
+            game=self.game, leader=self.participant, situation_card=self.situation_card
+        )
+        self.url = reverse(
+            "get-round",
+            kwargs={"game_id": self.game.id, "number": self.game_round.number},
+        )
+
+    def test_get_game_round(self) -> None:
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["game"], self.game.id)
+        self.assertEqual(response.data["number"], 1)
+        self.assertEqual(response.data["leader"], self.participant.id)
+        self.assertEqual(response.data["situation_card"], self.situation_card.id)
+
+    def test_get_invalid_game_round(self) -> None:
+        fake_url = reverse("get-round", kwargs={"game_id": self.game.id, "number": 500})
+        response = self.client.get(fake_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_game_round(self) -> None:
+        data = {"number": 2, "situation_card": self.new_situation_card.id}
+        response = self.client.patch(self.url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["game"], self.game.id)
+        self.assertEqual(response.data["number"], 2)
+        self.assertEqual(response.data["leader"], self.participant.id)
+        self.assertEqual(response.data["situation_card"], self.new_situation_card.id)
+
+
+####################################################
+#                CARDS IN GAME                     #
+####################################################
+
+
+class TestPlayerCardView(APITestCase):
+    def setUp(self) -> None:
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.participant = GameParticipant.objects.create(
+            player=self.player, game=self.game
+        )
+        self.url = reverse(
+            "player-cards",
+            kwargs={"game_id": self.game.id, "participant_id": self.participant.id},
+        )
+        self.card = Card.objects.create(
+            type="meme", image_url="http://example.com/meme.jpg"
+        )
+        self.player_card = PlayerCard.objects.create(
+            participant=self.participant, card=self.card, game=self.game
+        )
+
+    def test_get_player_cards(self) -> None:
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["participant"], self.participant.id)
+        self.assertEqual(response.data[0]["game"], self.game.id)
+        self.assertEqual(response.data[0]["card"], self.card.id)
+
+
+class TestDiscardPileView(APITestCase):
+    def setUp(self) -> None:
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.participant = GameParticipant.objects.create(
+            player=self.player, game=self.game
+        )
+        self.url = reverse("discard-cards", kwargs={"game_id": self.game.id})
+        self.card = Card.objects.create(
+            type="meme", image_url="http://example.com/meme.jpg"
+        )
+        self.discard_card = DiscardPile.objects.create(
+            game=self.game, card=self.card, round_expires=10
+        )
+
+    def test_get_discard_pile(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["game"], self.game.id)
+        self.assertEqual(response.data[0]["card"], self.card.id)
+        self.assertEqual(response.data[0]["round_expires"], 10)

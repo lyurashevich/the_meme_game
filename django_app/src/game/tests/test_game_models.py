@@ -2,10 +2,13 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from game.models import (
     Card,
+    DiscardPile,
     Game,
     GameParticipant,
+    GameRound,
     GameSettings,
     Player,
+    PlayerCard,
     Room,
     TooManyPlayersError,
 )
@@ -211,3 +214,102 @@ class TestGameSettingsModel(TestCase):
         settings_id = settings.id
         self.game.delete()
         self.assertFalse(GameSettings.objects.filter(id=settings_id).exists())
+
+
+class TestRoundModel(TestCase):
+    def setUp(self) -> None:
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.participant = GameParticipant.objects.create(
+            game=self.game, player=self.player
+        )
+        self.card = Card.objects.create(type="situation", text="some cringe situation")
+        self.new_card = Card.objects.create(
+            type="situation", text="more cringe situation"
+        )
+
+    def test_create_round(self) -> None:
+        game_round = GameRound.objects.create(
+            game=self.game, leader=self.participant, situation_card=self.card
+        )
+        self.assertEqual(game_round.game, self.game)
+        self.assertEqual(game_round.number, 1)
+        self.assertEqual(game_round.leader, self.participant)
+        self.assertEqual(game_round.situation_card, self.card)
+
+    def test_update_round(self) -> None:
+        game_round = GameRound.objects.create(
+            game=self.game, leader=self.participant, situation_card=self.card
+        )
+        game_round.number = 2
+        game_round.situation_card = self.new_card
+        game_round.save()
+        self.assertEqual(game_round.game, self.game)
+        self.assertEqual(game_round.number, 2)
+        self.assertEqual(game_round.leader, self.participant)
+        self.assertEqual(game_round.situation_card, self.new_card)
+
+    def test_delete_round(self) -> None:
+        game_round = GameRound.objects.create(
+            game=self.game, leader=self.participant, situation_card=self.card
+        )
+        round_id = game_round.id
+        game_round.delete()
+        self.assertFalse(GameRound.objects.filter(id=round_id).exists())
+
+
+class TestPlayerCardModel(TestCase):
+    def setUp(self):
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.participant = GameParticipant.objects.create(
+            game=self.game, player=self.player
+        )
+        self.card = Card.objects.create(
+            type="meme", image_url="http://example.com/meme.jpg"
+        )
+
+    def test_create_player_card(self):
+        player_card = PlayerCard.objects.create(
+            participant=self.participant, card=self.card, game=self.game
+        )
+        self.assertEqual(player_card.participant.id, self.participant.id)
+        self.assertEqual(player_card.game.id, self.game.id)
+        self.assertEqual(player_card.card.type, self.card.type)
+        self.assertEqual(player_card.card.image_url, self.card.image_url)
+
+    def test_delete_player_card(self):
+        player_card = PlayerCard.objects.create(
+            participant=self.participant, card=self.card, game=self.game
+        )
+        player_card_id = player_card.id
+        player_card.delete()
+        self.assertFalse(PlayerCard.objects.filter(id=player_card_id).exists())
+
+
+class TestDiscardPileModel(TestCase):
+    def setUp(self):
+        self.player = Player.objects.create()
+        self.room = Room.objects.create(owner=self.player)
+        self.game = Game.objects.create(room=self.room)
+        self.card = Card.objects.create(
+            type="meme", image_url="http://example.com/meme.jpg"
+        )
+
+    def test_create_discard_card(self):
+        discard_card = DiscardPile.objects.create(
+            card=self.card, game=self.game, round_expires=10
+        )
+        self.assertEqual(discard_card.game, self.game)
+        self.assertEqual(discard_card.card, self.card)
+        self.assertEqual(discard_card.round_expires, 10)
+
+    def test_delete_discard_card(self):
+        discard_card = DiscardPile.objects.create(
+            card=self.card, game=self.game, round_expires=10
+        )
+        discard_card_id = discard_card.id
+        discard_card.delete()
+        self.assertFalse(DiscardPile.objects.filter(id=discard_card_id).exists())
