@@ -14,7 +14,7 @@ class TestListCreatePlayerEndpoints(APITestCase):
     """
 
     def setUp(self) -> None:
-        self.player = Player.objects.create(username="test_player")
+        self.player = Player.objects.create_user(username="test_player")
         self.list_url = reverse("player_list_create")
 
     def test_get_list_players(self) -> None:
@@ -28,6 +28,7 @@ class TestListCreatePlayerEndpoints(APITestCase):
         response = self.client.post(self.list_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Player.objects.count(), 2)
+        self.assertEqual(response.data["username"], "new_player")
 
     def test_create_test_player_without_username(self) -> None:
         data: dict[str, str] = {}
@@ -46,7 +47,7 @@ class TestDetailPlayerEndpoints(APITestCase):
     """
 
     def setUp(self) -> None:
-        self.player = Player.objects.create(username="test_player")
+        self.player = Player.objects.create_user(username="test_player")
         self.room = Room.objects.create(name="test_room", owner=self.player)
         self.detail_url = reverse("player_detail", kwargs={"pk": int(self.player.id)})
 

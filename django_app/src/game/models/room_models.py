@@ -26,6 +26,7 @@ class Room(models.Model):
     max_players = models.IntegerField(default=10)
     owner = models.ForeignKey(Player, on_delete=models.CASCADE, null=False, blank=False)
     invitation_link = models.URLField(blank=True, null=True)
+    is_private = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs) -> None:
         """

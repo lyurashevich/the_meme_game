@@ -1,5 +1,6 @@
 from game.models.player_models import Player
 from game.serializers import PlayerSerializer
+from rest_framework import status
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import (
     CreateModelMixin,
@@ -21,10 +22,9 @@ class PlayerListCreateView(ListModelMixin, CreateModelMixin, GenericAPIView):
     serializer_class = PlayerSerializer
 
     def post(self, request: Request, *args, **kwargs) -> Response:
-        """
-        Create a new player with provided data.
-        """
-        return self.create(request, *args, **kwargs)
+        player = Player.objects.create_user(**request.data)
+        return Response(PlayerSerializer(player).data, status=status.HTTP_201_CREATED)
+        # return Response({'id': str(player.id), 'username': player.username}, status=status.HTTP_201_CREATED)
 
     def get(self, request: Request, *args, **kwargs) -> Response:
         """

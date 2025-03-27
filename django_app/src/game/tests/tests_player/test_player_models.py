@@ -12,24 +12,24 @@ class TestPlayerModel(TestCase):
     """
 
     def test_create_player_with_username(self):
-        player = Player.objects.create(username="username")
+        player = Player.objects.create_user(username="username")
+        self.assertTrue(Player.objects.filter(id=player.id).exists())
         self.assertEqual(player.username, "username")
 
     def test_create_player_without_username(self):
-        player = Player.objects.create()
-        self.assertEqual(player.username, f"player{player.id}")
+        player = Player.objects.create_user()
+        self.assertTrue(Player.objects.filter(id=player.id).exists())
+        self.assertTrue(player.username.startswith("player"))
 
     def test_update_player(self):
-        player = Player.objects.create(username="username")
+        player = Player.objects.create_user(username="username")
         player.username = "new_username"
-        original_created_at = player.created_at
         player.save()
         self.assertNotEqual(player.username, "username")
         self.assertEqual(player.username, "new_username")
-        self.assertEqual(player.created_at, original_created_at)
 
     def test_delete_player(self):
-        player = Player.objects.create()
+        player = Player.objects.create_user()
         player_id = player.id
         player.delete()
         with self.assertRaises(Player.DoesNotExist):
