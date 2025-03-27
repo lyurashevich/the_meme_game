@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -153,3 +154,11 @@ SPECTACULAR_SETTINGS = {
 
 CSRF_TRUSTED_ORIGINS = ["http://localhost:8080"]
 STATIC_ROOT = "/app/static/"
+
+SECRET_JWT_KEY = os.getenv("DJANGO_JWT_SECRET_KEY", "default_jwt_key")
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_JWT_KEY,
+}

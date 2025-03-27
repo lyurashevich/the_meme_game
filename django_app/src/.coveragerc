@@ -2,3 +2,17 @@
 omit =
 	api_app/migrations/*
 	api_app/tests/*
+	security/tests/*
+	manage.py
+	*admin.py
+	*serializers.py
+	*urls.py
+	settings.py
+	settings_prod.py
+	*apps.py
+	wsgi.py
+
+[report]
+omit =
+	*__init__.py
+

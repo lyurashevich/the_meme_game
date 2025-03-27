@@ -16,6 +16,8 @@ pydantic==2.10.6
     # via fastapi
 pydantic-core==2.27.2
     # via pydantic
+pyjwt==2.10.1
+    # via -r requirements.in
 python-dotenv==1.0.1
     # via hello-world (pyproject.toml)
 redis==5.2.1
