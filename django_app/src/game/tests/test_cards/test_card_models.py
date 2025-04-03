@@ -1,9 +1,7 @@
-from django.core.exceptions import ValidationError
 from django.test import TestCase
-from game.models.card_models import Card, DiscardPile, PlayerCard
-from game.models.game_models import Game, GameParticipant
+from game.models.card_models import DiscardPile, MemeCard, PlayerCard, SituationCard
+from game.models.game_models import Game
 from game.models.player_models import Player
-from game.models.room_models import Room
 
 
 class TestCardModel(TestCase):
@@ -15,29 +13,33 @@ class TestCardModel(TestCase):
     - deletion of a card
     """
 
+    def setUp(self):
+        self.meme_card = MemeCard.objects.create(
+            image_url="http://example.com/meme.jpg"
+        )
+        self.situation_card = SituationCard.objects.create(text="some cringe situation")
+
     def test_create_meme_card(self):
-        card = Card.objects.create(type="meme", image_url="http://example.com/meme.jpg")
-        self.assertEqual(card.type, "meme")
-        self.assertEqual(card.image_url, "http://example.com/meme.jpg")
-        self.assertIsNone(card.text)
+        self.assertEqual(self.meme_card.image_url, "http://example.com/meme.jpg")
+        self.assertTrue(MemeCard.objects.filter(id=self.meme_card.id).exists())
 
     def test_create_situation_card(self):
-        card = Card.objects.create(type="situation", text="some cringe situation")
-        self.assertEqual(card.type, "situation")
-        self.assertEqual(card.text, "some cringe situation")
-        self.assertIsNone(card.image_url)
+        self.assertEqual(self.situation_card.text, "some cringe situation")
+        self.assertTrue(
+            SituationCard.objects.filter(id=self.situation_card.id).exists()
+        )
 
-    def test_invalid_card_type(self):
-        with self.assertRaises(ValidationError):
-            card = Card(type="wrong", text="error")
-            card.full_clean()
+    def test_meme_card_delete(self):
+        card_id = self.meme_card.id
+        self.meme_card.delete()
+        with self.assertRaises(MemeCard.DoesNotExist):
+            MemeCard.objects.get(id=card_id)
 
-    def test_card_delete(self):
-        card = Card.objects.create(type="meme", image_url="http://example.com/meme.jpg")
-        card_id = card.id
-        card.delete()
-        with self.assertRaises(Card.DoesNotExist):
-            Card.objects.get(id=card_id)
+    def test_situation_card_delete(self):
+        card_id = self.situation_card.id
+        self.situation_card.delete()
+        with self.assertRaises(SituationCard.DoesNotExist):
+            SituationCard.objects.get(id=card_id)
 
 
 class TestPlayerCardModel(TestCase):
@@ -49,27 +51,21 @@ class TestPlayerCardModel(TestCase):
 
     def setUp(self):
         self.player = Player.objects.create()
-        self.room = Room.objects.create(owner=self.player)
-        self.game = Game.objects.create(room=self.room)
-        self.participant = GameParticipant.objects.create(
-            game=self.game, player=self.player
-        )
-        self.card = Card.objects.create(
-            type="meme", image_url="http://example.com/meme.jpg"
-        )
+        self.game = Game.objects.create(owner=self.player)
+        self.card = MemeCard.objects.create(image_url="http://example.com/meme.jpg")
 
     def test_create_player_card(self):
+        participants = list(self.game.participants.all())
         player_card = PlayerCard.objects.create(
-            participant=self.participant, card=self.card, game=self.game
+            participant=participants[0], card=self.card, game=self.game
         )
-        self.assertEqual(player_card.participant.id, self.participant.id)
-        self.assertEqual(player_card.game.id, self.game.id)
-        self.assertEqual(player_card.card.type, self.card.type)
+        self.assertEqual(player_card.participant.id, participants[0].id)
         self.assertEqual(player_card.card.image_url, self.card.image_url)
 
     def test_delete_player_card(self):
+        participants = list(self.game.participants.all())
         player_card = PlayerCard.objects.create(
-            participant=self.participant, card=self.card, game=self.game
+            participant=participants[0], card=self.card, game=self.game
         )
         player_card_id = player_card.id
         player_card.delete()
@@ -84,12 +80,9 @@ class TestDiscardPileModel(TestCase):
     """
 
     def setUp(self):
-        self.player = Player.objects.create()
-        self.room = Room.objects.create(owner=self.player)
-        self.game = Game.objects.create(room=self.room)
-        self.card = Card.objects.create(
-            type="meme", image_url="http://example.com/meme.jpg"
-        )
+        self.player = Player.objects.create_user()
+        self.game = Game.objects.create(owner=self.player)
+        self.card = MemeCard.objects.create(image_url="http://example.com/meme.jpg")
 
     def test_create_discard_card(self):
         discard_card = DiscardPile.objects.create(

@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.test import TestCase
-from game.models.card_models import Card
+from game.models.card_models import SituationCard
 from game.models.game_models import Game, GameParticipant, GameSettings
 from game.models.game_round_models import GameRound
 from game.models.player_models import Player
-from game.models.room_models import Room
 
 
 class TestGameModel(TestCase):
@@ -14,9 +14,8 @@ class TestGameModel(TestCase):
     """
 
     def setUp(self):
-        self.player = Player.objects.create()
-        self.room = Room.objects.create(owner=self.player)
-        self.game = Game.objects.create(room=self.room)
+        self.player = Player.objects.create_user()
+        self.game = Game.objects.create(owner=self.player)
 
     def test_game_delete(self):
         game_id = self.game.id
@@ -36,29 +35,24 @@ class TestGameParticipantModel(TestCase):
     """
 
     def setUp(self):
-        self.player = Player.objects.create(username="test player")
-        self.owner = Player.objects.create(username="owner")
-        self.room = Room.objects.create(owner=self.owner)
-        self.game = Game.objects.create(room=self.room)
+        self.player = Player.objects.create_user(username="test player")
+        self.owner = Player.objects.create_user(username="owner")
+        self.game = Game.objects.create(owner=self.owner)
 
     def test_create_participant(self):
-        participant = GameParticipant.objects.create(game=self.game, player=self.player)
-        self.assertEqual(participant.game, self.game)
-        self.assertEqual(participant.player, self.player)
-        self.assertEqual(participant.score, 0)
+        self.assertEqual(self.game.participants.all().count(), 1)
+        self.game.add_player(self.player)
+        self.assertEqual(self.game.participants.all().count(), 2)
+        self.assertIn(
+            list(self.game.participants.all())[0], GameParticipant.objects.all()
+        )
+        self.assertEqual(list(self.game.participants.all())[0].score, 0)
 
     def test_player_cant_join_same_game_twice(self):
-        GameParticipant.objects.create(game=self.game, player=self.player)
-        with self.assertRaises(Exception):
-            GameParticipant.objects.create(game=self.game, player=self.player)
-
-    def test_game_player_relation(self):
-        participant = GameParticipant.objects.create(game=self.game, player=self.player)
-        self.assertIn(participant, self.game.participants.all())
-        self.assertIn(participant, self.player.games.all())
-
-        self.game.delete()
-        self.assertFalse(GameParticipant.objects.exists())
+        self.game.add_player(self.player)
+        self.assertEqual(self.game.participants.all().count(), 2)
+        with self.assertRaises(IntegrityError):
+            self.game.add_player(self.player)
 
 
 class TestGameSettingsModel(TestCase):
@@ -72,9 +66,8 @@ class TestGameSettingsModel(TestCase):
     """
 
     def setUp(self):
-        self.player = Player.objects.create()
-        self.room = Room.objects.create(owner=self.player)
-        self.game = Game.objects.create(room=self.room)
+        self.player = Player.objects.create_user()
+        self.game = Game.objects.create(owner=self.player)
 
     def test_create_game_settings(self):
         settings = GameSettings.objects.create(game=self.game)
@@ -129,41 +122,36 @@ class TestRoundModel(TestCase):
     """
 
     def setUp(self) -> None:
-        self.player = Player.objects.create()
-        self.room = Room.objects.create(owner=self.player)
-        self.game = Game.objects.create(room=self.room)
-        self.participant = GameParticipant.objects.create(
-            game=self.game, player=self.player
-        )
-        self.card = Card.objects.create(type="situation", text="some cringe situation")
-        self.new_card = Card.objects.create(
-            type="situation", text="more cringe situation"
-        )
+        self.player = Player.objects.create_user()
+        self.game = Game.objects.create(owner=self.player)
+        self.card = SituationCard.objects.create(text="some cringe situation")
+        self.new_card = SituationCard.objects.create(text="more cringe situation")
+        self.participants = list(self.game.participants.all())
 
     def test_create_round(self) -> None:
         game_round = GameRound.objects.create(
-            game=self.game, leader=self.participant, situation_card=self.card
+            game=self.game, leader=self.participants[0], situation_card=self.card
         )
         self.assertEqual(game_round.game, self.game)
         self.assertEqual(game_round.number, 1)
-        self.assertEqual(game_round.leader, self.participant)
+        self.assertIn(game_round.leader, self.game.participants.all())
         self.assertEqual(game_round.situation_card, self.card)
 
     def test_update_round(self) -> None:
         game_round = GameRound.objects.create(
-            game=self.game, leader=self.participant, situation_card=self.card
+            game=self.game, leader=self.participants[0], situation_card=self.card
         )
         game_round.number = 2
         game_round.situation_card = self.new_card
         game_round.save()
         self.assertEqual(game_round.game, self.game)
         self.assertEqual(game_round.number, 2)
-        self.assertEqual(game_round.leader, self.participant)
+        self.assertEqual(game_round.leader, self.participants[0])
         self.assertEqual(game_round.situation_card, self.new_card)
 
     def test_delete_round(self) -> None:
         game_round = GameRound.objects.create(
-            game=self.game, leader=self.participant, situation_card=self.card
+            game=self.game, leader=self.participants[0], situation_card=self.card
         )
         round_id = game_round.id
         game_round.delete()

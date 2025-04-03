@@ -2,18 +2,23 @@ from django.db import models
 from game.models.game_models import Game, GameParticipant
 
 
-class Card(models.Model):
+class MemeCard(models.Model):
+    image_url = models.URLField()
+
+
+class SituationCard(models.Model):
     """
     Represents a card in the game. It can be either a 'meme' or a 'situation'.
     """
 
-    TYPE_CHOICES = [
-        ("meme", "Meme"),
-        ("situation", "Situation"),
-    ]
-    type = models.CharField(max_length=10, choices=TYPE_CHOICES)
-    text = models.TextField(blank=True, null=True)  # for situations
-    image_url = models.URLField(blank=True, null=True)  # for memes
+    text = models.TextField()
+
+
+class UsedSituation(models.Model):
+    used_card = models.ForeignKey(
+        SituationCard, on_delete=models.CASCADE, related_name="used_situations"
+    )
+    round_expires = models.IntegerField()
 
 
 class PlayerCard(models.Model):
@@ -23,7 +28,7 @@ class PlayerCard(models.Model):
 
     participant = models.ForeignKey(GameParticipant, on_delete=models.CASCADE)
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
-    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    card = models.ForeignKey(MemeCard, on_delete=models.CASCADE)
 
 
 class DiscardPile(models.Model):
@@ -42,5 +47,5 @@ class DiscardPile(models.Model):
     """
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
-    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    card = models.ForeignKey(MemeCard, on_delete=models.CASCADE)
     round_expires = models.IntegerField()

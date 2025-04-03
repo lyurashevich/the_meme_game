@@ -1,15 +1,10 @@
 from typing import Optional
 
-from django.http import JsonResponse
-from game.models.game_models import Game, GameParticipant, GameSettings
-from game.models.game_round_models import GameRound
-from game.models.room_models import Room
-from game.serializers import (
-    GameParticipantSerializer,
-    GameRoundSerializer,
-    GameSettingsSerializer,
-)
+from game.game_logic import GameManager
+from game.models.game_models import Game, GameSettings
+from game.serializers import GameSerializer, GameSettingsSerializer
 from rest_framework import status
+from rest_framework.decorators import api_view
 from rest_framework.generics import GenericAPIView, get_object_or_404
 from rest_framework.mixins import (
     CreateModelMixin,
@@ -18,42 +13,87 @@ from rest_framework.mixins import (
     RetrieveModelMixin,
     UpdateModelMixin,
 )
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 
-def start_game(request: Request, room_id: int) -> JsonResponse:
-    """
-    Starts a game in the given room. Only the room owner can start the game.
-    Returns a JsonResponse with the game ID if the is successfully started.
-    """
-    room = Room.objects.get(id=room_id)
-
-    if request.user != room.owner:
-        return JsonResponse(
-            {"error": "you can't start the game as you are not the owner"},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    game = Game.objects.create(room=room)
-    return JsonResponse(
-        {"message": "the game started", "game_id": game.id}, status=status.HTTP_200_OK
-    )
-
-
-def end_game(request: Request, game_id: int) -> JsonResponse:
-    """
-    Ends the game and deletes it from database.
-    Return an error message if the game is not found.
-    """
+@api_view(["POST"])
+def start_game(request, game_id):
     try:
         game = Game.objects.get(id=game_id)
-        game.delete()
-        return JsonResponse({"message": "the game ended and deleted"})
     except Game.DoesNotExist:
-        return JsonResponse(
-            {"error": "game not found"}, status=status.HTTP_404_NOT_FOUND
+        return Response({"error:": "game not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if game.owner != request.user:
+        return Response(
+            {"error": "only owner can start the game"}, status=status.HTTP_403_FORBIDDEN
         )
+
+    manager = GameManager(game)
+    try:
+        manager.start_game()
+        return Response({"status": "ok"})
+    except ValueError as e:
+        return Response({"error:": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GameListCreate(ListModelMixin, CreateModelMixin, GenericAPIView):
+    """
+    View to create a new room and to get list of all rooms.
+    """
+
+    queryset = Game.objects.all()
+    serializer_class = GameSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, *args, **kwargs) -> Response:
+        """
+        Create a new room with provided data.
+        """
+        return self.create(request, *args, **kwargs)
+
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        """
+        Get a list of all rooms.
+        """
+        return self.list(request, *args, **kwargs)
+
+    def perform_create(self, serializer) -> None:
+        """
+        Auto-set the current user as the room owner upon creation.
+        """
+        serializer.save(owner=self.request.user)
+
+
+class GameDetailView(
+    RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericAPIView
+):
+    """
+    Views to get a specific room by ID, to delete or partial update the room's data.
+    """
+
+    queryset = Game.objects.all()
+    serializer_class = GameSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        """
+        Get a room by ID.
+        """
+        return self.retrieve(request, *args, **kwargs)
+
+    def delete(self, request: Request, *args, **kwargs) -> Response:
+        """
+        Delete a room by ID.
+        """
+        return self.destroy(request, *args, **kwargs)
+
+    def patch(self, request: Request, *args, **kwargs) -> Response:
+        """
+        Partial update the room data.
+        """
+        return self.partial_update(request, *args, **kwargs)
 
 
 class DetailSettingsView(
@@ -84,75 +124,3 @@ class DetailSettingsView(
         Partially updates the game settings.
         """
         return self.partial_update(request, *args, **kwargs)
-
-
-class GetGameRoundView(RetrieveModelMixin, UpdateModelMixin, GenericAPIView):
-    """
-    View to retrieve or update a specific game round.
-    """
-
-    queryset = GameRound.objects.all()
-    serializer_class = GameRoundSerializer
-    lookup_field = "number"
-
-    def get_object(self) -> Optional[GameRound]:
-        """
-        Retrieves the GameRound object based on 'game_id' and 'number'.
-        """
-        return get_object_or_404(
-            GameRound, game_id=self.kwargs["game_id"], number=self.kwargs["number"]
-        )
-
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        """
-        Retrieves the game round details.
-        """
-        return self.retrieve(request, *args, **kwargs)
-
-    def patch(self, request: Request, *args, **kwargs) -> Response:
-        """
-        Partially update the game round settings.
-        """
-        return self.partial_update(request, *args, **kwargs)
-
-
-class ListCreateParticipantView(CreateModelMixin, ListModelMixin, GenericAPIView):
-    """
-    View to list and create game participants.
-    """
-
-    queryset = GameParticipant.objects.all()
-    serializer_class = GameParticipantSerializer
-
-    def post(self, request: Request, *args, **kwargs) -> Response:
-        """
-        Create a new game participant.
-        """
-        return self.create(request, *args, **kwargs)
-
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        """
-        List all the game participants.
-        """
-        return self.list(request, *args, **kwargs)
-
-
-class DetailParticipantView(DestroyModelMixin, RetrieveModelMixin, GenericAPIView):
-    """
-    Retrieves a specific game participant.
-    """
-
-    queryset = GameParticipant.objects.all()
-    serializer_class = GameParticipantSerializer
-
-    def get(self, request: Request, *args, **kwargs) -> Response:
-        """
-        Retrieves a specific game participant.
-        """
-        return self.retrieve(request, *args, **kwargs)
-
-    def delete(self, request: Request, *args, **kwargs) -> Response:
-        """
-        Deletes a specific game participant.
-        """
-        return self.destroy(request, *args, **kwargs)

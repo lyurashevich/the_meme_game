@@ -1,6 +1,5 @@
 from django.urls import reverse
 from game.models.player_models import Player
-from game.models.room_models import Room
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -48,7 +47,6 @@ class TestDetailPlayerEndpoints(APITestCase):
 
     def setUp(self) -> None:
         self.player = Player.objects.create_user(username="test_player")
-        self.room = Room.objects.create(name="test_room", owner=self.player)
         self.detail_url = reverse("player_detail", kwargs={"pk": int(self.player.id)})
 
     def test_get_player_by_id(self) -> None:

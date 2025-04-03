@@ -1,5 +1,5 @@
 from django.db import models
-from game.models.card_models import Card
+from game.models.card_models import SituationCard
 from game.models.game_models import Game, GameParticipant
 
 
@@ -18,7 +18,7 @@ class GameRound(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="rounds")
     number = models.PositiveIntegerField()
     leader = models.ForeignKey(GameParticipant, on_delete=models.CASCADE)
-    situation_card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    situation_card = models.ForeignKey(SituationCard, on_delete=models.CASCADE)
 
     def save(self, *args, **kwargs) -> None:
         """
