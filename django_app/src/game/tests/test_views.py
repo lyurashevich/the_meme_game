@@ -1,5 +1,5 @@
 from django.urls import reverse
-from game.models.player_models import Player
+from game.models import Player, Room
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -65,3 +65,42 @@ class TestDetailPlayerEndpoints(APITestCase):
         response = self.client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(Player.objects.count(), 0)
+
+
+class TestCardViews(APITestCase):
+    def setUp(self):
+        self.meme_cards = reverse("get-meme-cards")
+        self.situation_cards = reverse("get-situation-cards")
+
+    def test_get_meme_cards(self):
+        response = self.client.get(self.meme_cards)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_situation_cards(self):
+        response = self.client.get(self.situation_cards)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class TestRoomsViews(APITestCase):
+    def setUp(self):
+        self.owner = Player.objects.create_user()
+        self.create_room = reverse("create-room")
+        self.room_list = reverse("room-list")
+        self.client.force_authenticate(user=self.owner)
+
+    def test_create_room(self):
+        response = self.client.post(self.create_room, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Room.objects.count(), 1)
+        room = Room.objects.first()
+
+        self.assertEqual(room.owner, self.owner)
+        self.assertIn("room_token", response.data)
+
+    def test_list_public_rooms(self):
+        response = self.client.get(self.room_list)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

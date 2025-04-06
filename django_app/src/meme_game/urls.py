@@ -24,6 +24,7 @@ router = routers.DefaultRouter()
 
 urlpatterns = [
     path("api/game/", include("game.urls")),
+    path("api/token/", include("security.urls")),
     path("admin/", admin.site.urls),
     path("api/", include("api_app.urls")),
     path("swagger/", include("swagger.urls")),

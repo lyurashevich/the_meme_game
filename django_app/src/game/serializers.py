@@ -1,8 +1,5 @@
-from game.models.game_models import Game, GameSettings
-from game.models.player_models import Player
+from game.models import MemeCard, Player, Room, SituationCard
 from rest_framework import serializers
-
-# === Player Related ===
 
 
 class PlayerSerializer(serializers.ModelSerializer):
@@ -11,20 +8,20 @@ class PlayerSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-# === Room Related ==
-
-
-class GameSerializer(serializers.ModelSerializer):
+class RoomSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Game
+        model = Room
         fields = "__all__"
         read_only_fields = ["id", "invitation_link", "owner"]
 
 
-# === Game Related ===
-
-
-class GameSettingsSerializer(serializers.ModelSerializer):
+class MemeCardSerializer(serializers.ModelSerializer):
     class Meta:
-        model = GameSettings
+        model = MemeCard
+        fields = "__all__"
+
+
+class SituationCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SituationCard
         fields = "__all__"

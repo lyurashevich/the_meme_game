@@ -22,7 +22,6 @@ repos:
     rev: v2.12.1b3
     hooks:
       - id: hadolint
-        args: [--ignore]
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.35.1

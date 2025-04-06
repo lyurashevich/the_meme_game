@@ -1,21 +1,22 @@
 from django.urls import path
-from game.views.game_views import (
-    DetailSettingsView,
-    GameDetailView,
-    GameListCreate,
-    start_game,
+from game.views import (
+    MemeCardsListView,
+    PlayerDetailView,
+    PlayerListCreateView,
+    RoomCreateView,
+    RoomListView,
+    SituationCardsListView,
 )
-from game.views.player_views import PlayerDetailView, PlayerListCreateView
 
 urlpatterns = [
-    path("games/", GameListCreate.as_view(), name="game-list-create"),
-    path("games/<int:pk>/", GameDetailView.as_view(), name="game-detail-view"),
-    path("games/<int:game_id>/start_game/", start_game, name="start-game"),
+    path("cards/meme_cards/", MemeCardsListView.as_view(), name="get-meme-cards"),
     path(
-        "games/<int:game_id>/settings/",
-        DetailSettingsView.as_view(),
-        name="game-settings",
+        "cards/situation_cards/",
+        SituationCardsListView.as_view(),
+        name="get-situation-cards",
     ),
+    path("rooms/", RoomCreateView.as_view(), name="create-room"),
+    path("rooms/available/", RoomListView.as_view(), name="room-list"),
     path("players/", PlayerListCreateView.as_view(), name="player_list_create"),
     path("player/<int:pk>/", PlayerDetailView.as_view(), name="player_detail"),
 ]

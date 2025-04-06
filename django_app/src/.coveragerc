@@ -11,10 +11,6 @@ omit =
 	settings_prod.py
 	*apps.py
 	wsgi.py
-	game/migrations/*
-	game/tests/*
-
-
 
 [report]
 omit =
