@@ -49,6 +49,8 @@ class RoomCreateView(CreateModelMixin, GenericAPIView):
         return self.create(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
+        Room.objects.filter(owner=request.user).delete()
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         room = serializer.save(owner=request.user)

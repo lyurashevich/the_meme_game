@@ -104,3 +104,21 @@ class TestRoomsViews(APITestCase):
         response = self.client.get(self.room_list)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_create_room_if_already_exists(self):
+
+        response1 = self.client.post(self.create_room, format="json")
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        room_id_1 = response1.data["id"]
+
+        self.assertEqual(Room.objects.filter(owner=self.owner).count(), 1)
+
+        response2 = self.client.post(self.create_room, format="json")
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+        room_id_2 = response2.data["id"]
+
+        self.assertNotEqual(room_id_2, room_id_1)
+
+        self.assertEqual(Room.objects.filter(owner=self.owner).count(), 1)
+        room = Room.objects.get(owner=self.owner)
+        self.assertEqual(str(room.id), room_id_2)

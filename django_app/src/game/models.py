@@ -20,8 +20,10 @@ class PlayerManager(BaseUserManager):
 
 
 class Player(AbstractBaseUser):
-    id = models.BigAutoField(primary_key=True)
+
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True)
     username = models.CharField(blank=True, null=True, unique=True)
+
     objects = PlayerManager()
 
     USERNAME_FIELD = "username"
@@ -46,7 +48,7 @@ class Room(models.Model):
     - 'invitation_link': A link that can be shared to invite players to the room.
     """
 
-    id = models.BigAutoField(primary_key=True)
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True)
     name = models.CharField(max_length=50, blank=True)
     max_players = models.IntegerField(default=10)
     owner = models.ForeignKey(Player, on_delete=models.CASCADE)
