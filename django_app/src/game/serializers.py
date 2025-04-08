@@ -1,4 +1,4 @@
-from game.models import MemeCard, Player, Room, SituationCard
+from game.models import MemeCard, Player, Room, RoomCount, SituationCard
 from rest_framework import serializers
 
 
@@ -25,3 +25,9 @@ class SituationCardSerializer(serializers.ModelSerializer):
     class Meta:
         model = SituationCard
         fields = "__all__"
+
+
+class RoomCountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomCount
+        fileds = "__all__"

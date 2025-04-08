@@ -1,5 +1,5 @@
 from django.urls import reverse
-from game.models import Player, Room
+from game.models import Player, Room, RoomCount
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -122,3 +122,18 @@ class TestRoomsViews(APITestCase):
         self.assertEqual(Room.objects.filter(owner=self.owner).count(), 1)
         room = Room.objects.get(owner=self.owner)
         self.assertEqual(str(room.id), room_id_2)
+
+
+class UpdateRoomCountView(APITestCase):
+    def setUp(self):
+        self.url = reverse("update-active-rooms")
+
+    def test_update_active_rooms(self):
+        self.assertEqual(RoomCount.objects.count(), 0)
+
+        data = {"active_rooms": 5}
+        response = self.client.put(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(RoomCount.objects.count(), 1)
+        self.assertEqual(RoomCount.objects.get(id=1).active_rooms, 5)

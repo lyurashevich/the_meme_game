@@ -6,9 +6,11 @@ from game.views import (
     RoomCreateView,
     RoomListView,
     SituationCardsListView,
+    UpdateRoomCountView,
 )
 
 urlpatterns = [
+    path("active_rooms/", UpdateRoomCountView.as_view(), name="update-active-rooms"),
     path("cards/meme_cards/", MemeCardsListView.as_view(), name="get-meme-cards"),
     path(
         "cards/situation_cards/",

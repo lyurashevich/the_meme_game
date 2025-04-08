@@ -1,4 +1,4 @@
-from game.models import MemeCard, Player, Room, SituationCard
+from game.models import MemeCard, Player, Room, RoomCount, SituationCard
 from game.serializers import (
     MemeCardSerializer,
     PlayerSerializer,
@@ -17,6 +17,7 @@ from rest_framework.mixins import (
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
 
 
@@ -130,3 +131,15 @@ class PlayerDetailView(
         Partial update player's data.
         """
         return self.partial_update(request, *args, **kwargs)
+
+
+class UpdateRoomCountView(APIView):
+
+    def put(self, request, *args, **kwargs):
+        active_rooms = request.data.get("active_rooms", 0)
+
+        RoomCount.objects.update_or_create(
+            id=1, defaults={"active_rooms": active_rooms}
+        )
+
+        return Response({"status:": "success"}, status=status.HTTP_200_OK)

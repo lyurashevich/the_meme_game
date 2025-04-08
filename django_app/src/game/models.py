@@ -80,3 +80,8 @@ class SituationCard(models.Model):
     """
 
     text = models.TextField()
+
+
+class RoomCount(models.Model):
+    id = models.SmallIntegerField(primary_key=True, default=1)
+    active_rooms = models.IntegerField(default=0)
