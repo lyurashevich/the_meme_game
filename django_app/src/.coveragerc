@@ -1,8 +1,7 @@
 [run]
 omit =
-	api_app/migrations/*
-	api_app/tests/*
-	security/tests/*
+	*/migrations/*
+	*/tests/*
 	manage.py
 	*admin.py
 	*serializers.py
@@ -15,4 +14,6 @@ omit =
 [report]
 omit =
 	*__init__.py
+	*/tests/*
+	*/migrations/*
 

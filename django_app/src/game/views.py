@@ -1,3 +1,7 @@
+from datetime import datetime
+
+import requests
+from django.http import JsonResponse
 from game.models import MemeCard, Player, Room, RoomCount, SituationCard
 from game.serializers import (
     MemeCardSerializer,
@@ -19,6 +23,38 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
+
+
+def is_daytime():
+    current_hour = datetime.now().hour
+    return 6 <= current_hour < 22
+
+
+def get_joke(request):
+    if is_daytime():
+        try:
+            response = requests.get(
+                "https://official-joke-api.appspot.com/random_joke", timeout=5.0
+            )
+            response.raise_for_status()
+            return JsonResponse(response.json())
+
+        except requests.Timeout:
+            return JsonResponse(
+                {"error": "timeout"}, status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+
+        except requests.RequestException as e:
+            return JsonResponse(
+                {"error": f"error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    else:
+        return JsonResponse(
+            {"error": "you should have been sleeping now, come back tomorrow"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
 
 class MemeCardsListView(ListModelMixin, GenericAPIView):
