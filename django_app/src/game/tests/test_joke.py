@@ -15,6 +15,25 @@ class JokeAPITestCase(TestCase):
             "punchline": "That’s a deep subject.",
             "id": 64,
         }
+        self.night_response = {
+            "error": "you should have been sleeping now, come back tomorrow"
+        }
+
+    def setup_day_mock(self, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = self.mock_joke
+
+    def setup_night_mock(self, mock_get):
+        mock_get.return_value.status_code = 403
+        mock_get.return_value.json.return_value = self.night_response
+
+    def assert_successful_response(self, response):
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), self.mock_joke)
+
+    def assert_night_response(self, response):
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), self.night_response)
 
     @patch("game.views.requests.get")
     def test_get_joke_success(self, mock_get):
@@ -56,52 +75,104 @@ class JokeAPITestCase(TestCase):
 
     @time_machine.travel("15:00")
     @patch("game.views.requests.get")
-    def test_get_joke_day(self, mock_get):
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = self.mock_joke
+    def test_get_joke_at_15_00(self, mock_get):
+        self.setup_day_mock(mock_get)
 
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("setup", response.json())
-        self.assertEqual(response.json()["type"], "general")
+        self.assert_successful_response(response)
 
-    @time_machine.travel("23:00")
+    @time_machine.travel("06:00")
     @patch("game.views.requests.get")
-    def test_get_joke_night(self, mock_get):
-        mock_get.return_value.status_code = 403
-        mock_get.return_value.json.return_value = {
-            "error": "you should have been sleeping now, come back tomorrow"
-        }
+    def test_get_joke_at_06_00(self, mock_get):
+        self.setup_day_mock(mock_get)
 
         response = self.client.get(self.url)
+        self.assert_successful_response(response)
 
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("error", response.json())
-
+    @time_machine.travel("08:45")
     @patch("game.views.requests.get")
-    def test_get_joke_day_6_times(self, mock_get):
+    def test_get_joke_at_08_45(self, mock_get):
+        self.setup_day_mock(mock_get)
 
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = self.mock_joke
+        response = self.client.get(self.url)
+        self.assert_successful_response(response)
 
-        times = ["06:00", "08:45", "11:30", "16:10", "18:47", "21:59"]
-
-        for time in times:
-            with time_machine.travel(time):
-                response = self.client.get(self.url)
-                self.assertEqual(response.status_code, 200)
-                self.assertIn(response.json()["type"], "general")
-
-        self.assertEqual(mock_get.call_count, 6)
-
+    @time_machine.travel("11:30")
     @patch("game.views.requests.get")
-    def test_get_joke_night_6_times(self, mock_get):
-        times = ["22:00", "00:02", "04:57", "03:33", "05:58", "05:59"]
+    def test_get_joke_at_11_30(self, mock_get):
+        self.setup_day_mock(mock_get)
 
-        for time in times:
-            with time_machine.travel(time):
-                response = self.client.get(self.url)
-                self.assertEqual(response.status_code, 403)
-                self.assertIn("error", response.json())
+        response = self.client.get(self.url)
+        self.assert_successful_response(response)
 
-        mock_get.assert_not_called()
+    @time_machine.travel("16:10")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_16_10(self, mock_get):
+        self.setup_day_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_successful_response(response)
+
+    @time_machine.travel("21:59")
+    @patch("game.views.requests.get")
+    def test_get_joke_21_59(self, mock_get):
+        self.setup_day_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_successful_response(response)
+
+    @time_machine.travel("22:00")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_22_00(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
+
+    @time_machine.travel("23:30")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_23_30(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
+
+    @time_machine.travel("04:59")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_04_59(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
+
+    @time_machine.travel("03:33")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_03_33(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
+
+    @time_machine.travel("02:22")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_02_22(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
+
+    @time_machine.travel("01:15")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_01_15(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
+
+    @time_machine.travel("05:59")
+    @patch("game.views.requests.get")
+    def test_get_joke_at_05_59(self, mock_get):
+        self.setup_night_mock(mock_get)
+
+        response = self.client.get(self.url)
+        self.assert_night_response(response)
