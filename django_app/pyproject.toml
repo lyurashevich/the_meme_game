@@ -4,6 +4,7 @@ version = "0.1.0"
 dependencies = [
     "django==5.1.6",
     "djangorestframework==3.15.2",
+    "djangorestframework_simplejwt==5.5.0",
     "drf-spectacular==0.28.0",
     "drf-spectacular-sidecar==2025.2.1",
     "gunicorn==23.0.0",
@@ -19,4 +20,5 @@ test = [
     "pytest-cov==6.0.0",
     "pytest-django==4.10.0",
     "pytest-xdist==3.6.1",
+    "time-machine==2.16.0",
 ]

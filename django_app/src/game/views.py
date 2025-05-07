@@ -25,13 +25,10 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
 
 
-def is_daytime():
-    current_hour = datetime.now().hour
-    return 6 <= current_hour < 22
-
-
 def get_joke(request):
-    if is_daytime():
+    current_hour = datetime.now().hour
+
+    if 6 <= current_hour < 22:
         try:
             response = requests.get(
                 "https://official-joke-api.appspot.com/random_joke", timeout=5.0

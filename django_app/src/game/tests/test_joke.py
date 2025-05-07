@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import requests.exceptions
+import time_machine
 from django.test import TestCase
 from django.urls import reverse
 
@@ -53,9 +54,9 @@ class JokeAPITestCase(TestCase):
         self.assertEqual(response.status_code, 504)
         self.assertEqual(response.json(), {"error": "timeout"})
 
-    @patch("game.views.is_daytime", return_value=True)
+    @time_machine.travel("15:00")
     @patch("game.views.requests.get")
-    def test_get_joke_day(self, mock_get, mock_daytime):
+    def test_get_joke_day(self, mock_get):
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = self.mock_joke
 
@@ -64,9 +65,9 @@ class JokeAPITestCase(TestCase):
         self.assertIn("setup", response.json())
         self.assertEqual(response.json()["type"], "general")
 
-    @patch("game.views.is_daytime", return_value=False)
+    @time_machine.travel("23:00")
     @patch("game.views.requests.get")
-    def test_get_joke_night(self, mock_get, mock_daytime):
+    def test_get_joke_night(self, mock_get):
         mock_get.return_value.status_code = 403
         mock_get.return_value.json.return_value = {
             "error": "you should have been sleeping now, come back tomorrow"
@@ -76,3 +77,31 @@ class JokeAPITestCase(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertIn("error", response.json())
+
+    @patch("game.views.requests.get")
+    def test_get_joke_day_6_times(self, mock_get):
+
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = self.mock_joke
+
+        times = ["06:00", "08:45", "11:30", "16:10", "18:47", "21:59"]
+
+        for time in times:
+            with time_machine.travel(time):
+                response = self.client.get(self.url)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(response.json()["type"], "general")
+
+        self.assertEqual(mock_get.call_count, 6)
+
+    @patch("game.views.requests.get")
+    def test_get_joke_night_6_times(self, mock_get):
+        times = ["22:00", "00:02", "04:57", "03:33", "05:58", "05:59"]
+
+        for time in times:
+            with time_machine.travel(time):
+                response = self.client.get(self.url)
+                self.assertEqual(response.status_code, 403)
+                self.assertIn("error", response.json())
+
+        mock_get.assert_not_called()
