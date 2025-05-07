@@ -5,23 +5,9 @@ from django.test import TestCase
 from django.urls import reverse
 from parameterized import parameterized
 
-NIGHT_TIMES = [
-    ("22_00", "22:00"),
-    ("23_30", "23:30"),
-    ("01_15", "01:15"),
-    ("02_22", "02:22"),
-    ("03_33", "03:33"),
-    ("05_59", "05:59"),
-]
+NIGHT_TIMES = ["22:00", "23:30", "01:15", "02:22", "03:33", "05:59"]
 
-DAY_TIMES = [
-    ("06_00", "06:00"),
-    ("07_23", "07:23"),
-    ("11_11", "11:11"),
-    ("15_36", "15:36"),
-    ("18_29", "18:29"),
-    ("21_59", "21:59"),
-]
+DAY_TIMES = ["06:00", "07:23", "11:11", "15:36", "18:29", "21:59"]
 
 
 class JokeAPITestCase(TestCase):
@@ -36,14 +22,6 @@ class JokeAPITestCase(TestCase):
         self.night_response = {
             "error": "you should have been sleeping now, come back tomorrow"
         }
-
-    def assert_successful_response(self, response):
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), self.mock_joke)
-
-    def assert_night_response(self, response):
-        self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.json(), self.night_response)
 
     @responses.activate
     def test_get_joke_fail(self):
@@ -71,12 +49,13 @@ class JokeAPITestCase(TestCase):
 
     @parameterized.expand(NIGHT_TIMES)
     @responses.activate
-    def test_get_joke_night(self, _, time):
+    def test_get_joke_night(self, time):
 
         with time_machine.travel(time):
             response = self.client.get(self.url)
 
-        self.assert_night_response(response)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), self.night_response)
         self.assertEqual(len(responses.calls), 0)
 
     @staticmethod
@@ -95,11 +74,12 @@ class JokeAPITestCase(TestCase):
 
     @parameterized.expand(DAY_TIMES)
     @responses.activate
-    def test_get_joke_day(self, _, time):
+    def test_get_joke_day(self, time):
         self.setup_day_response()
 
         with time_machine.travel(time):
             response = self.client.get(self.url)
 
-        self.assert_successful_response(response)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), self.mock_joke)
         self.assertEqual(len(responses.calls), 1)
