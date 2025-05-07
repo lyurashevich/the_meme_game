@@ -21,4 +21,6 @@ test = [
     "pytest-django==4.10.0",
     "pytest-xdist==3.6.1",
     "time-machine==2.16.0",
+    "parameterized==0.9.0",
+    'responses==0.25.7',
 ]

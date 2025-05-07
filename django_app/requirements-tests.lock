@@ -48,6 +48,8 @@ packaging==24.2
     # via
     #   gunicorn
     #   pytest
+parameterized==0.9.0
+    # via meme-game (pyproject.toml:test)
 pluggy==1.5.0
     # via pytest
 psycopg2-binary==2.9.10
@@ -71,13 +73,19 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
     # via meme-game (pyproject.toml)
 pyyaml==6.0.2
-    # via drf-spectacular
+    # via
+    #   drf-spectacular
+    #   responses
 referencing==0.36.2
     # via
     #   jsonschema
     #   jsonschema-specifications
 requests==2.32.3
-    # via meme-game (pyproject.toml)
+    # via
+    #   meme-game (pyproject.toml)
+    #   responses
+responses==0.25.7
+    # via meme-game (pyproject.toml:test)
 rpds-py==0.23.1
     # via
     #   jsonschema
@@ -95,4 +103,5 @@ uritemplate==4.1.1
 urllib3==2.3.0
     # via
     #   requests
+    #   responses
     #   types-requests
