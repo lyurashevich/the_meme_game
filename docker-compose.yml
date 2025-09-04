@@ -17,66 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  django: &django
-    build:
-      context: django_app
-      dockerfile: Dockerfile
-      target: base
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./django_app/src:/app
-    environment:
-      DB_NAME: ${DB_NAME:-docker_db}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-    ports:
-      - "8001:8000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/healthcheck/"]
-      interval: 15s
-      retries: 5
-      start_period: 30s
-      timeout: 10s
-    restart: always
-    command:
-      - sh
-      - -c
-      - "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-
-  tests:
-    build:
-      context: django_app
-      target: tests
-    volumes:
-      - ./django_app/src:/app
-      - ./.env.example:/app/.env.example
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DB_NAME: ${DB_NAME:-docker_db}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-
-  pip-compile-django:
-    build:
-      context: django_app
-      target: tests
-    volumes:
-      - ./django_app:/app
-    working_dir: /app
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        uv pip compile pyproject.toml -o requirements.lock &&
-        uv pip compile pyproject.toml --group test -o requirements-tests.lock
-
   fastapi: &fastapi
     build:
       context: websockets
@@ -113,16 +53,6 @@ services:
       - sh
       - -c
       - pytest
-
-  redis:
-    image: redis:8.0-M03-alpine
-    ports:
-      - "6380:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   pip-compile-fastapi:
     build:
@@ -187,4 +117,3 @@ services:
 volumes:
   postgres_data:
   static_volume:
-  redis_data:
