@@ -2,9 +2,10 @@
 Database initialization script
 Run this to create all tables in the database
 """
+
 import asyncio
-from db import engine, Base
-from models import MemeCard, SituationCard
+
+from app.db import Base, engine
 
 
 async def init_db():

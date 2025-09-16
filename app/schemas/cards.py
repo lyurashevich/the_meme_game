@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class MemeCardBase(BaseModel):
@@ -18,8 +18,7 @@ class MemeCardUpdate(BaseModel):
 class MemeCardSchema(MemeCardBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SituationCardBase(BaseModel):
@@ -37,5 +36,4 @@ class SituationCardUpdate(BaseModel):
 class SituationCardSchema(SituationCardBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

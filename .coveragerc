@@ -1,0 +1,21 @@
+[run]
+omit =
+    */__init__.py
+    */tests/*
+    */test_*.py
+    */conftest.py
+    */setup.py
+    */migrations/*
+    */venv/*
+    */.venv/*
+
+[report]
+omit =
+    */__init__.py
+    */tests/*
+    */test_*.py
+    */conftest.py
+    */setup.py
+    */migrations/*
+    */venv/*
+    */.venv/*

@@ -3,10 +3,7 @@ import os
 import jwt
 from dotenv import load_dotenv
 from fastapi import HTTPException, Security, status
-from fastapi.security import (
-    HTTPAuthorizationCredentials,
-    HTTPBearer,
-)
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 load_dotenv()
 
