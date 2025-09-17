@@ -39,18 +39,14 @@ def main():
         default="all",
         help="Type of tests to run",
     )
-    parser.add_argument(
-        "--coverage", action="store_true", help="Run with coverage reporting"
-    )
+    parser.add_argument("--coverage", action="store_true", help="Run with coverage reporting")
     parser.add_argument("--parallel", action="store_true", help="Run tests in parallel")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--file", help="Run specific test file")
     parser.add_argument("--class", dest="test_class", help="Run specific test class")
     parser.add_argument("--function", help="Run specific test function")
     parser.add_argument("--markers", help="Run tests with specific markers")
-    parser.add_argument(
-        "--install-deps", action="store_true", help="Install test dependencies first"
-    )
+    parser.add_argument("--install-deps", action="store_true", help="Install test dependencies first")
 
     args = parser.parse_args()
 

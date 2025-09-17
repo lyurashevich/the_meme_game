@@ -4,8 +4,9 @@ import pytest
 
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import GameState
-from app.game.game import GameLogic
+from app.game.game import game_logic
 from app.game.game_manager import game_manager
+from tests.conftest import test_player
 
 
 class TestPlayer:
@@ -19,143 +20,200 @@ class TestPlayer:
         assert player.is_connected
         assert player.connection_order == 0
 
-    async def test_update_player(self, player):
-        old_username = player.username
-        player.username = "Oleg"
+    async def test_update_player(self, test_player):
+        old_username = test_player.username
+        test_player.username = "Oleg"
 
-        assert old_username != player.username
+        assert old_username != test_player.username
 
 
 class TestRoom:
-    async def test_create_room(self, player):
-        room = Room(owner=player)
+    async def test_create_room(self, test_player):
+        room = Room(owner=test_player)
         assert isinstance(room.id, str)
         assert room.name.startswith("room")
         assert room.max_players == 10
-        assert room.owner == player
+        assert room.owner == test_player
         assert isinstance(room.invitation_link, str)
         assert not room.is_private
         assert len(room.players) == 1
-        assert player in room.players
+        assert test_player in room.players
 
-    async def test_add_player(self, room):
+    async def test_add_player(self, test_room):
         player = Player(id=2)
 
-        players_quantity = len(room.players)
+        players_quantity = len(test_room.players)
 
-        await room.add_player(player)
+        await test_room.add_player(player)
 
-        assert players_quantity != len(room.players)
-        assert len(room.players) == 2
-        assert room.owner in room.players
-        assert player in room.players
+        assert players_quantity != len(test_room.players)
+        assert len(test_room.players) == 2
+        assert test_room.owner in test_room.players
+        assert player in test_room.players
 
-    async def test_add_player__already_joined(self, room):
+    async def test_add_player__already_joined(self, test_room):
         player = Player(id=2)
-        await room.add_player(player)
+        await test_room.add_player(player)
 
         with pytest.raises(Exception) as e:
-            await room.add_player(player)
+            await test_room.add_player(player)
 
         assert "already joined" in str(e.value)
 
-    async def test_add_player__room_is_full(self, room):
-        room.max_players = 1
+    async def test_add_player__room_is_full(self, test_room):
+        test_room.max_players = 1
         player = Player(id=2)
 
         with pytest.raises(Exception) as e:
-            await room.add_player(player)
+            await test_room.add_player(player)
 
         assert "The room is full" in str(e.value)
 
-    async def test_remove_player__not_found(self, room):
+    async def test_remove_player__not_found(self, test_room):
         player = Player(id=2)
 
         with pytest.raises(Exception) as e:
-            await room.remove_player(player)
+            await test_room.remove_player(player)
 
         assert str(e.value) == "User not found"
 
-    async def test_remove_player(self, room):
+    async def test_remove_player(self, test_room):
         player = Player(id=2)
-        await room.add_player(player)
+        await test_room.add_player(player)
 
-        await room.remove_player(player)
+        await test_room.remove_player(player)
 
-        assert len(room.players) == 1
-        assert room.owner in room.players
-        assert player not in room.players
+        assert len(test_room.players) == 1
+        assert test_room.owner in test_room.players
+        assert player not in test_room.players
 
 
 class TestGame:
-    def test_game_create(self, player):
-        room = Room(owner=player)
+    def test_game_create(self, test_player):
+        room = Room(owner=test_player)
         game = Game(room=room)
 
         assert isinstance(game.id, str)
         assert game.state == GameState.WAITING
         assert not game.current_round
-        assert game.round_number == 0
         assert game.meme_deck == []
         assert game.situation_deck == []
         assert game.meme_discard_pile == {}
         assert game.situation_discard_pile == {}
         assert game.leader_index == 0
 
-    # def test_start_game__not_enough_players(self, game):
-    #     with pytest.raises(Exception) as e:
-    #         game.start_game()
-    #
-    #     assert str(e.value) == "You need to have at least 3 players to start game."
-    #
-    # def test_start_game(self, game, room, people, mock_meme_cards, mock_situation_cards):
-    #     for person in people:
-    #         game.room.add_player(person)
-    #
-    #     game.start_game()
-    #
-    #     assert game.state == GameState.STARTING
-    #     assert game.current_round is not None
-    #     assert game.current_round.leader == room.players[0]
-    #     assert game.meme_deck != []
-    #     assert game.situation_deck != []
-    #     assert game.meme_discard_pile == []
-    #     assert game.situation_discard_pile == []
-
 
 class TestGameLogic:
-    logic = GameLogic()
 
-    async def test_start_game__not_enough_players(self, player):
-        room = await game_manager.create_room(
-            owner=player, max_players=10, room_name=None, is_private=False
-        )
+    async def test_start_game__not_enough_players(self, test_room):
 
         with pytest.raises(Exception) as e:
-            await self.logic.start_game(room_id=room.id)
+            await game_logic.prepare_game(room_id=test_room.id)
 
         assert "Not enough players" in str(e.value)
 
-    async def test_start_game(
-        self, player, people, mock_meme_cards, mock_situation_cards
-    ):
-        room = await game_manager.create_room(
-            owner=player, max_players=10, is_private=False, room_name=None
-        )
-        for person in people:
-            await game_manager.join_room(room.id, person)
+    async def test_start_game__room_not_found(self):
 
-        with patch(
-            "app.services.memes_services.CardService.MEME_CARDS", mock_meme_cards
-        ), patch(
+        with pytest.raises(Exception) as e:
+            await game_logic.prepare_game("room")
+
+        assert str(e.value) == "Room not found"
+
+    async def test_prepare_game(self, test_room_with_players, mock_meme_cards, mock_situation_cards):
+
+        with patch("app.services.memes_services.CardService.MEME_CARDS", mock_meme_cards), patch(
             "app.services.situations_services.CardService.SITUATION_CARDS",
             mock_situation_cards,
         ):
-            game = await self.logic.start_game(room_id=room.id)
+            game = await game_logic.prepare_game(room_id=test_room_with_players.id)
 
-        assert room.id in game_manager.active_games
-        assert game.meme_deck != []
-        assert game.situation_deck != []
-        assert game.current_round
-        for player in game.room.players:
+        assert test_room_with_players.id in game_manager.active_games
+        assert len(game.meme_deck) == len(mock_meme_cards)
+        assert len(game.situation_deck) == len(mock_situation_cards)
+        assert not game.current_round
+        assert game.meme_discard_pile == {}
+        assert game.situation_discard_pile == {}
+
+    async def test_start_first_round(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+
+        assert prepared_game.current_round.round_number == 1
+        assert prepared_game.current_round.situation_card
+        assert prepared_game.current_round.leader == prepared_game.room.owner
+        assert not prepared_game.current_round.winner
+        assert prepared_game.current_round.player_choices == {}
+        for player in prepared_game.room.players:
             assert len(player.handed_cards) == 6
+            assert len(set(player.handed_cards)) == 6
+
+    async def test_player_select_card(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+
+        for player in prepared_game.room.players:
+            await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        assert prepared_game.current_round.player_choices != {}
+        assert prepared_game.current_round.leader.id not in prepared_game.current_round.player_choices
+
+    async def test_end_round(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        for player in prepared_game.room.players:
+            await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[-1]
+        await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        await game_logic.end_round(prepared_game)
+
+        assert prepared_game.meme_discard_pile != {}
+        assert prepared_game.situation_discard_pile != {}
+        assert prepared_game.current_round.winner == winner
+        assert winner.score == 1
+        for player in prepared_game.room.players:
+            if prepared_game.current_round.leader != player:
+                assert len(player.handed_cards) == 5
+
+    async def test_start_new_round(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        initial_situation_card = prepared_game.current_round.situation_card
+        initial_round_number = prepared_game.current_round.round_number
+        initial_leader = prepared_game.current_round.leader
+
+        await game_logic.start_new_round(prepared_game)
+
+        assert prepared_game.current_round.round_number == initial_round_number + 1
+        assert prepared_game.current_round.situation_card != initial_situation_card
+        assert prepared_game.current_round.leader != initial_leader
+        # assert not prepared_game.current_round.winner
+        # assert prepared_game.current_round.player_choices == {}
+        # for player in prepared_game.room.players:
+        #     assert len(player.handed_cards) == 6
+
+    async def test_hand_out_initial_cards(self, prepared_game):
+
+        full_meme_deck = len(prepared_game.meme_deck)
+
+        await game_logic.hand_out_initial_cards(prepared_game)
+
+        for player in prepared_game.room.players:
+            assert len(player.handed_cards) == 6
+            assert len(set(player.handed_cards)) == 6
+
+        assert len(prepared_game.meme_deck) == full_meme_deck - 4 * 6
+
+    async def test_hand_out_initial_cards__not_enough_cards(self, test_game):
+        with pytest.raises(Exception) as e:
+            await game_logic.hand_out_initial_cards(test_game)
+
+        assert str(e.value) == "Not enough memes in deck"
+
+    # async def test_start_new_round(self, started_game):
+    #     initial_round = started_game.round_number
+    #     initial_leader = started_game.current_round.leader
+    #     initial_situation_card = started_game.current_round.situation_card
+    #
+    #     await game_logic.start_new_round(started_game)
+    #
+    #     assert initial_round != started_game.round_number
+    #     assert initial_leader != started_game.current_round.leader
+    #     assert initial_situation_card != started_game.current_round.situation_card

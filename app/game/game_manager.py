@@ -8,20 +8,16 @@ class GameManager:
 
     active_games: dict[str, Game] = field(default_factory=dict)  # room_id -> Game
     active_rooms: dict[str, Room] = field(default_factory=dict)  # room_id -> Room
-    player_connections: dict[int, str] = field(
-        default_factory=dict
-    )  # player_id -> room_id
+    player_connections: dict[int, str] = field(default_factory=dict)  # player_id -> room_id
 
     async def create_room(
         self,
         owner: Player,
-        room_name: str = "",
+        room_name: str | None = None,
         max_players: int = 10,
         is_private: bool = False,
     ) -> Room:
-        room = Room(
-            owner=owner, name=room_name, max_players=max_players, is_private=is_private
-        )
+        room = Room(owner=owner, name=room_name, max_players=max_players, is_private=is_private)
 
         self.active_rooms[room.id] = room
         self.player_connections[owner.id] = room.id
@@ -46,9 +42,7 @@ class GameManager:
             raise Exception("Room not found")
 
         room = self.active_rooms[room_id]
-        player = next(
-            (player for player in room.players if player.id == player_id), None
-        )
+        player = next((player for player in room.players if player.id == player_id), None)
 
         if not player:
             raise Exception("Player not found")
@@ -66,11 +60,7 @@ class GameManager:
         if room_id in self.active_rooms:
             del self.active_rooms[room_id]
 
-        players_to_remove = [
-            player_id
-            for player_id, room in self.player_connections.items()
-            if room == room_id
-        ]
+        players_to_remove = [player_id for player_id, room in self.player_connections.items() if room == room_id]
         for player_id in players_to_remove:
             del self.player_connections[player_id]
 

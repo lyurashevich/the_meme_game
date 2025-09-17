@@ -28,9 +28,7 @@ class Room:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     max_players: int = 10
     owner: Player = None
-    invitation_link: str = field(
-        default_factory=lambda: f"https://your-domain.com/join/{uuid.uuid4()}"
-    )
+    invitation_link: str = field(default_factory=lambda: f"https://your-domain.com/join/{uuid.uuid4()}")
     is_private: bool = False
     players: list[Player] = field(default_factory=list)
     # created_at: datetime = field(default_factory=datetime.now)
@@ -63,9 +61,7 @@ class GameRound:
     round_number: int
     leader: Player
     situation_card: SituationCard
-    player_choices: dict[int, MemeCard] = field(
-        default_factory=dict
-    )  # player_id -> selected_card
+    player_choices: dict[int, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
     start_time: datetime = field(default_factory=datetime.now)
@@ -79,7 +75,7 @@ class Game:
     current_round: GameRound | None = None
     state: GameState = GameState.WAITING
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    round_number: int = 0
+    # round_number: int = 0
     meme_deck: list[MemeCard] = field(default_factory=list)
     situation_deck: list[SituationCard] = field(default_factory=list)
     meme_discard_pile: dict[int, list[MemeCard]] = field(default_factory=dict)

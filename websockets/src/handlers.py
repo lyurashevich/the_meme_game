@@ -44,16 +44,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int) -> None:
             data = await websocket.receive_text()
             print(f"received message from client {client_id}: {data}")
             await manager.send_personal_message(f"your message was: {data}", websocket)
-            await redis_client.publish(
-                f"channel: {client_id}", f"client #{client_id} says {data}"
-            )
+            await redis_client.publish(f"channel: {client_id}", f"client #{client_id} says {data}")
 
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
         print(f"client #{client_id} disconnected")
-        await redis_client.publish(
-            f"channel {client_id}", f"client #{client_id} left the chat"
-        )
+        await redis_client.publish(f"channel {client_id}", f"client #{client_id} left the chat")
         await redis_client.close()
 
 

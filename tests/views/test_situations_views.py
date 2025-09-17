@@ -36,9 +36,7 @@ class TestSituationViews:
     def test_create_situation_card_view(self, client, db_session):
         response = client.post(self.url, json={"text": "Test situation"})
 
-        card = db_session.execute(
-            select(SituationCard).where(SituationCard.text == "Test situation")
-        ).scalar_one()
+        card = db_session.execute(select(SituationCard).where(SituationCard.text == "Test situation")).scalar_one()
 
         assert response.status_code == 201
         assert response.json()["id"] == card.id
@@ -50,9 +48,7 @@ class TestSituationViews:
         db_session.add(card)
         db_session.commit()
 
-        response = client.patch(
-            f"{self.url}/{card.id}", json={"text": "Test situation2"}
-        )
+        response = client.patch(f"{self.url}/{card.id}", json={"text": "Test situation2"})
 
         assert response.status_code == 200
         assert response.json()["text"] == "Test situation2"
@@ -72,9 +68,7 @@ class TestSituationViews:
         response = client.delete(f"{self.url}/{card.id}")
 
         assert response.status_code == 204
-        assert not db_session.execute(
-            select(SituationCard).where(SituationCard.id == card.id)
-        ).scalar_one_or_none()
+        assert not db_session.execute(select(SituationCard).where(SituationCard.id == card.id)).scalar_one_or_none()
 
     def test_delete_situation_card_view__not_found(self, client, db_session):
         response = client.delete(f"{self.url}/999")
