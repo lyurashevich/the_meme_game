@@ -25,9 +25,7 @@ class CardService:
         result = self.db.execute(select(MemeCard).where(MemeCard.id == card_id))
         card = result.scalar_one_or_none()
         if not card:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Meme card not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meme card not found")
         return card
 
     def create_meme_card(self, card_data: MemeCardCreate) -> MemeCard:

@@ -36,9 +36,7 @@ class TestMemesViews:
     def test_create_situation_card_view(self, client, db_session):
         response = client.post(self.url, json={"image_url": "http://memes.org/1"})
 
-        card = db_session.execute(
-            select(MemeCard).where(MemeCard.image_url == "http://memes.org/1")
-        ).scalar_one()
+        card = db_session.execute(select(MemeCard).where(MemeCard.image_url == "http://memes.org/1")).scalar_one()
 
         assert response.status_code == 201
         assert response.json()["id"] == card.id
@@ -50,9 +48,7 @@ class TestMemesViews:
         db_session.add(card)
         db_session.commit()
 
-        response = client.patch(
-            f"{self.url}/{card.id}", json={"image_url": "http://memes.org/2"}
-        )
+        response = client.patch(f"{self.url}/{card.id}", json={"image_url": "http://memes.org/2"})
 
         assert response.status_code == 200
         assert response.json()["image_url"] == "http://memes.org/2"
@@ -60,9 +56,7 @@ class TestMemesViews:
 
     def test_update_situation_card_view__not_found(self, client, db_session):
 
-        response = client.patch(
-            f"{self.url}/999", json={"image_url": "http://memes.org/1"}
-        )
+        response = client.patch(f"{self.url}/999", json={"image_url": "http://memes.org/1"})
 
         assert response.status_code == 404
 
@@ -74,9 +68,7 @@ class TestMemesViews:
         response = client.delete(f"{self.url}/{card.id}")
 
         assert response.status_code == 204
-        assert not db_session.execute(
-            select(MemeCard).where(MemeCard.id == card.id)
-        ).scalar_one_or_none()
+        assert not db_session.execute(select(MemeCard).where(MemeCard.id == card.id)).scalar_one_or_none()
 
     def test_delete_situation_card_view__not_found(self, client, db_session):
         response = client.delete(f"{self.url}/999")

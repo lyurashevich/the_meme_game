@@ -21,14 +21,10 @@ class CardService:
         return result.scalars().all()
 
     def get_situation_card(self, card_id: int) -> SituationCard:
-        result = self.db.execute(
-            select(SituationCard).where(SituationCard.id == card_id)
-        )
+        result = self.db.execute(select(SituationCard).where(SituationCard.id == card_id))
         card = result.scalar_one_or_none()
         if not card:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Situation card not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Situation card not found")
         return card
 
     def create_situation_card(self, card_data: SituationCardCreate) -> SituationCard:
@@ -45,9 +41,7 @@ class CardService:
                 detail="Failed to create situation card",
             )
 
-    def update_situation_card(
-        self, card_id: int, card_data: SituationCardUpdate
-    ) -> SituationCard:
+    def update_situation_card(self, card_id: int, card_data: SituationCardUpdate) -> SituationCard:
         card = self.get_situation_card(card_id)
 
         if card_data.text is not None:
