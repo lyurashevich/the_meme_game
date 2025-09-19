@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from starlette.websockets import WebSocket
+
 from app.game.dataclasses import Game, Player, Room
 
 
@@ -8,7 +10,19 @@ class GameManager:
 
     active_games: dict[str, Game] = field(default_factory=dict)  # room_id -> Game
     active_rooms: dict[str, Room] = field(default_factory=dict)  # room_id -> Room
-    player_connections: dict[int, str] = field(default_factory=dict)  # player_id -> room_id
+    player_connections: dict[str, str] = field(default_factory=dict)  # player_id -> room_id
+    player_sockets: dict[str, WebSocket] = field(default_factory=dict)  # player_id -> Websocket
+    players: dict[str, Player] = field(default_factory=dict)  # player_id -> Player
+
+    async def create_player(self, name: str | None = None) -> Player:
+        player = Player(username=name)
+        self.players[player.id] = player
+
+        return player
+
+    def get_room_players_count(self, room_id: str) -> int:
+        room = self.active_rooms.get(room_id)
+        return len(room.players) if room else 0
 
     async def create_room(
         self,
@@ -33,7 +47,7 @@ class GameManager:
         await room.add_player(player)
         self.player_connections[player.id] = room_id
 
-    async def leave_room(self, player_id: int) -> None:
+    async def leave_room(self, player_id: str) -> None:
         if player_id not in self.player_connections:
             raise Exception("Player not found")
 
@@ -53,7 +67,7 @@ class GameManager:
         if not room.players:
             await self.cleanup_room(room_id)
 
-    async def cleanup_room(self, room_id):
+    async def cleanup_room(self, room_id) -> None:
         if room_id in self.active_games:
             del self.active_games[room_id]
 
@@ -66,3 +80,7 @@ class GameManager:
 
 
 game_manager = GameManager()
+
+
+def get_game_manager():
+    return game_manager

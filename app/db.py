@@ -17,8 +17,8 @@ try:
     DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     TEST_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
 except KeyError:
-    DATABASE_URL = 'sqlite:///./test.db'
-    TEST_DATABASE_URL = 'sqlite:///./test.db'
+    DATABASE_URL = "sqlite:///./test.db"
+    TEST_DATABASE_URL = "sqlite:///./test.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 session_maker = sessionmaker(engine, expire_on_commit=False)

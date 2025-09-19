@@ -8,7 +8,7 @@ from app.models import MemeCard, SituationCard
 
 @dataclass
 class Player:
-    id: int  # WebSocket connection ID
+    id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     username: str | None = None
     handed_cards: list[MemeCard] = field(default_factory=list)
     is_host: bool = False  # Host is the first leader
@@ -28,12 +28,21 @@ class Room:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     max_players: int = 10
     owner: Player = None
-    invitation_link: str = field(default_factory=lambda: f"https://your-domain.com/join/{uuid.uuid4()}")
+    # invitation_link: str = field(default_factory=lambda: f"https://your-domain.com/join/{uuid.uuid4()}")
+    invitation_link: str | None = None
     is_private: bool = False
     players: list[Player] = field(default_factory=list)
     # created_at: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    @property
+    def owner_id(self) -> str:
+        return self.owner.id
+
+    @property
+    def players_count(self) -> int:
+        return len(self.players)
+
+    def __post_init__(self) -> None:
         if self.name is None:
             self.name = f"room{self.id[:8]}"
 
