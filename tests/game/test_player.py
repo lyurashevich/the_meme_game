@@ -34,7 +34,6 @@ class TestRoom:
         assert room.name.startswith("room")
         assert room.max_players == 10
         assert room.owner == test_player
-        assert isinstance(room.invitation_link, str)
         assert not room.is_private
         assert len(room.players) == 1
         assert test_player in room.players

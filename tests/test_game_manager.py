@@ -6,7 +6,7 @@ from app.game.game_manager import game_manager
 
 class TestGameManager:
     @pytest.mark.parametrize(
-        "room_name,max_players,is_private",
+        "room_name, max_players, is_private",
         [
             ("Room 1", 4, True),
             ("Room 2", 10, False),
@@ -36,7 +36,7 @@ class TestGameManager:
 
     async def test_join_room(self, test_room):
 
-        player = Player(id=333)
+        player = Player(id="333")
         await game_manager.join_room(test_room.id, player)
 
         assert player.id in game_manager.player_connections
@@ -56,7 +56,7 @@ class TestGameManager:
 
     async def test_join_room__full_room(self, test_room):
         test_room.max_players = 1
-        player = Player(id=555)
+        player = Player(id="555")
 
         with pytest.raises(Exception) as e:
             await game_manager.join_room(test_room.id, player)
@@ -65,7 +65,7 @@ class TestGameManager:
         assert player.id not in game_manager.player_connections
 
     async def test_leave_room(self, test_player, test_room):
-        player = Player(id=555)
+        player = Player(id="555")
         await game_manager.join_room(test_room.id, player)
         await game_manager.leave_room(player.id)
 

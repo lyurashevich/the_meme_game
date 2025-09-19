@@ -21,6 +21,12 @@ test_session_maker = sessionmaker(test_engine, expire_on_commit=False)
 
 
 @pytest.fixture
+def client_with_no_db():
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
 def client(db_session):
     def override_get_db():
         yield db_session
@@ -41,7 +47,8 @@ def db_session():
 
 @pytest.fixture
 def test_player():
-    player = Player(username="Lisaveta", id=333)
+    player = Player(username="Lisaveta", id="333")
+    game_manager.players[player.id] = player
     return player
 
 
@@ -54,7 +61,10 @@ def test_players():
 @pytest.fixture
 async def test_room(test_player):
     room = await game_manager.create_room(owner=test_player)
-    return room
+    yield room
+    game_manager.active_rooms.clear()
+    game_manager.players.clear()
+    game_manager.active_games.clear()
 
 
 @pytest.fixture
@@ -63,7 +73,10 @@ async def test_room_with_players(test_player, test_players):
     for player in test_players:
         await room.add_player(player)
 
-    return room
+    yield room
+    game_manager.active_rooms.clear()
+    game_manager.players.clear()
+    game_manager.active_games.clear()
 
 
 @pytest.fixture
@@ -75,7 +88,7 @@ async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_
     ):
         game = await game_logic.prepare_game(room_id=test_room_with_players.id)
 
-    return game
+    yield game
 
 
 @pytest.fixture
