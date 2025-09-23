@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -115,3 +115,13 @@ def mock_situation_cards():
 
     CardService.SITUATION_CARDS = situation_cards
     return situation_cards
+
+
+@pytest.fixture
+def websocket():
+    ws = AsyncMock()
+    ws.send_json = AsyncMock()
+    ws.send_text = AsyncMock()
+    ws.accept = AsyncMock()
+    ws.close = AsyncMock()
+    return ws

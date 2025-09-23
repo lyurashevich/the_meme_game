@@ -55,8 +55,8 @@ class TestRoomViews:
         assert new_player in game_manager.players.values()
         assert new_player in updated_room.players
 
-    async def test_leave_room(self, test_room, client_with_no_db):
-        new_player = await game_manager.create_player()
+    async def test_leave_room(self, websocket, test_room, client_with_no_db):
+        new_player = await game_manager.create_player(websocket=websocket)
         await game_manager.join_room(test_room.id, new_player)
 
         response = client_with_no_db.patch(f"{self.url}/{test_room.id}/leave", json={"player_id": new_player.id})
