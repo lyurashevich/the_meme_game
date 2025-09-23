@@ -17,6 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Print current branch
+        run: echo "Branch: ${GITHUB_REF##*/}"
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
