@@ -5,7 +5,7 @@ from typing import Optional
 
 from app.game.dataclasses import Game, GameRound, Room
 from app.game.enums import GameState, RoundState
-from app.game.game_manager import game_manager
+from app.game.game_manager import get_game_manager
 from app.game.game_settings import GameSettings
 from app.models import SituationCard
 from app.services.memes_services import CardService as MemeService
@@ -15,13 +15,13 @@ from app.services.situations_services import CardService as SituationService
 class GameLogic:
     def __init__(self):
         self.settings = GameSettings()
+        self.game_manager = get_game_manager()
 
-    @staticmethod
-    async def get_room(room_id) -> Room:
-        if room_id not in game_manager.active_rooms:
+    async def get_room(self, room_id) -> Room:
+        if room_id not in self.game_manager.active_rooms:
             raise Exception("Room not found")
 
-        room = game_manager.active_rooms[room_id]
+        room = self.game_manager.active_rooms[room_id]
         return room
 
     @staticmethod
@@ -38,7 +38,7 @@ class GameLogic:
 
         await self.initialize_decks(game)
         game.leader_index = 0
-        game_manager.active_games[room_id] = game
+        self.game_manager.active_games[room_id] = game
 
         return game
 
@@ -217,11 +217,11 @@ class GameLogic:
 
     def get_game_state(self, room_id: str) -> Optional[Game]:
         """Get current game state for a room"""
-        return game_manager.active_games.get(room_id)
+        return self.game_manager.active_games.get(room_id)
 
     def get_room_state(self, room_id: str) -> Optional[Room]:
         """Get current room state"""
-        return game_manager.active_rooms.get(room_id)
+        return self.game_manager.active_rooms.get(room_id)
 
 
 game_logic = GameLogic()
