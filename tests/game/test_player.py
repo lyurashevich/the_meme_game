@@ -5,14 +5,14 @@ import pytest
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import GameState
 from app.game.game import game_logic
-from app.game.game_manager import game_manager
+from app.game.game_manager import get_game_manager
 from tests.conftest import test_player
 
 
 class TestPlayer:
     async def test_create_player(self):
-        player = Player(id=1, username="Lisaveta")
-        assert player.id == 1
+        player = Player(id="1", username="Lisaveta")
+        assert player.id == "1"
         assert player.username == "Lisaveta"
         assert player.handed_cards == []
         assert not player.is_host
@@ -39,7 +39,7 @@ class TestRoom:
         assert test_player in room.players
 
     async def test_add_player(self, test_room):
-        player = Player(id=2)
+        player = Player(id="2")
 
         players_quantity = len(test_room.players)
 
@@ -51,7 +51,7 @@ class TestRoom:
         assert player in test_room.players
 
     async def test_add_player__already_joined(self, test_room):
-        player = Player(id=2)
+        player = Player(id="2")
         await test_room.add_player(player)
 
         with pytest.raises(Exception) as e:
@@ -61,7 +61,7 @@ class TestRoom:
 
     async def test_add_player__room_is_full(self, test_room):
         test_room.max_players = 1
-        player = Player(id=2)
+        player = Player(id="2")
 
         with pytest.raises(Exception) as e:
             await test_room.add_player(player)
@@ -69,7 +69,7 @@ class TestRoom:
         assert "The room is full" in str(e.value)
 
     async def test_remove_player__not_found(self, test_room):
-        player = Player(id=2)
+        player = Player(id="2")
 
         with pytest.raises(Exception) as e:
             await test_room.remove_player(player)
@@ -77,7 +77,7 @@ class TestRoom:
         assert str(e.value) == "User not found"
 
     async def test_remove_player(self, test_room):
-        player = Player(id=2)
+        player = Player(id="2")
         await test_room.add_player(player)
 
         await test_room.remove_player(player)
@@ -104,6 +104,9 @@ class TestGame:
 
 class TestGameLogic:
 
+    def setup_method(self):
+        self.game_manager = get_game_manager()
+
     async def test_start_game__not_enough_players(self, test_room):
 
         with pytest.raises(Exception) as e:
@@ -126,7 +129,7 @@ class TestGameLogic:
         ):
             game = await game_logic.prepare_game(room_id=test_room_with_players.id)
 
-        assert test_room_with_players.id in game_manager.active_games
+        assert test_room_with_players.id in self.game_manager.active_games
         assert len(game.meme_deck) == len(mock_meme_cards)
         assert len(game.situation_deck) == len(mock_situation_cards)
         assert not game.current_round

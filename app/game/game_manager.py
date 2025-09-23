@@ -129,8 +129,11 @@ class GameManager:
             del self.player_connections[player_id]
 
 
-game_manager = GameManager()
+_game_manager = None
 
 
 def get_game_manager():
-    return game_manager
+    global _game_manager
+    if _game_manager is None:
+        _game_manager = GameManager()
+    return _game_manager

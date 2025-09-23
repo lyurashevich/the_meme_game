@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from starlette.websockets import WebSocket
 
 from app.game.game_manager import GameManager, get_game_manager
 from app.schemas.players import (PlayerCreateSchema, PlayerSchema,
