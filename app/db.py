@@ -14,7 +14,11 @@ DB_NAME = os.getenv("DB_NAME")
 TEST_DB_NAME = os.getenv("TEST_DB_NAME")
 
 
-if None in [DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, TEST_DB_NAME]:
+def is_invalid(value):
+    return value is None or value == "None"
+
+
+if any(is_invalid(v) for v in [DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, TEST_DB_NAME]):
     DATABASE_URL = "sqlite:///./test.db"
     TEST_DATABASE_URL = "sqlite:///./test.db"
 else:
