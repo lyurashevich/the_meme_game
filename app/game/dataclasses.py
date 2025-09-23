@@ -32,6 +32,7 @@ class Room:
     invitation_link: str | None = None
     is_private: bool = False
     players: list[Player] = field(default_factory=list)
+    messages: list[dict] = field(default_factory=list)
     # created_at: datetime = field(default_factory=datetime.now)
 
     @property

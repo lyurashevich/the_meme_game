@@ -2,7 +2,7 @@ import pytest
 
 
 class TestPlayerViews:
-    url = "/user"
+    url = "/player"
 
     @pytest.mark.parametrize("username", ["q", "Matthew David McConaughey", "111111111"])
     def test_create_user(self, client_with_no_db, username):

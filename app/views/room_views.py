@@ -8,7 +8,7 @@ from app.schemas.room import (JoinRoomSchema, RoomCreateSchema,
 router = APIRouter(prefix="/room", tags=["room"])
 
 
-@router.get("/all", response_model=list[RoomStateSchema], status_code=200)
+@router.get("/all", response_model=list[RoomResponseSchema], status_code=200)
 async def get_rooms(manager: GameManager = Depends(get_game_manager)):
     rooms = list(manager.active_rooms.values())
 
@@ -55,8 +55,18 @@ async def join_room(request: JoinRoomSchema, room_id: str, manager: GameManager 
         raise HTTPException(status_code=404, detail="Room not found")
 
     await room.add_player(player)
+    manager.player_connections[player.id] = room_id
 
 
 @router.patch("/{room_id}/leave")
 async def leave_room(request: JoinRoomSchema, manager: GameManager = Depends(get_game_manager)):
     await manager.leave_room(request.player_id)
+
+
+@router.get("/{room_id}/messages")
+async def get_room_messages(room_id: str, manager: GameManager = Depends(get_game_manager)):
+    room = await manager.get_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    return room.messages

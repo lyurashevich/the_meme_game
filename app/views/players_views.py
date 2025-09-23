@@ -1,17 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.websockets import WebSocket
 
-from app.game.dataclasses import Player
-from app.game.game_manager import get_game_manager
+from app.game.game_manager import GameManager, get_game_manager
 from app.schemas.players import (PlayerCreateSchema, PlayerSchema,
                                  PlayerStateSchema)
 
-router = APIRouter(prefix="/user", tags=["users"])
+router = APIRouter(prefix="/player", tags=["players"])
 
 
 @router.post("/", response_model=PlayerSchema, status_code=201)
-async def create_user(data: PlayerCreateSchema, manager=Depends(get_game_manager)):
-    player = Player(username=data.username)
-    manager.players[player.id] = player
+async def create_player(data: PlayerCreateSchema, manager: GameManager = Depends(get_game_manager)):
+    player = await manager.create_player(name=data.username)
     return player
 
 
@@ -25,7 +24,7 @@ async def get_player_info(player_id: str, manager=Depends(get_game_manager)):
 
 
 @router.patch("/{player_id}", response_model=PlayerSchema, status_code=200)
-async def update_user(player_id: str, user: PlayerCreateSchema, manager=Depends(get_game_manager)):
+async def update_player(player_id: str, user: PlayerCreateSchema, manager=Depends(get_game_manager)):
     player = manager.players.get(player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
