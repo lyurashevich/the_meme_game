@@ -37,6 +37,7 @@ def client(db_session):
 
 @pytest.fixture
 def db_session():
+    Base.metadata.create_all(bind=test_engine)
     with test_engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
