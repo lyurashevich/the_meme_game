@@ -39,7 +39,7 @@ def client(db_session):
 def db_session():
     with test_engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(text(f"TRUNCATE TABLE {table.name} RESTART IDENTITY CASCADE"))
+            conn.execute(table.delete())
 
     with test_session_maker(bind=test_engine) as session:
         yield session
