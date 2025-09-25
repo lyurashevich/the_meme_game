@@ -14,8 +14,8 @@ class CardService:
     def __init__(self, db: Session):
         self.db = db
 
-        if not self.MEME_CARDS:
-            self.MEME_CARDS = self.get_meme_cards()
+        if not CardService.MEME_CARDS:
+            CardService.MEME_CARDS = self.get_meme_cards()
 
     def get_meme_cards(self) -> list[MemeCard]:
         result = self.db.execute(select(MemeCard))

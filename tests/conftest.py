@@ -113,7 +113,7 @@ def mock_meme_cards():
 
 @pytest.fixture
 def mock_situation_cards():
-    situation_cards = [SituationCard(id={i}, text=f"situation {i}") for i in range(5)]
+    situation_cards = [SituationCard(id=int(f"{i}"), text=f"situation {i}") for i in range(5)]
 
     from app.services.situations_services import CardService
 

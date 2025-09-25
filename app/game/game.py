@@ -45,20 +45,21 @@ class GameLogic:
     async def start_first_round(self, game):
         situation_card = await self.get_situation_card(game)
         await self.hand_out_initial_cards(game)
-        new_round = GameRound(round_number=1, leader=game.room.owner, situation_card=situation_card)
+        new_round = GameRound(round_number=1, leader=game.room.owner, situation_card=situation_card, game=game)
         game.current_round = new_round
+        return new_round
 
     async def start_new_round(self, game):
         situation_card = await self.get_situation_card(game)
         await self.hand_out_one_card(game)
         round_number = game.current_round.round_number + 1
         new_leader = await self.choose_leader(game)
-        new_round = GameRound(round_number=round_number, leader=new_leader, situation_card=situation_card)
+        new_round = GameRound(round_number=round_number, leader=new_leader, situation_card=situation_card, game=game)
         game.current_round = new_round
 
     @staticmethod
     async def initialize_decks(game: Game) -> None:
-        game.meme_deck = MemeService.MEME_CARDS
+        game.meme_deck = MemeService.MEME_CARDS.copy()
         game.situation_deck = SituationService.SITUATION_CARDS
 
         random.shuffle(game.meme_deck)
