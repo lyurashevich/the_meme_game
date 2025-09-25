@@ -4,6 +4,7 @@ from datetime import datetime
 
 from app.game.enums import GameState, RoundState
 from app.models import MemeCard, SituationCard
+from app.schemas.round import PlayerChoiceSchema
 
 
 @dataclass
@@ -68,15 +69,40 @@ class Room:
 
 @dataclass
 class GameRound:
+    game: "Game"
     round_number: int
     leader: Player
     situation_card: SituationCard
-    player_choices: dict[int, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
+    player_choices: dict[str, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
     start_time: datetime = field(default_factory=datetime.now)
     end_time: datetime | None = None
     time_limit: int = 60  # seconds
+
+    @property
+    def player_choices_list(self):
+        return [
+            PlayerChoiceSchema(player_id=player.id, username=player.username, image_url=card.image_url)
+            for player_id, card in self.player_choices.items()
+            for player in [next(player for player in self.game.room.players if player.id == player_id)]
+        ]
+
+    @property
+    def situation_card_id(self):
+        return self.situation_card.id
+
+    @property
+    def game_id(self):
+        return self.game.id
+
+    @property
+    def leader_id(self):
+        return self.leader.id
+
+    @property
+    def situation_card_text(self):
+        return self.situation_card.text
 
 
 @dataclass
@@ -93,3 +119,37 @@ class Game:
     leader_index: int = 0  # Index in players list for current leader
     # created_at: datetime = field(default_factory=datetime.now)
     # ended_at: Optional[datetime] = None
+
+    @property
+    def room_id(self):
+        return self.room.id
+
+    @property
+    def meme_deck_count(self):
+        return len(self.meme_deck)
+
+    @property
+    def situation_deck_count(self):
+        return len(self.situation_deck)
+
+    @property
+    def players(self):
+        return [player.id for player in self.room.players]
+
+
+@dataclass
+class MemeCardChoice:
+    player: Player
+    card: MemeCard
+
+    @property
+    def username(self):
+        return self.player.username
+
+    @property
+    def player_id(self):
+        return self.player.id
+
+    @property
+    def image_url(self):
+        return self.card.image_url

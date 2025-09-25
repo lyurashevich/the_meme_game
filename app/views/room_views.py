@@ -54,8 +54,7 @@ async def join_room(request: JoinRoomSchema, room_id: str, manager: GameManager 
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
-    await room.add_player(player)
-    manager.player_connections[player.id] = room_id
+    await manager.join_room(room_id, player)
 
 
 @router.patch("/{room_id}/leave")

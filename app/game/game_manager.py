@@ -16,6 +16,13 @@ class GameManager:
     player_sockets: dict[str, WebSocket] = field(default_factory=dict)  # player_id -> Websocket
     players: dict[str, Player] = field(default_factory=dict)  # player_id -> Player
 
+    async def get_game(self, room_id: str) -> Game | None:
+        game = self.active_games.get(room_id)
+        if not game:
+            raise Exception("Game not found")
+
+        return game
+
     async def get_player(self, player_id: str) -> Player | None:
         player = self.players.get(player_id)
         if not player:

@@ -13,8 +13,8 @@ class CardService:
     def __init__(self, db: Session):
         self.db = db
 
-        if not self.SITUATION_CARDS:
-            self.SITUATION_CARDS = self.get_situation_cards()
+        if not CardService.SITUATION_CARDS:
+            CardService.SITUATION_CARDS = self.get_situation_cards()
 
     def get_situation_cards(self) -> list[SituationCard]:
         result = self.db.execute(select(SituationCard))
