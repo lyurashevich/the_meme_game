@@ -38,14 +38,21 @@ async def create_room(room_data: RoomCreateSchema, manager: GameManager = Depend
         raise HTTPException(status_code=404, detail="Player not found")
 
     room = await manager.create_room(
-        owner=player, room_name=room_data.name, max_players=room_data.max_players, is_private=room_data.is_private
+        owner=player,
+        room_name=room_data.name,
+        max_players=room_data.max_players,
+        is_private=room_data.is_private,
     )
 
     return room
 
 
 @router.patch("/{room_id}", status_code=200)
-async def join_room(request: JoinRoomSchema, room_id: str, manager: GameManager = Depends(get_game_manager)):
+async def join_room(
+    request: JoinRoomSchema,
+    room_id: str,
+    manager: GameManager = Depends(get_game_manager),
+):
     player = manager.players.get(request.player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
