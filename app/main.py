@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -26,8 +27,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
+base_dir = Path(__file__).parent
+static_dir = base_dir / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 app.include_router(memes_router)
 app.include_router(situations_router)
