@@ -45,7 +45,12 @@ class GameLogic:
     async def start_first_round(self, game):
         situation_card = await self.get_situation_card(game)
         await self.hand_out_initial_cards(game)
-        new_round = GameRound(round_number=1, leader=game.room.owner, situation_card=situation_card, game=game)
+        new_round = GameRound(
+            round_number=1,
+            leader=game.room.owner,
+            situation_card=situation_card,
+            game=game,
+        )
         game.current_round = new_round
         return new_round
 
@@ -54,7 +59,12 @@ class GameLogic:
         await self.hand_out_one_card(game)
         round_number = game.current_round.round_number + 1
         new_leader = await self.choose_leader(game)
-        new_round = GameRound(round_number=round_number, leader=new_leader, situation_card=situation_card, game=game)
+        new_round = GameRound(
+            round_number=round_number,
+            leader=new_leader,
+            situation_card=situation_card,
+            game=game,
+        )
         game.current_round = new_round
 
     @staticmethod

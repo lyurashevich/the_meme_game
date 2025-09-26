@@ -1,5 +1,8 @@
+import json
+
 from fastapi import APIRouter, Depends
 
+from app.game.enums import WebsocketEvents
 from app.game.game import game_logic
 from app.game.game_manager import GameManager, get_game_manager
 from app.schemas.round import GameRoundInfoSchema, StartNewRoundResponseSchema
@@ -12,6 +15,18 @@ async def start_first_round(room_id: str, manager: GameManager = Depends(get_gam
     game = await manager.get_game(room_id=room_id)
 
     game_round = await game_logic.start_first_round(game)
+
+    round_schema = StartNewRoundResponseSchema.model_validate(game_round)
+
+    await manager.broadcast_to_room(
+        room_id=room_id,
+        message=json.dumps(
+            {
+                "event": WebsocketEvents.ROUND_STARTED.value,
+                "round_data": round_schema.model_dump(),
+            }
+        ),
+    )
 
     return game_round
 

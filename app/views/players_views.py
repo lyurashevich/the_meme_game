@@ -1,10 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.game.game_manager import GameManager, get_game_manager
-from app.schemas.players import (PlayerCreateSchema, PlayerSchema,
-                                 PlayerStateSchema)
+from app.schemas.players import (PlayerCardsSchema, PlayerCreateSchema,
+                                 PlayerSchema, PlayerStateSchema)
 
 router = APIRouter(prefix="/player", tags=["players"])
+
+
+@router.get("/{player_id}/cards", status_code=200, response_model=list[PlayerCardsSchema])
+async def get_player_cards(player_id: str, manager: GameManager = Depends(get_game_manager)):
+    player = await manager.get_player(player_id)
+    player_cards = [{"id": card.id, "image_url": card.image_url} for card in player.handed_cards]
+
+    return player_cards
 
 
 @router.post("/", response_model=PlayerSchema, status_code=201)

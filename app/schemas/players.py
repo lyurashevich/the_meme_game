@@ -1,6 +1,11 @@
 from pydantic import BaseModel, ConfigDict
 
 
+class PlayerCardsSchema(BaseModel):
+    id: int
+    image_url: str
+
+
 class PlayerCreateSchema(BaseModel):
     username: str | None = None
 

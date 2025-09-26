@@ -23,7 +23,9 @@ async def websocket_endpoint(websocket: WebSocket, manager: GameManager = Depend
 
             if message_data.get("event") == "chat_message":
                 await manager.send_chat_message(
-                    room_id=message_data["room_id"], player_id=player.id, message=message_data["message"]
+                    room_id=message_data["room_id"],
+                    player_id=player.id,
+                    message=message_data["message"],
                 )
             else:
                 await websocket.send_text(f"echo: {data}")
