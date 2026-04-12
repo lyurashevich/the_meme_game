@@ -21,9 +21,16 @@
             document.getElementById('playerCards').classList.remove('hidden');
           }
 
+          if (data.event === 'player_joined') {
+            displaySystemMessage({
+              message: `${data.data.username} has joined the room`,
+              timestamp: new Date().toISOString()
+            });
+          }
+
           if (data.event === "player_created") {
             playerId = data.player_id;
-            log("Создан игрок с id: " + playerId);
+//            log("Создан игрок с id: " + playerId);
             document.getElementById("createRoomBtn").disabled = false;
         } else if (data.event == 'chat_message') {
           if (currentRoomId && data.room_id === currentRoomId) {

@@ -2,11 +2,8 @@ from enum import Enum
 
 
 class GameState(Enum):
-    WAITING = "waiting"  # Waiting for players to join
     STARTING = "starting"  # Game is about to start
-    IN_PROGRESS = "in_progress"  # Game is active
-    ROUND_ACTIVE = "round_active"  # Round is active, players choosing cards
-    ROUND_ENDING = "round_ending"  # Leader choosing winner
+    ACTIVE = "active"  # Game has started
     FINISHED = "finished"  # Game finished
 
 
@@ -19,3 +16,4 @@ class RoundState(Enum):
 class WebsocketEvents(Enum):
     ROUND_STARTED = "round_started"
     PLAYER_CARDS_UPDATED = "player_cards_updated"
+    PLAYER_JOINED = "player_joined"

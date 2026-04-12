@@ -4,6 +4,7 @@ from datetime import datetime
 from starlette.websockets import WebSocket
 
 from app.game.dataclasses import Game, Player, Room
+from app.game.enums import WebsocketEvents
 from app.schemas.messages import ChatMessageResponse
 
 
@@ -50,7 +51,7 @@ class GameManager:
         if ws:
             await ws.send_text(message)
 
-    async def broadcast_to_room(self, room_id: str, message: str, sender_id: str | None = None) -> None:
+    async def broadcast_to_room(self, room_id: str, message: dict, sender_id: str | None = None) -> None:
         room = await self.get_room(room_id=room_id)
 
         for player in room.players:
@@ -58,7 +59,8 @@ class GameManager:
                 continue
             ws = self.player_sockets.get(player.id)
             if ws:
-                await ws.send_text(message)
+                print(message)
+                await ws.send_json(message)
 
     async def send_chat_message(self, room_id: str, player_id: str, message: str):
         room = await self.get_room(room_id=room_id)
@@ -111,6 +113,14 @@ class GameManager:
         await room.add_player(player)
         self.players[player.id] = player
         self.player_connections[player.id] = room_id
+        await self.broadcast_to_room(
+            room_id=room_id,
+            message={
+                "event": WebsocketEvents.PLAYER_JOINED.value,
+                "data": {"player_id": player.id, "username": player.username},
+            },
+            sender_id=player.id,
+        )
 
     async def leave_room(self, player_id: str) -> None:
         player = await self.get_player(player_id)

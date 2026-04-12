@@ -16,7 +16,6 @@ class Player:
     score: int = 0
     is_connected: bool = True
     connection_order: int = 0  # Order of connection for leader rotation
-    # selected_card: Optional[MemeCard] = None  # Card selected for current round
 
     def __post_init__(self):
         if not self.username:
@@ -76,8 +75,6 @@ class GameRound:
     player_choices: dict[str, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
-    start_time: datetime = field(default_factory=datetime.now)
-    end_time: datetime | None = None
     time_limit: int = 60  # seconds
 
     @property
@@ -109,13 +106,13 @@ class GameRound:
 class Game:
     room: Room
     current_round: GameRound | None = None
-    state: GameState = GameState.WAITING
+    state: GameState = GameState.STARTING
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     # round_number: int = 0
     meme_deck: list[MemeCard] = field(default_factory=list)
     situation_deck: list[SituationCard] = field(default_factory=list)
     meme_discard_pile: dict[int, list[MemeCard]] = field(default_factory=dict)
-    situation_discard_pile: dict[int, SituationCard] = field(default_factory=dict)
+    situation_discard_pile: dict[int, list[SituationCard]] = field(default_factory=dict)
     leader_index: int = 0  # Index in players list for current leader
     # created_at: datetime = field(default_factory=datetime.now)
     # ended_at: Optional[datetime] = None

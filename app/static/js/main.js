@@ -102,21 +102,6 @@ document.getElementById("startGameBtn").addEventListener("click", async () => {
     const result = await response.json();
     log("The game started: " + JSON.stringify(result));
 
-    const roundResponse = await fetch(`/round/${currentRoomId}/start`, {
-      method: "POST"
-    });
-
-    if (!roundResponse.ok) {
-      const error = await roundResponse.json();
-      log("Failed to start first round: " + error.detail);
-      return;
-    }
-
-    const roundData = await roundResponse.json();
-    log("First round started: " + JSON.stringify(roundData));
-
-    renderRound(roundData);
-
   } catch (error) {
     log("failed to start game: " + error);
   }

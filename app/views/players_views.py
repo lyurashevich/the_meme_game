@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.game.game_manager import GameManager, get_game_manager
-from app.schemas.players import (PlayerCardsSchema, PlayerCreateSchema,
-                                 PlayerSchema, PlayerStateSchema)
+from app.schemas.players import PlayerCardsSchema, PlayerCreateSchema, PlayerSchema, PlayerStateSchema
 
 router = APIRouter(prefix="/player", tags=["players"])
 
