@@ -20,3 +20,12 @@ class GameResponse(BaseModel):
 class StartGameResponse(BaseModel):
     status: str
     game: GameResponse
+
+
+class SelectWinnerRequest(BaseModel):
+    winner_id: str
+
+
+class SelectPlayerCardRequest(BaseModel):
+    player_id: str
+    card_id: int
