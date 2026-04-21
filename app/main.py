@@ -39,7 +39,7 @@ app.include_router(ws_router)
 app.include_router(game_router)
 app.include_router(game_round_router)
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="app/templates")
 
 
 @app.get("/ws", response_class=HTMLResponse)

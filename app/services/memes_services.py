@@ -1,11 +1,12 @@
 from fastapi import HTTPException
+from pydantic import HttpUrl
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette import status
 
 from app.models import MemeCard
-from app.schemas.cards import MemeCardCreate, MemeCardUpdate
+from app.schemas.cards import MemeCardsCreate, MemeCardUpdate
 
 
 class CardService:
@@ -28,19 +29,31 @@ class CardService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meme card not found")
         return card
 
-    def create_meme_card(self, card_data: MemeCardCreate) -> MemeCard:
-        try:
-            card = MemeCard(image_url=str(card_data.image_url))
-            self.db.add(card)
-            self.db.commit()
+
+    def create_meme_cards(self, urls: list[HttpUrl]):
+        cards = [MemeCard(image_url=str(url)) for url in urls]
+        self.db.add_all(cards)
+        self.db.commit()
+
+        for card in cards:
             self.db.refresh(card)
-            return card
-        except IntegrityError:
-            self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to create meme card",
-            )
+
+        return cards
+
+
+    # def create_meme_cards(self, card_data: MemeCardsCreate) -> MemeCard:
+    #     try:
+    #         card = MemeCard(image_url=str(card_data.image_url))
+    #         self.db.add(card)
+    #         self.db.commit()
+    #         self.db.refresh(card)
+    #         return card
+    #     except IntegrityError:
+    #         self.db.rollback()
+    #         raise HTTPException(
+    #             status_code=status.HTTP_400_BAD_REQUEST,
+    #             detail="Failed to create meme card",
+    #         )
 
     def update_meme_card(self, card_id: int, card_data: MemeCardUpdate) -> MemeCard:
         card = self.get_meme_card(card_id)
