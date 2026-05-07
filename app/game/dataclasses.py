@@ -1,6 +1,5 @@
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from app.game.enums import GameState, RoundState
 from app.models import MemeCard, SituationCard
@@ -27,7 +26,7 @@ class Room:
     name: str | None = None
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     max_players: int = 10
-    owner: Player = None
+    owner: Player | None = None
     # invitation_link: str = field(default_factory=lambda: f"https://your-domain.com/join/{uuid.uuid4()}")
     invitation_link: str | None = None
     is_private: bool = False
@@ -37,6 +36,8 @@ class Room:
 
     @property
     def owner_id(self) -> str:
+        if self.owner is None:
+            raise Exception("Owner not found")
         return self.owner.id
 
     @property
@@ -72,7 +73,9 @@ class GameRound:
     round_number: int
     leader: Player
     situation_card: SituationCard
-    player_choices: dict[str, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
+    player_choices: dict[str, MemeCard] = field(
+        default_factory=dict
+    )  # player_id -> selected_card
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
     time_limit: int = 60  # seconds
@@ -80,9 +83,17 @@ class GameRound:
     @property
     def player_choices_list(self):
         return [
-            PlayerChoiceSchema(player_id=player.id, username=player.username, image_url=card.image_url)
+            PlayerChoiceSchema(
+                player_id=player.id, username=player.username, image_url=card.image_url
+            )
             for player_id, card in self.player_choices.items()
-            for player in [next(player for player in self.game.room.players if player.id == player_id)]
+            for player in [
+                next(
+                    player
+                    for player in self.game.room.players
+                    if player.id == player_id
+                )
+            ]
         ]
 
     @property
