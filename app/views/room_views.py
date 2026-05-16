@@ -2,8 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 
 from app.game.game_manager import GameManager, get_game_manager
-from app.schemas.room import (JoinRoomSchema, RoomCreateSchema,
-                              RoomResponseSchema, RoomStateSchema)
+from app.schemas.room import JoinRoomSchema, RoomCreateSchema, RoomResponseSchema, RoomStateSchema
 
 router = APIRouter(prefix="/room", tags=["room"])
 

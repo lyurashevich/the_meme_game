@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas.cards import (SituationCardCreate, SituationCardSchema,
-                               SituationCardUpdate)
+from app.schemas.cards import SituationCardCreate, SituationCardSchema, SituationCardUpdate
 from app.services.situations_services import CardService
 
 router = APIRouter(prefix="/situations", tags=["situations"])

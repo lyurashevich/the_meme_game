@@ -14,6 +14,21 @@ function displayChatMessage(data) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
+function displaySystemMessage(data) {
+  const messagesContainer = document.getElementById('messages');
+  const messageElement = document.createElement('div');
+  messageElement.className = 'message system-message';
+
+  const time = new Date(data.timestamp).toLocaleTimeString();
+  messageElement.innerHTML = `
+    <span>${data.message}</span>
+    <span class="message-time">${time}</span>
+  `;
+
+  messagesContainer.appendChild(messageElement);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
 async function loadChatHistory(roomId) {
   try {
     const response = await fetch(`/room/${roomId}/messages`);

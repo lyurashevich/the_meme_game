@@ -68,3 +68,8 @@ body {
   border-radius: 8px;
   overflow: hidden;
 }
+
+.system-message {
+  color: gray;
+  text-align: center;
+}
