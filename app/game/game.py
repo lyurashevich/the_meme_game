@@ -29,18 +29,22 @@ class GameLogic:
     @staticmethod
     async def validate_room_can_start_game(room: Room) -> None:
         if len(room.players) < 3:
-            raise Exception("Not enough players to start game. You need at least 3 players.")
+            raise Exception(
+                "Not enough players to start game. You need at least 3 players."
+            )
 
     async def prepare_game(self, room_id: str) -> Game | None:
 
-        room = await self.get_room(room_id)
-        await self.validate_room_can_start_game(room)
+        async with self.game_manager.get_room_lock(room_id=room_id):
+            room = await self.get_room(room_id)
+            await self.validate_room_can_start_game(room)
 
-        game = Game(room=room)
+            game = Game(room=room)
+
+            game.leader_index = 0
+            self.game_manager.active_games[room_id] = game
 
         await self.initialize_decks(game)
-        game.leader_index = 0
-        self.game_manager.active_games[room_id] = game
         await self.start_first_round(game)
 
         return game
@@ -61,21 +65,28 @@ class GameLogic:
         game.state = GameState.ACTIVE
         return new_round
 
-    async def start_new_round(self, game):
-        if game.state != GameState.ACTIVE or game.current_round.state != RoundState.ROUND_ENDED:
-            raise Exception("Cannot start new round: game is not in ACTIVE state or round has not ended")
+    async def start_new_round(self, game: Game):
+        async with self.game_manager.get_room_lock(game.room.id):
 
-        situation_card = await self.get_situation_card(game)
-        await self.hand_out_one_card(game)
-        round_number = game.current_round.round_number + 1
-        new_leader = await self.choose_leader(game)
-        new_round = GameRound(
-            round_number=round_number,
-            leader=new_leader,
-            situation_card=situation_card,
-            game=game,  # state = RoundState.CHOOSING_CARDS
-        )
-        game.current_round = new_round
+            if (
+                game.state != GameState.ACTIVE
+                or game.current_round.state != RoundState.ROUND_ENDED
+            ):
+                raise Exception(
+                    "Cannot start new round: game is not in ACTIVE state or round has not ended"
+                )
+
+            situation_card = await self.get_situation_card(game)
+            await self.hand_out_one_card(game)
+            round_number = game.current_round.round_number + 1
+            new_leader = await self.choose_leader(game)
+            new_round = GameRound(
+                round_number=round_number,
+                leader=new_leader,
+                situation_card=situation_card,
+                game=game,  # state = RoundState.CHOOSING_CARDS
+            )
+            game.current_round = new_round
 
     @staticmethod
     async def initialize_decks(game: Game) -> None:
@@ -100,8 +111,13 @@ class GameLogic:
     @staticmethod
     async def hand_out_one_card(game: Game):
 
-        if game.state != GameState.ACTIVE or game.current_round.state != RoundState.ROUND_ENDED:
-            raise Exception("Cannot start new round: game is not in ACTIVE state or round has not ended")
+        if (
+            game.state != GameState.ACTIVE
+            or game.current_round.state != RoundState.ROUND_ENDED
+        ):
+            raise Exception(
+                "Cannot start new round: game is not in ACTIVE state or round has not ended"
+            )
 
         current_leader = game.room.players[game.leader_index]
 
@@ -131,7 +147,9 @@ class GameLogic:
 
     @staticmethod
     async def process_meme_deck(game):
-        cards_to_return = game.meme_discard_pile.pop(game.current_round.round_number - MEME_CARDS_COOLDOWN, [])
+        cards_to_return = game.meme_discard_pile.pop(
+            game.current_round.round_number - MEME_CARDS_COOLDOWN, []
+        )
         game.meme_deck.extend(cards_to_return)
 
     @staticmethod
@@ -142,77 +160,87 @@ class GameLogic:
         game.situation_deck.extend(cards_to_return)
 
     async def player_select_card(self, room_id: str, player_id: str, card_id: int):
+        async with self.game_manager.get_room_lock(room_id=room_id):
+            game = await self.game_manager.get_game(room_id)
 
-        game = await self.game_manager.get_game(room_id)
+            if (
+                not game.current_round
+                or game.current_round.state != RoundState.CHOOSING_CARDS
+                or game.state != GameState.ACTIVE
+            ):
+                raise Exception(
+                    "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
+                )
 
-        if (
-            not game.current_round
-            or game.current_round.state != RoundState.CHOOSING_CARDS
-            or game.state != GameState.ACTIVE
-        ):
-            raise Exception(
-                "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
+            player = next(
+                (player for player in game.room.players if player.id == player_id), None
             )
+            if not player:
+                raise Exception("Player not found")
+            if player == game.current_round.leader:
+                raise Exception("Leader cannot choose card")
+            if player_id in game.current_round.player_choices:
+                raise Exception("Player already selected a card")
 
-        player = next((player for player in game.room.players if player.id == player_id), None)
-        if not player:
-            raise Exception("Player not found")
-        if player == game.current_round.leader:
-            raise Exception("Leader cannot choose card")
-        if player_id in game.current_round.player_choices:
-            raise Exception("Player already selected a card")
+            selected_card = next(
+                (card for card in player.handed_cards if card.id == card_id), None
+            )
+            if not selected_card:
+                raise Exception("Card not found")
 
-        selected_card = next((card for card in player.handed_cards if card.id == card_id), None)
-        if not selected_card:
-            raise Exception("Card not found")
-
-        game.current_round.player_choices[player_id] = selected_card
-        player.handed_cards.remove(selected_card)
+            game.current_round.player_choices[player_id] = selected_card
+            player.handed_cards.remove(selected_card)
 
     async def leader_choose_winner(self, room_id: str, winner_player_id: str):
+        async with self.game_manager.get_room_lock(room_id=room_id):
+            game = await self.game_manager.get_game(room_id=room_id)
 
-        game = await self.game_manager.get_game(room_id=room_id)
+            if (
+                not game
+                or not game.current_round
+                or game.current_round.state != RoundState.LEADER_CHOOSING
+                or game.state != GameState.ACTIVE
+            ):
+                raise Exception(
+                    "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+                )
 
-        if (
-            not game
-            or not game.current_round
-            or game.current_round.state != RoundState.LEADER_CHOOSING
-            or game.state != GameState.ACTIVE
-        ):
-            raise Exception(
-                "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+            winner = next(
+                (p for p in game.room.players if p.id == winner_player_id), None
             )
+            if not winner:
+                raise Exception("Player not found")
 
-        winner = next((p for p in game.room.players if p.id == winner_player_id), None)
-        if not winner:
-            raise Exception("Player not found")
+            if winner == game.current_round.leader:
+                raise Exception("Leader cannot be a winner")
 
-        if winner == game.current_round.leader:
-            raise Exception("Leader cannot be a winner")
-
-        game.current_round.winner = winner
-        winner.score += 1
+            game.current_round.winner = winner
+            winner.score += 1
 
     async def end_round(self, game: Game):
-        if (
-            not game.current_round
-            or game.current_round.state != RoundState.LEADER_CHOOSING
-            or game.state != GameState.ACTIVE
-        ):
-            raise Exception(
-                "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
-            )
+        async with self.game_manager.get_room_lock(game.room.id):
 
-        round_data = game.current_round
-        round_data.state = RoundState.ROUND_ENDED
+            if (
+                not game.current_round
+                or game.current_round.state != RoundState.LEADER_CHOOSING
+                or game.state != GameState.ACTIVE
+            ):
+                raise Exception(
+                    "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+                )
 
-        for player_id, card in round_data.player_choices.items():  # {int: MemeCard}
-            game.meme_discard_pile.setdefault(game.current_round.round_number, []).append(card)
+            round_data = game.current_round
+            round_data.state = RoundState.ROUND_ENDED
 
-        if round_data.situation_card:
-            game.situation_discard_pile.setdefault(game.current_round.round_number, []).append(
-                round_data.situation_card
-            )
+            for player_id, card in round_data.player_choices.items():  # {int: MemeCard}
+                game.meme_discard_pile.setdefault(
+                    game.current_round.round_number, []
+                ).append(card)
+
+            if round_data.situation_card:
+                game.situation_discard_pile.setdefault(
+                    game.current_round.round_number, []
+                ).append(round_data.situation_card)
 
         await self.process_meme_deck(game)
         await self.process_situation_deck(game)
