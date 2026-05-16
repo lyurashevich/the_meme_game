@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -7,8 +7,7 @@ class MemeCardBase(BaseModel):
     image_url: HttpUrl
 
 
-class MemeCardsCreate(BaseModel):
-    urls: List[HttpUrl]
+class MemeCardCreate(MemeCardBase):
     pass
 
 
@@ -17,7 +16,6 @@ class MemeCardUpdate(BaseModel):
 
 
 class MemeCardSchema(MemeCardBase):
-    image_url: HttpUrl
     id: int
 
     model_config = ConfigDict(from_attributes=True)

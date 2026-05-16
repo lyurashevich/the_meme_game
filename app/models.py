@@ -7,7 +7,6 @@ from app.db import Base
 class MemeCard(Base):
     __tablename__ = "meme_cards"
 
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     image_url: Mapped[str] = mapped_column(String, nullable=False)
 
