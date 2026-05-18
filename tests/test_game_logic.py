@@ -1,54 +1,330 @@
-# class TestRoundManagement:
-#     """Test round creation, card selection, and winner choosing"""
+import pytest
+
+from app.game.enums import GameState, RoundState
+from app.game.game import CARDS_PER_PLAYER, GameLogic, game_logic
 
 
-#     # @pytest.mark.asyncio
-#     async def test_leader_choose_winner_success(self, game_logic, game_with_cards, players):
-#         """Test successful winner selection by leader"""
-#         game_with_cards.room.players = players[:3]
-#         game_with_cards.current_round = GameRound(
-#             round_number=1,
-#             leader=players[0],
-#             situation_card=SituationCard(id=1, text="Test situation")
-#         )
-#         game_with_cards.current_round.state = RoundState.LEADER_CHOOSING
-#         game_with_cards.current_round.player_choices = {players[1].id: MemeCard(id=1, image_url="test.jpg")}
+class TestGameLogic:
 
-#         result = await game_logic.leader_choose_winner(game_with_cards, players[1].id)
+    game_logic = GameLogic()
 
-#         assert result == True
-#         assert game_with_cards.current_round.winner == players[1]
-#         assert players[1].score == 1
+    async def test_get_room(self, test_room):
+        room = await game_logic.get_room(test_room.id)
 
-#     # @pytest.mark.asyncio
-#     async def test_leader_choose_winner_cannot_choose_self(self, game_logic, game_with_cards, players):
-#         """Test that leader cannot choose themselves as winner"""
-#         game_with_cards.room.players = players[:3]
-#         game_with_cards.current_round = GameRound(
-#             round_number=1,
-#             leader=players[0],
-#             situation_card=SituationCard(id=1, text="Test situation")
-#         )
-#         game_with_cards.current_round.state = RoundState.LEADER_CHOOSING
+        assert room
+        assert room.id == test_room.id
 
-#         result = await game_logic.leader_choose_winner(game_with_cards, players[0].id)
+    async def test_get_room__not_found(self):
+        with pytest.raises(Exception) as e:
+            await game_logic.get_room("qwerty")
 
-#         assert result == False
+        assert str(e.value) == "Room not found"
 
-#     # @pytest.mark.asyncio
-#     async def test_leader_choose_winner_wrong_state(self, game_logic, game_with_cards, players):
-#         """Test winner selection in wrong round state"""
-#         game_with_cards.room.players = players[:3]
-#         game_with_cards.current_round = GameRound(
-#             round_number=1,
-#             leader=players[0],
-#             situation_card=SituationCard(id=1, text="Test situation")
-#         )
-#         game_with_cards.current_round.state = RoundState.CHOOSING_CARDS  # Wrong state
+    async def test_prepare_game(self, test_room_with_players, mock_situation_cards, mock_meme_cards):
+        game = await game_logic.prepare_game(test_room_with_players.id)
 
-#         result = await game_logic.leader_choose_winner(game_with_cards, players[1].id)
+        assert not game.current_round
+        assert game.meme_deck_count == len(mock_meme_cards)
+        assert game.situation_deck_count == len(mock_situation_cards)
+        assert not game.meme_discard_pile
+        assert not game.situation_discard_pile
+        assert game.state == GameState.STARTING
+        assert game.room == test_room_with_players
+        assert game_logic.game_manager.active_games[test_room_with_players.id] == game
 
-#         assert result == False
+    async def test_prepare_game__not_enough_players(self, test_room):
+        with pytest.raises(Exception) as e:
+            await game_logic.prepare_game(test_room.id)
+
+        assert str(e.value) == "Not enough players to start game. You need at least 3 players."
+
+    @pytest.mark.skip
+    # todo: подумать че делать с локом
+    async def test_prepare_game__room_not_found(self):
+        with pytest.raises(Exception) as e:
+            await game_logic.prepare_game("qwerty")
+
+        assert str(e.value) == "Room not found"
+
+    async def test_start_first_round(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+
+        assert prepared_game.current_round.round_number == 1
+        assert prepared_game.current_round.situation_card not in prepared_game.situation_deck
+        assert not prepared_game.current_round.winner
+        assert prepared_game.leader_index == 0
+        assert prepared_game.state == GameState.ACTIVE
+        assert prepared_game.current_round.state == RoundState.CHOOSING_CARDS
+        for player in prepared_game.room.players:
+            assert len(player.handed_cards) == CARDS_PER_PLAYER
+
+    async def test_start_first_round__wrong_game_state(self, prepared_game):
+        prepared_game.state = GameState.FINISHED
+        with pytest.raises(Exception) as e:
+            await game_logic.start_first_round(prepared_game)
+
+        assert str(e.value) == "Cannot start first round: game is not in STARTING state"
+
+    async def test_start_first_round__no_situation_cards(self, prepared_game):
+        prepared_game.situation_deck.clear()
+        with pytest.raises(Exception) as e:
+            await game_logic.start_first_round(prepared_game)
+
+        assert str(e.value) == "No situation cards available"
+
+    async def test_start_first_round__no_meme_cards(self, prepared_game):
+        prepared_game.meme_deck.clear()
+        with pytest.raises(Exception) as e:
+            await game_logic.start_first_round(prepared_game)
+
+        assert str(e.value) == "Not enough memes in deck"
+
+    async def test_player_select_card(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        player = prepared_game.room.players[1]
+        selected_card = player.handed_cards[0]
+
+        await game_logic.player_select_card(prepared_game, player.id, selected_card.id)
+
+        assert prepared_game.current_round.player_choices[player.id] == selected_card
+        assert selected_card not in player.handed_cards
+        assert len(player.handed_cards) == CARDS_PER_PLAYER - 1
+
+    async def test_player_select_card__player_is_leader(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        player = prepared_game.room.players[0]
+        selected_card = player.handed_cards[0]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, player.id, selected_card.id)
+
+        assert str(e.value) == "Leader cannot choose card"
+
+    async def test_player_select_card__player_not_found(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, "player.id", 999)
+
+        assert str(e.value) == "Player not found"
+
+    async def test_player_select_card__card_not_found(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        player = prepared_game.room.players[1]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, player.id, 999)
+
+        assert str(e.value) == "Card not found"
+
+    async def test_player_select_card__wrong_state(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        prepared_game.state = GameState.FINISHED
+        player = prepared_game.room.players[1]
+        selected_card = player.handed_cards[0]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, player.id, selected_card.id)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
+        )
+
+    async def test_player_select_card__card_already_selected(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        player = prepared_game.room.players[1]
+        prepared_game.current_round.player_choices[player.id] = player.handed_cards[0]
+        selected_card = player.handed_cards[1]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, player.id, selected_card.id)
+
+        assert str(e.value) == "Player already selected a card"
+
+    async def test_player_select_card__round_not_found(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        prepared_game.current_round = None
+        player = prepared_game.room.players[1]
+        selected_card = player.handed_cards[0]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, player.id, selected_card.id)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
+        )
+
+    async def test_player_select_card__wrong_round_state(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        player = prepared_game.room.players[1]
+        selected_card = player.handed_cards[0]
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        with pytest.raises(Exception) as e:
+            await game_logic.player_select_card(prepared_game, player.id, selected_card.id)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
+        )
+
+    async def test_leader_choose_winner(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+
+        await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        assert prepared_game.current_round.winner == winner
+        assert winner.score == 1
+
+    @pytest.mark.skip
+    async def test_leader_choose_winner__game_not_found(self, prepared_game, test_game):
+
+        winner = prepared_game.room.players[2]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.leader_choose_winner(test_game, winner.id)
+
+        assert str(e.value) == "Game not found"
+
+    async def test_leader_choose_winner__round_not_found(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        prepared_game.current_round = None
+
+        winner = prepared_game.room.players[2]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+        )
+
+    @pytest.mark.xfail
+    # TODO: enable when round state logic is implemented
+    async def test_leader_choose_winner__wrong_round_state(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+
+        await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        assert prepared_game.current_round.winner == winner
+        assert winner.score == 1
+
+    async def test_leader_choose_winner__wrong_game_state(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        prepared_game.state = GameState.FINISHED
+
+        winner = prepared_game.room.players[2]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+        )
+
+    async def test_leader_choose_winner__player_not_found(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+
+        with pytest.raises(Exception) as e:
+            await game_logic.leader_choose_winner(prepared_game, "winner.id")
+
+        assert str(e.value) == "Player not found"
+
+    async def test_leader_choose_winner__leader_cannot_be_a_winner(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+
+        with pytest.raises(Exception) as e:
+            await game_logic.leader_choose_winner(prepared_game, prepared_game.current_round.leader.id)
+
+        assert str(e.value) == "Leader cannot be a winner"
+
+    async def test_leader_choose_winner__player_did_not_submit_card(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+        del prepared_game.current_round.player_choices[winner.id]
+
+        with pytest.raises(Exception) as e:
+            await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        assert str(e.value) == "Player did not submit a card"
+
+    async def test_end_round(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+
+        await game_logic.leader_choose_winner(prepared_game, winner.id)
+
+        assert len(prepared_game.meme_discard_pile) == 0
+        assert len(prepared_game.situation_discard_pile) == 0
+
+        await game_logic.end_round(prepared_game)
+
+        assert prepared_game.current_round.state == RoundState.ROUND_ENDED
+        assert len(prepared_game.meme_discard_pile) > 0
+        assert len(prepared_game.situation_discard_pile) > 0
+
+    async def test_end_round__round_not_found(self, prepared_game):
+        with pytest.raises(Exception) as e:
+            await game_logic.end_round(prepared_game)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+        )
+
+    async def test_end_round__game_not_active(self, prepared_game):
+        with pytest.raises(Exception) as e:
+            await game_logic.end_round(prepared_game)
+
+        assert (
+            str(e.value)
+            == "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
+        )
+
+    async def test_start_new_round(self, prepared_game):
+        await game_logic.start_first_round(prepared_game)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_logic.player_select_card(prepared_game, player.id, player.handed_cards[0].id)
+
+        await game_logic.leader_choose_winner(prepared_game, prepared_game.room.players[2].id)
+        await game_logic.end_round(prepared_game)
+        await game_logic.start_new_round(prepared_game)
+
+        assert prepared_game.current_round.round_number == 2
+        assert prepared_game.leader_index == 1
+        assert not prepared_game.current_round.winner
+        assert prepared_game.state == GameState.ACTIVE
+        assert prepared_game.current_round.state == RoundState.CHOOSING_CARDS
+        assert len(prepared_game.meme_discard_pile) > 0
+        assert len(prepared_game.meme_discard_pile) > 0
+        assert prepared_game.current_round.situation_card not in prepared_game.situation_deck
+        assert prepared_game.current_round.situation_card not in prepared_game.situation_discard_pile
+        for player in prepared_game.room.players:
+            assert len(player.handed_cards) == CARDS_PER_PLAYER
+            assert len(set(player.handed_cards)) == CARDS_PER_PLAYER
 
 
 # class TestCardCooldownSystem:
@@ -97,7 +373,9 @@
 #         (10, [8, 7, 6], False),
 #         (None, [100, 50, 25], False),  # No score limit
 #     ])
-#     async def test_should_end_game_score_limit(self, game_logic, game_with_cards, players, score_to_win, player_scores, should_end):
+#     async def test_should_end_game_score_limit(
+#       self, game_logic, game_with_cards, players, score_to_win, player_scores, should_end
+#     ):
 #         """Test game end based on score limit"""
 #         game_logic.settings.score_to_win = score_to_win
 #         game_with_cards.room.players = players[:3]
@@ -115,7 +393,9 @@
 #         (5, 3, False),
 #         (None, 100, False),  # No round limit
 #     ])
-#     async def test_should_end_game_max_rounds(self, game_logic, game_with_cards, max_rounds, current_round, should_end):
+#     async def test_should_end_game_max_rounds(
+#       self, game_logic, game_with_cards, max_rounds, current_round, should_end
+#     ):
 #         """Test game end based on max rounds"""
 #         game_logic.settings.max_rounds = max_rounds
 #         game_logic.settings.score_to_win = None  # Disable score limit

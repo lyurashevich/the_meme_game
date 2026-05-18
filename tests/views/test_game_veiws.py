@@ -1,5 +1,4 @@
 from app.game.game_manager import get_game_manager
-from tests.conftest import test_room_with_players
 
 
 class TestGameViews:
@@ -11,7 +10,7 @@ class TestGameViews:
     async def test_start_game(self, client_with_no_db, test_player, test_room_with_players):
         response = client_with_no_db.post(f"{self.url}/start", json={"room_id": test_room_with_players.id})
 
-        game = await self.manager.get_game(room_id=test_room_with_players.id)
+        game = self.manager.get_game(room_id=test_room_with_players.id)
 
         expected_json = {
             "id": game.id,

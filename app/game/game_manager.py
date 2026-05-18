@@ -13,17 +13,11 @@ from app.schemas.messages import ChatMessageResponse
 class GameManager:
     active_games: dict[str, Game] = field(default_factory=dict)  # room_id -> Game
     active_rooms: dict[str, Room] = field(default_factory=dict)  # room_id -> Room
-    player_connections: dict[str, str] = field(
-        default_factory=dict
-    )  # player_id -> room_id
-    player_sockets: dict[str, WebSocket | None] = field(
-        default_factory=dict
-    )  # player_id -> Websocket
+    player_connections: dict[str, str] = field(default_factory=dict)  # player_id -> room_id
+    player_sockets: dict[str, WebSocket | None] = field(default_factory=dict)  # player_id -> Websocket
     players: dict[str, Player] = field(default_factory=dict)  # player_id -> Player
     room_locks: dict[str, Lock] = field(default_factory=dict)  # room_id -> Lock
-    room_tasks: dict[str, dict[str, Task]] = field(
-        default_factory=dict
-    )  # room_id -> {task_name -> Task}
+    room_tasks: dict[str, dict[str, Task]] = field(default_factory=dict)  # room_id -> {task_name -> Task}
 
     async def add_timer(self, room_id: str, name: str, task: Task) -> None:
         self.room_tasks.setdefault(room_id, {})
@@ -34,7 +28,7 @@ class GameManager:
 
         self.room_tasks[room_id][name] = task
 
-    async def get_game(self, room_id: str) -> Game:
+    def get_game(self, room_id: str) -> Game:
         game = self.active_games.get(room_id)
         if not game:
             raise Exception("Game not found")
@@ -59,9 +53,7 @@ class GameManager:
             raise Exception("Lock not found")
         return lock
 
-    async def create_player(
-        self, websocket: WebSocket | None = None, name: str | None = None
-    ) -> Player:
+    async def create_player(self, websocket: WebSocket | None = None, name: str | None = None) -> Player:
         player = Player(username=name)
         self.players[player.id] = player
         self.player_sockets[player.id] = websocket
@@ -76,9 +68,7 @@ class GameManager:
         if ws:
             await ws.send_text(message)
 
-    async def broadcast_to_room(
-        self, room_id: str, message: dict, sender_id: str | None = None
-    ) -> None:
+    async def broadcast_to_room(self, room_id: str, message: dict, sender_id: str | None = None) -> None:
         room = await self.get_room(room_id=room_id)
 
         for player in room.players:
@@ -113,9 +103,7 @@ class GameManager:
             room.messages.append(chat_message)
 
             sockets = [
-                self.player_sockets.get(player.id)
-                for player in room.players
-                if self.player_sockets.get(player.id)
+                self.player_sockets.get(player.id) for player in room.players if self.player_sockets.get(player.id)
             ]
 
         for socket in sockets:
@@ -133,9 +121,7 @@ class GameManager:
         max_players: int = 10,
         is_private: bool = False,
     ) -> Room:
-        room = Room(
-            owner=owner, name=room_name, max_players=max_players, is_private=is_private
-        )
+        room = Room(owner=owner, name=room_name, max_players=max_players, is_private=is_private)
 
         self.active_rooms[room.id] = room
         self.player_connections[owner.id] = room.id
@@ -186,11 +172,7 @@ class GameManager:
         if room_id in self.room_locks:
             del self.room_locks[room_id]
 
-        players_to_remove = [
-            player_id
-            for player_id, room in self.player_connections.items()
-            if room == room_id
-        ]
+        players_to_remove = [player_id for player_id, room in self.player_connections.items() if room == room_id]
         for player_id in players_to_remove:
             del self.player_connections[player_id]
 
