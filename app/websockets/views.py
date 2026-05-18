@@ -36,7 +36,7 @@ async def websocket_endpoint(websocket: WebSocket, manager: GameManager = Depend
 
 @router.get("/{room_id}/messages")
 async def get_room_messages(room_id: str, manager: GameManager = Depends(get_game_manager)):
-    room = manager.active_rooms.get("room_id")
+    room = manager.active_rooms.get(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
