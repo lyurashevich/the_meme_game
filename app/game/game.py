@@ -29,9 +29,7 @@ class GameLogic:
     @staticmethod
     async def validate_room_can_start_game(room: Room) -> None:
         if len(room.players) < 3:
-            raise Exception(
-                "Not enough players to start game. You need at least 3 players."
-            )
+            raise Exception("Not enough players to start game. You need at least 3 players.")
 
     async def prepare_game(self, room_id: str) -> Game | None:
 
@@ -45,7 +43,6 @@ class GameLogic:
             self.game_manager.active_games[room_id] = game
 
         await self.initialize_decks(game)
-        await self.start_first_round(game)
 
         return game
 
@@ -63,18 +60,17 @@ class GameLogic:
         )
         game.current_round = new_round
         game.state = GameState.ACTIVE
-        return new_round
+        return game
 
     async def start_new_round(self, game: Game):
         async with self.game_manager.get_room_lock(game.room.id):
 
             if (
-                game.state != GameState.ACTIVE
+                not game.current_round
+                or game.state != GameState.ACTIVE
                 or game.current_round.state != RoundState.ROUND_ENDED
             ):
-                raise Exception(
-                    "Cannot start new round: game is not in ACTIVE state or round has not ended"
-                )
+                raise Exception("Cannot start new round: game is not in ACTIVE state or round has not ended")
 
             situation_card = await self.get_situation_card(game)
             await self.hand_out_one_card(game)
@@ -112,12 +108,11 @@ class GameLogic:
     async def hand_out_one_card(game: Game):
 
         if (
-            game.state != GameState.ACTIVE
+            not game.current_round
+            or game.state != GameState.ACTIVE
             or game.current_round.state != RoundState.ROUND_ENDED
         ):
-            raise Exception(
-                "Cannot start new round: game is not in ACTIVE state or round has not ended"
-            )
+            raise Exception("Cannot start new round: game is not in ACTIVE state or round has not ended")
 
         current_leader = game.room.players[game.leader_index]
 
@@ -131,11 +126,11 @@ class GameLogic:
             player.handed_cards.append(card)
 
     @staticmethod
-    async def get_situation_card(game: Game) -> Optional[SituationCard]:
+    async def get_situation_card(game: Game) -> SituationCard:
         if not game.situation_deck:
             raise Exception("No situation cards available")
 
-        situation_card = random.choice(game.situation_deck)
+        situation_card = random.choice(game.situation_deck)  # nosec B311 - game logic only, not cryptography
         game.situation_deck.remove(situation_card)
 
         return situation_card
@@ -147,9 +142,7 @@ class GameLogic:
 
     @staticmethod
     async def process_meme_deck(game):
-        cards_to_return = game.meme_discard_pile.pop(
-            game.current_round.round_number - MEME_CARDS_COOLDOWN, []
-        )
+        cards_to_return = game.meme_discard_pile.pop(game.current_round.round_number - MEME_CARDS_COOLDOWN, [])
         game.meme_deck.extend(cards_to_return)
 
     @staticmethod
@@ -159,63 +152,56 @@ class GameLogic:
         )
         game.situation_deck.extend(cards_to_return)
 
-    async def player_select_card(self, room_id: str, player_id: str, card_id: int):
-        async with self.game_manager.get_room_lock(room_id=room_id):
-            game = await self.game_manager.get_game(room_id)
+    async def player_select_card(self, game: Game, player_id: str, card_id: int):
 
-            if (
-                not game.current_round
-                or game.current_round.state != RoundState.CHOOSING_CARDS
-                or game.state != GameState.ACTIVE
-            ):
-                raise Exception(
-                    "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
-                )
-
-            player = next(
-                (player for player in game.room.players if player.id == player_id), None
+        if (
+            not game.current_round
+            or game.current_round.state != RoundState.CHOOSING_CARDS
+            or game.state != GameState.ACTIVE
+        ):
+            raise Exception(
+                "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
             )
-            if not player:
-                raise Exception("Player not found")
-            if player == game.current_round.leader:
-                raise Exception("Leader cannot choose card")
-            if player_id in game.current_round.player_choices:
-                raise Exception("Player already selected a card")
 
-            selected_card = next(
-                (card for card in player.handed_cards if card.id == card_id), None
+        player = next((player for player in game.room.players if player.id == player_id), None)
+        if not player:
+            raise Exception("Player not found")
+        if player == game.current_round.leader:
+            raise Exception("Leader cannot choose card")
+        if player_id in game.current_round.player_choices:
+            raise Exception("Player already selected a card")
+
+        selected_card = next((card for card in player.handed_cards if card.id == card_id), None)
+        if not selected_card:
+            raise Exception("Card not found")
+
+        game.current_round.player_choices[player_id] = selected_card
+        player.handed_cards.remove(selected_card)
+
+    async def leader_choose_winner(self, game: Game, winner_player_id: str):
+
+        if (
+            not game
+            or not game.current_round
+            or game.current_round.state != RoundState.LEADER_CHOOSING
+            or game.state != GameState.ACTIVE
+        ):
+            raise Exception(
+                "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
             )
-            if not selected_card:
-                raise Exception("Card not found")
 
-            game.current_round.player_choices[player_id] = selected_card
-            player.handed_cards.remove(selected_card)
+        winner = next((p for p in game.room.players if p.id == winner_player_id), None)
+        if not winner:
+            raise Exception("Player not found")
 
-    async def leader_choose_winner(self, room_id: str, winner_player_id: str):
-        async with self.game_manager.get_room_lock(room_id=room_id):
-            game = await self.game_manager.get_game(room_id=room_id)
+        if winner == game.current_round.leader:
+            raise Exception("Leader cannot be a winner")
 
-            if (
-                not game
-                or not game.current_round
-                or game.current_round.state != RoundState.LEADER_CHOOSING
-                or game.state != GameState.ACTIVE
-            ):
-                raise Exception(
-                    "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
-                )
+        if winner_player_id not in game.current_round.player_choices:
+            raise Exception("Player did not submit a card")
 
-            winner = next(
-                (p for p in game.room.players if p.id == winner_player_id), None
-            )
-            if not winner:
-                raise Exception("Player not found")
-
-            if winner == game.current_round.leader:
-                raise Exception("Leader cannot be a winner")
-
-            game.current_round.winner = winner
-            winner.score += 1
+        game.current_round.winner = winner
+        winner.score += 1
 
     async def end_round(self, game: Game):
         async with self.game_manager.get_room_lock(game.room.id):
@@ -233,14 +219,12 @@ class GameLogic:
             round_data.state = RoundState.ROUND_ENDED
 
             for player_id, card in round_data.player_choices.items():  # {int: MemeCard}
-                game.meme_discard_pile.setdefault(
-                    game.current_round.round_number, []
-                ).append(card)
+                game.meme_discard_pile.setdefault(game.current_round.round_number, []).append(card)
 
             if round_data.situation_card:
-                game.situation_discard_pile.setdefault(
-                    game.current_round.round_number, []
-                ).append(round_data.situation_card)
+                game.situation_discard_pile.setdefault(game.current_round.round_number, []).append(
+                    round_data.situation_card
+                )
 
         await self.process_meme_deck(game)
         await self.process_situation_deck(game)

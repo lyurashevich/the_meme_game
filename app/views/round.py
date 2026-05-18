@@ -8,12 +8,13 @@ router = APIRouter(prefix="/round", tags=["rounds"])
 
 @router.get("/{room_id}/current", status_code=200, response_model=GameRoundInfoSchema)
 async def get_game_round_info(room_id: str, manager: GameManager = Depends(get_game_manager)):
-    game = await manager.get_game(room_id)
-    game_round = game.current_round
-    if not game_round:
-        raise Exception("Round not found")
+    async with manager.get_room_lock(room_id):
+        game = manager.get_game(room_id)
+        game_round = game.current_round
+        if not game_round:
+            raise Exception("Round not found")
 
-    return game_round
+        return game_round
 
 
 @router.patch("/{room_id}/{round_number}/end")
