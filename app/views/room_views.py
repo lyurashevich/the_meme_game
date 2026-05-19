@@ -2,7 +2,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 
 from app.game.game_manager import GameManager, get_game_manager
-from app.schemas.room import JoinRoomSchema, RoomCreateSchema, RoomResponseSchema, RoomStateSchema
+from app.schemas.room import (
+    JoinRoomSchema,
+    RoomCreateSchema,
+    RoomResponseSchema,
+    RoomStateSchema,
+)
 
 router = APIRouter(prefix="/room", tags=["room"])
 
@@ -19,9 +24,7 @@ async def get_room(room_id: str, manager: GameManager = Depends(get_game_manager
     if not room_id:
         raise HTTPException(status_code=400, detail="Room id is required")
 
-    room = manager.active_rooms.get(room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
+    room = manager.get_room(room_id)
 
     return room
 
@@ -70,8 +73,6 @@ async def leave_room(request: JoinRoomSchema, manager: GameManager = Depends(get
 
 @router.get("/{room_id}/messages")
 async def get_room_messages(room_id: str, manager: GameManager = Depends(get_game_manager)):
-    room = await manager.get_room(room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
+    room = manager.get_room(room_id)
 
     return room.messages

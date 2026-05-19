@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.game.game_manager import GameManager, get_game_manager
@@ -36,8 +36,6 @@ async def websocket_endpoint(websocket: WebSocket, manager: GameManager = Depend
 
 @router.get("/{room_id}/messages")
 async def get_room_messages(room_id: str, manager: GameManager = Depends(get_game_manager)):
-    room = manager.active_rooms.get(room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
+    room = manager.get_room(room_id)
 
     return room.messages[-50:]
