@@ -1,6 +1,17 @@
 import random
 from typing import Optional
 
+from app.exceptions import (
+    CardNotFoundException,
+    InvalidGameStateException,
+    InvalidPlayerActionException,
+    InvalidRoundStateException,
+    NotEnoughCardsException,
+    NotEnoughPlayersException,
+    PlayerNotFoundException,
+    RoomNotFoundException,
+    RoundNotFoundException,
+)
 from app.game.dataclasses import Game, GameRound, Room
 from app.game.enums import GameState, RoundState
 from app.game.game_manager import get_game_manager
@@ -21,7 +32,7 @@ class GameLogic:
 
     async def get_room(self, room_id) -> Room:
         if room_id not in self.game_manager.active_rooms:
-            raise Exception("Room not found")
+            raise RoomNotFoundException()
 
         room = self.game_manager.active_rooms[room_id]
         return room
@@ -29,7 +40,7 @@ class GameLogic:
     @staticmethod
     async def validate_room_can_start_game(room: Room) -> None:
         if len(room.players) < 3:
-            raise Exception("Not enough players to start game. You need at least 3 players.")
+            raise NotEnoughPlayersException()
 
     async def prepare_game(self, room_id: str) -> Game | None:
 
@@ -42,35 +53,43 @@ class GameLogic:
             game.leader_index = 0
             self.game_manager.active_games[room_id] = game
 
-        await self.initialize_decks(game)
+            await self.initialize_decks(game)
 
         return game
 
-    async def start_first_round(self, game):
-        if game.state != GameState.STARTING:
-            raise Exception("Cannot start first round: game is not in STARTING state")
+    async def start_first_round(self, room_id: str) -> Game:
 
-        situation_card = await self.get_situation_card(game)
-        await self.hand_out_initial_cards(game)
-        new_round = GameRound(
-            round_number=1,
-            leader=game.room.owner,
-            situation_card=situation_card,
-            game=game,  # state = RoundState.CHOOSING_CARDS
-        )
-        game.current_round = new_round
-        game.state = GameState.ACTIVE
+        async with self.game_manager.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
+
+            if game.state != GameState.STARTING:
+                raise InvalidGameStateException(game_state=GameState.STARTING.value)
+
+            situation_card = await self.get_situation_card(game)
+            await self.hand_out_initial_cards(game)
+            new_round = GameRound(
+                round_number=1,
+                leader=game.room.owner,
+                situation_card=situation_card,
+                game=game,  # state = RoundState.CHOOSING_CARDS
+            )
+            game.current_round = new_round
+            game.state = GameState.ACTIVE
+
         return game
 
-    async def start_new_round(self, game: Game):
-        async with self.game_manager.get_room_lock(game.room.id):
+    async def start_new_round(self, room_id: str):
+        async with self.game_manager.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
 
-            if (
-                not game.current_round
-                or game.state != GameState.ACTIVE
-                or game.current_round.state != RoundState.ROUND_ENDED
-            ):
-                raise Exception("Cannot start new round: game is not in ACTIVE state or round has not ended")
+            if not game.current_round:
+                raise RoundNotFoundException()
+
+            if game.state != GameState.ACTIVE:
+                raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
+
+            if game.current_round.state != RoundState.ROUND_ENDED:
+                raise InvalidRoundStateException(round_state=RoundState.ROUND_ENDED.value)
 
             situation_card = await self.get_situation_card(game)
             await self.hand_out_one_card(game)
@@ -96,7 +115,7 @@ class GameLogic:
     async def hand_out_initial_cards(game: Game) -> None:
 
         if len(game.meme_deck) < len(game.room.players):
-            raise Exception("Not enough memes in deck")
+            raise NotEnoughCardsException()
 
         for player in game.room.players:
             for _ in range(CARDS_PER_PLAYER):
@@ -107,17 +126,19 @@ class GameLogic:
     @staticmethod
     async def hand_out_one_card(game: Game):
 
-        if (
-            not game.current_round
-            or game.state != GameState.ACTIVE
-            or game.current_round.state != RoundState.ROUND_ENDED
-        ):
-            raise Exception("Cannot start new round: game is not in ACTIVE state or round has not ended")
+        if not game.current_round:
+            raise RoundNotFoundException()
+
+        if game.state != GameState.ACTIVE:
+            raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
+
+        if game.current_round.state != RoundState.ROUND_ENDED:
+            raise InvalidRoundStateException(round_state=RoundState.ROUND_ENDED.value)
 
         current_leader = game.room.players[game.leader_index]
 
         if not game.meme_deck:
-            raise Exception("You have run out of cards(((")
+            raise NotEnoughCardsException()
 
         for player in game.room.players:
             if player == current_leader:
@@ -128,7 +149,7 @@ class GameLogic:
     @staticmethod
     async def get_situation_card(game: Game) -> SituationCard:
         if not game.situation_deck:
-            raise Exception("No situation cards available")
+            raise NotEnoughCardsException()
 
         situation_card = random.choice(game.situation_deck)  # nosec B311 - game logic only, not cryptography
         game.situation_deck.remove(situation_card)
@@ -152,68 +173,74 @@ class GameLogic:
         )
         game.situation_deck.extend(cards_to_return)
 
-    async def player_select_card(self, game: Game, player_id: str, card_id: int):
+    async def player_select_card(self, room_id: str, player_id: str, card_id: int):
 
-        if (
-            not game.current_round
-            or game.current_round.state != RoundState.CHOOSING_CARDS
-            or game.state != GameState.ACTIVE
-        ):
-            raise Exception(
-                "Error: game is not ACTIVE state of round is missing or round is not in CHOOSING_CARDS state"
-            )
+        async with self.game_manager.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
 
-        player = next((player for player in game.room.players if player.id == player_id), None)
-        if not player:
-            raise Exception("Player not found")
-        if player == game.current_round.leader:
-            raise Exception("Leader cannot choose card")
-        if player_id in game.current_round.player_choices:
-            raise Exception("Player already selected a card")
+            if not game.current_round:
+                raise RoundNotFoundException()
 
-        selected_card = next((card for card in player.handed_cards if card.id == card_id), None)
-        if not selected_card:
-            raise Exception("Card not found")
+            if game.current_round.state != RoundState.CHOOSING_CARDS:
+                raise InvalidRoundStateException(round_state=RoundState.CHOOSING_CARDS.value)
 
-        game.current_round.player_choices[player_id] = selected_card
-        player.handed_cards.remove(selected_card)
+            if game.state != GameState.ACTIVE:
+                raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
 
-    async def leader_choose_winner(self, game: Game, winner_player_id: str):
+            player = next((player for player in game.room.players if player.id == player_id), None)
+            if not player:
+                raise PlayerNotFoundException()
+            if player == game.current_round.leader:
+                raise InvalidPlayerActionException(hint="Leader cannot choose a card")
+            if player_id in game.current_round.player_choices:
+                raise InvalidPlayerActionException(hint="Player already selected a card")
 
-        if (
-            not game
-            or not game.current_round
-            or game.current_round.state != RoundState.LEADER_CHOOSING
-            or game.state != GameState.ACTIVE
-        ):
-            raise Exception(
-                "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
-            )
+            selected_card = next((card for card in player.handed_cards if card.id == card_id), None)
+            if not selected_card:
+                raise CardNotFoundException()
 
-        winner = next((p for p in game.room.players if p.id == winner_player_id), None)
-        if not winner:
-            raise Exception("Player not found")
+            game.current_round.player_choices[player_id] = selected_card
+            player.handed_cards.remove(selected_card)
 
-        if winner == game.current_round.leader:
-            raise Exception("Leader cannot be a winner")
+    async def leader_choose_winner(self, room_id: str, winner_player_id: str):
 
-        if winner_player_id not in game.current_round.player_choices:
-            raise Exception("Player did not submit a card")
+        async with self.game_manager.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
 
-        game.current_round.winner = winner
-        winner.score += 1
+            if not game.current_round:
+                raise RoundNotFoundException()
 
-    async def end_round(self, game: Game):
-        async with self.game_manager.get_room_lock(game.room.id):
+            # if game.current_round.state != RoundState.LEADER_CHOOSING:
+            #     raise InvalidRoundStateException(round_state=RoundState.LEADER_CHOOSING.value)
 
-            if (
-                not game.current_round
-                or game.current_round.state != RoundState.LEADER_CHOOSING
-                or game.state != GameState.ACTIVE
-            ):
-                raise Exception(
-                    "Error: game is not ACTIVE state of round is missing or round is not in LEADER_CHOOSING state"
-                )
+            if game.state != GameState.ACTIVE:
+                raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
+
+            winner = next((p for p in game.room.players if p.id == winner_player_id), None)
+            if not winner:
+                raise PlayerNotFoundException()
+
+            if winner == game.current_round.leader:
+                raise InvalidPlayerActionException(hint="Leader cannot be a winner")
+
+            if winner_player_id not in game.current_round.player_choices:
+                raise InvalidPlayerActionException(hint="Winner must be selected from the players who submitted cards")
+
+            game.current_round.winner = winner
+            winner.score += 1
+
+    async def end_round(self, room_id: str):
+        async with self.game_manager.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
+
+            if game.state != GameState.ACTIVE:
+                raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
+
+            if not game.current_round:
+                raise RoundNotFoundException()
+
+            # if game.current_round.state != RoundState.LEADER_CHOOSING:
+            #     raise InvalidRoundStateException(round_state=RoundState.LEADER_CHOOSING.value)
 
             round_data = game.current_round
             round_data.state = RoundState.ROUND_ENDED
@@ -226,8 +253,8 @@ class GameLogic:
                     round_data.situation_card
                 )
 
-        await self.process_meme_deck(game)
-        await self.process_situation_deck(game)
+            await self.process_meme_deck(game)
+            await self.process_situation_deck(game)
 
     # async def end_game(self, game: Game):
     #     """End the game and clean up"""
@@ -243,12 +270,14 @@ class GameLogic:
     #     await self.cleanup_room(room_id)
 
     def get_game_state(self, room_id: str) -> Optional[Game]:
-        """Get current game state for a room"""
-        return self.game_manager.active_games.get(room_id)
+        with self.game_manager.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
+        return game
 
     def get_room_state(self, room_id: str) -> Optional[Room]:
-        """Get current room state"""
-        return self.game_manager.active_rooms.get(room_id)
+        with self.game_manager.get_room_lock(room_id):
+            room = self.game_manager.get_room(room_id)
+        return room
 
 
 game_logic = GameLogic()

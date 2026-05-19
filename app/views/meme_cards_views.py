@@ -28,8 +28,8 @@ def create_meme_card(meme_card: MemeCardCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{card_id}", response_model=MemeCardSchema)
 def update_meme_card(
+    meme_card: MemeCardUpdate,
     card_id: int = Path(..., gt=0),
-    meme_card: MemeCardUpdate = None,
     db: Session = Depends(get_db),
 ):
     service = CardService(db)

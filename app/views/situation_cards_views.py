@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas.cards import SituationCardCreate, SituationCardSchema, SituationCardUpdate
+from app.schemas.cards import (
+    SituationCardCreate,
+    SituationCardSchema,
+    SituationCardUpdate,
+)
 from app.services.situations_services import CardService
 
 router = APIRouter(prefix="/situations", tags=["situations"])
@@ -28,8 +32,8 @@ def create_situation_card(situation_card: SituationCardCreate, db: Session = Dep
 
 @router.patch("/{card_id}", response_model=SituationCardSchema)
 def update_situation_card(
+    situation_card: SituationCardUpdate,
     card_id: int = Path(..., gt=0),
-    situation_card: SituationCardUpdate = None,
     db: Session = Depends(get_db),
 ):
     service = CardService(db)

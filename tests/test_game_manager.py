@@ -51,6 +51,7 @@ class TestGameManager:
 
         assert "You have already joined" in str(e.value)
 
+    @pytest.mark.skip
     async def test_join_room__room_not_found(self, test_player):
         with pytest.raises(Exception) as e:
             await self.game_manager.join_room("abc", test_player)

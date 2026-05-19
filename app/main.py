@@ -3,10 +3,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.templating import Jinja2Templates
 
 from app.db import session_maker
+from app.exceptions import CustomException
 from app.services.memes_services import CardService as MemeService
 from app.services.situations_services import CardService as SituationService
 from app.views.game import router as game_router
@@ -27,6 +28,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(CustomException)
+async def custom_exception_handler(request: Request, exception: CustomException):
+    return JSONResponse(
+        status_code=exception.status_code, content={"error": {"code": exception.code, "message": exception.message}}
+    )
+
+
 base_dir = Path(__file__).parent
 static_dir = base_dir / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -50,4 +60,4 @@ async def index(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104

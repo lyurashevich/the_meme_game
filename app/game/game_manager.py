@@ -4,6 +4,11 @@ from datetime import datetime
 
 from starlette.websockets import WebSocket
 
+from app.exceptions import (
+    GameNotFoundException,
+    PlayerNotFoundException,
+    RoomNotFoundException,
+)
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import WebsocketEvents
 from app.schemas.messages import ChatMessageResponse
@@ -30,27 +35,34 @@ class GameManager:
 
     def get_game(self, room_id: str) -> Game:
         game = self.active_games.get(room_id)
+
         if not game:
-            raise Exception("Game not found")
+            raise GameNotFoundException()
 
         return game
 
-    async def get_player(self, player_id: str) -> Player:
+    def get_player(self, player_id: str) -> Player:
         player = self.players.get(player_id)
+
         if not player:
-            raise Exception("Player not found")
+            raise PlayerNotFoundException()
+
         return player
 
-    async def get_room(self, room_id: str) -> Room:
+    def get_room(self, room_id: str) -> Room:
         room = self.active_rooms.get(room_id)
+
         if not room:
-            raise Exception("Room not found")
+            raise RoomNotFoundException()
+
         return room
 
     def get_room_lock(self, room_id: str) -> Lock:
         lock = self.room_locks.get(room_id)
+
         if lock is None:
             raise Exception("Lock not found")
+
         return lock
 
     async def create_player(self, websocket: WebSocket | None = None, name: str | None = None) -> Player:
@@ -69,7 +81,7 @@ class GameManager:
             await ws.send_text(message)
 
     async def broadcast_to_room(self, room_id: str, message: dict, sender_id: str | None = None) -> None:
-        room = await self.get_room(room_id=room_id)
+        room = self.get_room(room_id=room_id)
 
         for player in room.players:
             if sender_id and player.id == sender_id:
@@ -80,7 +92,7 @@ class GameManager:
                 await ws.send_json(message)
 
     async def send_chat_message(self, room_id: str, player_id: str, message: str):
-        player = await self.get_player(player_id)
+        player = self.get_player(player_id)
 
         chat_message = {
             "player_id": player_id,
@@ -99,7 +111,7 @@ class GameManager:
         )
 
         async with self.get_room_lock(room_id):
-            room = await self.get_room(room_id=room_id)
+            room = self.get_room(room_id=room_id)
             room.messages.append(chat_message)
 
             sockets = [
@@ -131,7 +143,7 @@ class GameManager:
 
     async def join_room(self, room_id: str, player: Player) -> None:
         async with self.get_room_lock(room_id):
-            room = await self.get_room(room_id=room_id)
+            room = self.get_room(room_id=room_id)
 
             await room.add_player(player)
             self.players[player.id] = player
@@ -147,12 +159,12 @@ class GameManager:
         )
 
     async def leave_room(self, player_id: str) -> None:
-        player = await self.get_player(player_id)
+        player = self.get_player(player_id)
         need_cleanup = False
 
         room_id = self.player_connections[player_id]
         async with self.get_room_lock(room_id):
-            room = await self.get_room(room_id=room_id)
+            room = self.get_room(room_id=room_id)
 
             await room.remove_player(player)
             del self.player_connections[player_id]

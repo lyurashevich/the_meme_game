@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.game.game import game_logic
-from app.game.game_manager import GameManager, get_game_manager
 from app.schemas.game import (
     GameResponse,
     SelectPlayerCardRequest,
@@ -30,16 +29,10 @@ async def end_game():
 
 
 @router.patch("/{room_id}/players_choice")
-async def players_cards(
-    room_id: str, data: SelectPlayerCardRequest, game_manager: GameManager = Depends(get_game_manager)
-):
-    async with game_manager.get_room_lock(room_id=room_id):
-        game = game_manager.get_game(room_id)
-    await game_logic.player_select_card(game, player_id=data.player_id, card_id=data.card_id)
+async def players_cards(room_id: str, data: SelectPlayerCardRequest):
+    await game_logic.player_select_card(room_id, player_id=data.player_id, card_id=data.card_id)
 
 
 @router.patch("/{room_id}/select_winner")
-async def select_winner(room_id: str, data: SelectWinnerRequest, game_manager: GameManager = Depends(get_game_manager)):
-    async with game_manager.get_room_lock(room_id=room_id):
-        game = game_manager.get_game(room_id=room_id)
-    await game_logic.leader_choose_winner(game, winner_player_id=data.winner_id)
+async def select_winner(room_id: str, data: SelectWinnerRequest):
+    await game_logic.leader_choose_winner(room_id, winner_player_id=data.winner_id)
