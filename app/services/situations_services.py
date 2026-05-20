@@ -8,13 +8,9 @@ from app.schemas.cards import SituationCardCreate, SituationCardUpdate
 
 
 class CardService:
-    SITUATION_CARDS: list[SituationCard] = []
 
     def __init__(self, db: Session):
         self.db = db
-
-        if not CardService.SITUATION_CARDS:
-            CardService.SITUATION_CARDS = self.get_situation_cards()
 
     def get_situation_cards(self) -> list[SituationCard]:
         result = self.db.execute(select(SituationCard))

@@ -1,6 +1,7 @@
 import random
 from typing import Optional
 
+from app.db import session_maker
 from app.exceptions import (
     CardNotFoundException,
     InvalidGameStateException,
@@ -105,8 +106,9 @@ class GameLogic:
 
     @staticmethod
     async def initialize_decks(game: Game) -> None:
-        game.meme_deck = MemeService.MEME_CARDS.copy()
-        game.situation_deck = SituationService.SITUATION_CARDS.copy()
+        with session_maker() as db:
+            game.meme_deck = list(MemeService(db).get_meme_cards())
+            game.situation_deck = list(SituationService(db).get_situation_cards())
 
         random.shuffle(game.meme_deck)
         random.shuffle(game.situation_deck)

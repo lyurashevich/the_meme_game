@@ -9,13 +9,9 @@ from app.schemas.cards import MemeCardCreate, MemeCardUpdate
 
 
 class CardService:
-    MEME_CARDS: list[MemeCard] = []
 
     def __init__(self, db: Session):
         self.db = db
-
-        if not CardService.MEME_CARDS:
-            CardService.MEME_CARDS = self.get_meme_cards()
 
     def get_meme_cards(self) -> list[MemeCard]:
         result = self.db.execute(select(MemeCard))

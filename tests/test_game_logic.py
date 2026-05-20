@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from app.exceptions import (
@@ -32,7 +34,12 @@ class TestGameLogic:
         assert str(e.value.message) == "Room not found"
 
     async def test_prepare_game(self, test_room_with_players, mock_situation_cards, mock_meme_cards):
-        game = await game_logic.prepare_game(test_room_with_players.id)
+
+        with patch("app.game.game.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
+            "app.game.game.SituationService.get_situation_cards", return_value=mock_situation_cards
+        ):
+
+            game = await game_logic.prepare_game(test_room_with_players.id)
 
         assert not game.current_round
         assert game.meme_deck_count == len(mock_meme_cards)
@@ -75,7 +82,8 @@ class TestGameLogic:
             await game_logic.start_first_round(prepared_game.room_id)
 
         assert (
-            str(e.value.message) == "Invalid game state. Game state must be GameState.STARTING to perform this action"
+            str(e.value.message)
+            == f"Invalid game state. Game state must be {GameState.STARTING.value} to perform this action"
         )
 
     async def test_start_first_round__no_situation_cards(self, prepared_game):
@@ -139,7 +147,10 @@ class TestGameLogic:
         with pytest.raises(InvalidGameStateException) as e:
             await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
-        assert str(e.value.message) == "Invalid game state. Game state must be GameState.ACTIVE to perform this action"
+        assert (
+            str(e.value.message)
+            == f"Invalid game state. Game state must be {GameState.ACTIVE.value} to perform this action"
+        )
 
     async def test_player_select_card__card_already_selected(self, prepared_game):
         await game_logic.start_first_round(prepared_game.room_id)
@@ -174,7 +185,7 @@ class TestGameLogic:
 
         assert (
             str(e.value.message)
-            == "Invalid round state. Round state must be RoundState.CHOOSING_CARDS to perform this action"
+            == f"Invalid round state. Round state must be {RoundState.CHOOSING_CARDS.value} to perform this action"
         )
 
     async def test_leader_choose_winner(self, prepared_game):
@@ -235,7 +246,10 @@ class TestGameLogic:
         with pytest.raises(InvalidGameStateException) as e:
             await game_logic.leader_choose_winner(prepared_game.room_id, winner.id)
 
-        assert str(e.value.message) == "Invalid game state. Game state must be GameState.ACTIVE to perform this action"
+        assert (
+            str(e.value.message)
+            == f"Invalid game state. Game state must be {GameState.ACTIVE.value} to perform this action"
+        )
 
     async def test_leader_choose_winner__player_not_found(self, prepared_game):
         await game_logic.start_first_round(prepared_game.room_id)
@@ -302,7 +316,8 @@ class TestGameLogic:
             await game_logic.end_round(prepared_game.room_id)
 
         assert (
-            str(e.value.message) == f"Invalid game state. Game state must be {GameState.ACTIVE} to perform this action"
+            str(e.value.message)
+            == f"Invalid game state. Game state must be {GameState.ACTIVE.value} to perform this action"
         )
 
     async def test_start_new_round(self, prepared_game):
