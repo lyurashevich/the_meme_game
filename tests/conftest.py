@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.testclient import TestClient
 
@@ -86,9 +86,8 @@ async def test_room_with_players(test_player, test_players):
 @pytest.fixture
 async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_cards):
     """non-started game yet"""
-    with patch("app.services.memes_services.CardService.MEME_CARDS", mock_meme_cards), patch(
-        "app.services.situations_services.CardService.SITUATION_CARDS",
-        mock_situation_cards,
+    with patch("app.game.game.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
+        "app.game.game.SituationService.get_situation_cards", return_value=mock_situation_cards
     ):
         game = await game_logic.prepare_game(room_id=test_room_with_players.id)
 
