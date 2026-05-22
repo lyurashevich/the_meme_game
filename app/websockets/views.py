@@ -1,20 +1,49 @@
 import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.game.game_manager import GameManager, get_game_manager
+from app.game.websocket_sender import WebSocketSender
 
 router = APIRouter(prefix="/ws")
 
 
 @router.websocket("/")
-async def websocket_endpoint(websocket: WebSocket, manager: GameManager = Depends(get_game_manager)):
+async def websocket_endpoint(
+    websocket: WebSocket, reconnect_token: str | None = None, manager: GameManager = Depends(get_game_manager)
+):
     await websocket.accept()
 
-    player = await manager.create_player(websocket)
+    sender = WebSocketSender(manager)
 
-    await websocket.send_json({"event": "player_created", "player_id": player.id})
+    player = None
+    was_reconnected = False
+    now = datetime.now(timezone.utc)
+
+    if reconnect_token:
+        player, was_reconnected = await manager.handle_reconnect(websocket, reconnect_token, now)
+
+        if not player:
+            await websocket.send_json({"event": "reconnection_failed"})
+            await websocket.close()
+            return
+
+        await sender.send_restore_state(websocket, player)
+        await sender.send_room_state(websocket=websocket, room_id=player.room_id)
+
+    if not player:
+        player = await manager.create_player(websocket)
+
+    await sender.send(
+        websocket,
+        "player_reconnected" if was_reconnected else "player_created",
+        {
+            "player_id": player.id,
+            "reconnect_token": player.reconnect_token,
+        },
+    )
 
     try:
         while True:
