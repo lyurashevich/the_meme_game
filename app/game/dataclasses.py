@@ -1,5 +1,7 @@
+import secrets
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from app.game.enums import GameState, RoundState
 from app.models import MemeCard, SituationCard
@@ -9,12 +11,15 @@ from app.schemas.round import PlayerChoiceSchema
 @dataclass
 class Player:
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    reconnect_token: str = field(default_factory=lambda: secrets.token_hex(16))
+    disconnected_at: datetime | None = None
     username: str | None = None
     handed_cards: list[MemeCard] = field(default_factory=list)
     is_host: bool = False  # Host is the first leader
     score: int = 0
     is_connected: bool = True
     connection_order: int = 0  # Order of connection for leader rotation
+    room_id: str | None = None
 
     def __post_init__(self):
         if not self.username:
@@ -73,9 +78,7 @@ class GameRound:
     round_number: int
     leader: Player
     situation_card: SituationCard
-    player_choices: dict[str, MemeCard] = field(
-        default_factory=dict
-    )  # player_id -> selected_card
+    player_choices: dict[str, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
     time_limit: int = 60  # seconds
@@ -83,17 +86,9 @@ class GameRound:
     @property
     def player_choices_list(self):
         return [
-            PlayerChoiceSchema(
-                player_id=player.id, username=player.username, image_url=card.image_url
-            )
+            PlayerChoiceSchema(player_id=player.id, username=player.username, image_url=card.image_url)
             for player_id, card in self.player_choices.items()
-            for player in [
-                next(
-                    player
-                    for player in self.game.room.players
-                    if player.id == player_id
-                )
-            ]
+            for player in [next(player for player in self.game.room.players if player.id == player_id)]
         ]
 
     @property

@@ -1,6 +1,7 @@
+import asyncio
 from asyncio import Lock, Task
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from starlette.websockets import WebSocket
 
@@ -12,6 +13,8 @@ from app.exceptions import (
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import WebsocketEvents
 from app.schemas.messages import ChatMessageResponse
+
+RECONNECT_TIMEOUT = 60  # seconds
 
 
 @dataclass
@@ -49,6 +52,12 @@ class GameManager:
 
         return player
 
+    def get_player_by_reconnect_token(self, reconnect_token: str) -> Player:
+        player = next((player for player in self.players.values() if player.reconnect_token == reconnect_token), None)
+        if not player:
+            raise PlayerNotFoundException()
+        return player
+
     def get_room(self, room_id: str) -> Room:
         room = self.active_rooms.get(room_id)
 
@@ -73,7 +82,39 @@ class GameManager:
         return player
 
     async def disconnect(self, player_id) -> None:
-        self.player_sockets.pop(player_id, None)
+        room_id = self.player_connections.get(player_id)
+        player = self.get_player(player_id)
+
+        async def mark_disconnected():
+            self.player_sockets[player_id] = None
+            player.is_connected = False
+            player.disconnected_at = datetime.now(timezone.utc)
+
+        if room_id:
+            async with self.get_room_lock(room_id):
+                await mark_disconnected()
+        else:
+            await mark_disconnected()
+
+        asyncio.create_task(self.players_cleanup(player_id))
+
+    async def players_cleanup(self, player_id: str):
+        await asyncio.sleep(RECONNECT_TIMEOUT)
+
+        try:
+            player = self.get_player(player_id)
+
+            if player.is_connected:
+                return
+
+            if player.room_id:
+                await self.leave_room(player_id)
+
+            self.players.pop(player_id, None)
+            self.player_sockets.pop(player_id, None)
+
+        except PlayerNotFoundException:
+            return
 
     async def send_personal_message(self, player_id: str, message: str) -> None:
         ws = self.player_sockets.get(player_id)
@@ -88,7 +129,6 @@ class GameManager:
                 continue
             ws = self.player_sockets.get(player.id)
             if ws:
-                print(message)
                 await ws.send_json(message)
 
     async def send_chat_message(self, room_id: str, player_id: str, message: str):
@@ -148,6 +188,7 @@ class GameManager:
             await room.add_player(player)
             self.players[player.id] = player
             self.player_connections[player.id] = room_id
+            player.room_id = room_id
 
         await self.broadcast_to_room(
             room_id=room_id,
@@ -168,6 +209,7 @@ class GameManager:
 
             await room.remove_player(player)
             del self.player_connections[player_id]
+            player.room_id = None
             if not room.players:
                 need_cleanup = True
 
@@ -187,6 +229,30 @@ class GameManager:
         players_to_remove = [player_id for player_id, room in self.player_connections.items() if room == room_id]
         for player_id in players_to_remove:
             del self.player_connections[player_id]
+
+    async def handle_reconnect(self, websocket: WebSocket, reconnection_token: str, now: datetime):
+        try:
+            player = self.get_player_by_reconnect_token(reconnection_token)
+        except PlayerNotFoundException:
+            return None, False
+
+        if not player.disconnected_at or (now - player.disconnected_at).total_seconds() >= RECONNECT_TIMEOUT:
+            return None, False
+
+        async def mark_reconnected():
+            player.is_connected = True
+            player.disconnected_at = None
+            self.player_sockets[player.id] = websocket
+
+        room_id = player.room_id
+
+        if room_id:
+            async with self.get_room_lock(room_id):
+                await mark_reconnected()
+        else:
+            await mark_reconnected()
+
+        return player, True
 
 
 _game_manager = None
