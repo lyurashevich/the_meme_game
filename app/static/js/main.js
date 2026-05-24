@@ -43,7 +43,6 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
   });
 
   const room = await response.json();
-  log("Создана комната: " + JSON.stringify(room, null, 2));
 
   showRoomInterface(room.id, room.name);
   await loadChatHistory(room.id);
@@ -64,6 +63,11 @@ document.getElementById("leaveRoomBtn").addEventListener("click", async () => {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ player_id: playerId })
     });
+
+    if (response.ok) {
+      currentRoomId = null;
+      localStorage.removeItem("currentRoomId");
+    }
 
     if (!response.ok) {
       const error = await response.json();

@@ -23,9 +23,9 @@ class TestWebsocket:
             reconnect_token = response["payload"]["reconnect_token"]
 
         with client.websocket_connect(f"/ws/?reconnect_token={reconnect_token}") as ws:
+            reconnect_response = ws.receive_json()
             restore_state = ws.receive_json()
             room_state = ws.receive_json()
-            reconnect_response = ws.receive_json()
 
             assert restore_state["event"] == "restore_state"
             assert room_state["event"] == "room_state"

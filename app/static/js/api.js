@@ -13,7 +13,6 @@ async function joinRoom(roomId, roomName) {
       document.getElementById('chatContainer').classList.remove('hidden');
       await showRoomInterface(roomId, roomName);
       await loadChatHistory(roomId);
-      log('you have joine the room: ' + roomId);
     } else {
       const error = await response.json();
       alert("error: " + error.detail);
@@ -42,4 +41,17 @@ async function loadRooms() {
   } catch (error) {
     log("error: " + error);
   }
+}
+
+async function handleRoomState(payload) {
+  currentRoomId = payload.room_id;
+
+  localStorage.setItem("currentRoomId", payload.room_id);
+
+  players = payload.players;
+  gameState = payload.game_state;
+  roundState = payload.round_state;
+
+  showRoomInterface(currentRoomId, "room.name");
+  await loadChatHistory(currentRoomId);
 }

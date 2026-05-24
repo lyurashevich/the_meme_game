@@ -1,15 +1,23 @@
-from starlette.websockets import WebSocket
+from fastapi import Depends
 
 from app.game.dataclasses import Player
-from app.game.game_manager import GameManager
+from app.game.game_manager import GameManager, get_game_manager
 
 
 class WebSocketSender:
     def __init__(self, manager: "GameManager"):
         self.manager = manager
 
-    @staticmethod
-    async def send(websocket: WebSocket, event: str, payload: dict):
+    def get_websocket_connection(self, player_id: str):
+        websocket = self.manager.player_sockets.get(player_id)
+
+        if not websocket:
+            raise Exception("Socket not found!")
+
+        return websocket
+
+    async def send(self, player_id: str, event: str, payload: dict):
+        websocket = self.get_websocket_connection(player_id)
         await websocket.send_json(
             {
                 "event": event,
@@ -17,9 +25,9 @@ class WebSocketSender:
             }
         )
 
-    async def send_restore_state(self, websocket: WebSocket, player: Player):
+    async def send_restore_state(self, player: Player):
         await self.send(
-            websocket,
+            player.id,
             event="restore_state",
             payload={
                 "handed_cards": [card.dict() for card in player.handed_cards],
@@ -29,12 +37,12 @@ class WebSocketSender:
             },
         )
 
-    async def send_room_state(self, websocket: WebSocket, room_id: str):
+    async def send_room_state(self, room_id: str, player: Player):
         game = self.manager.active_games.get(room_id)
         room = self.manager.active_rooms.get(room_id)
 
         await self.send(
-            websocket,
+            player.id,
             "room_state",
             {
                 "room_id": room_id,
@@ -56,3 +64,7 @@ class WebSocketSender:
                 # 'time_left': ...,
             },
         )
+
+
+def get_websocket_sender(manager: GameManager = Depends(get_game_manager)):
+    return WebSocketSender(manager)
