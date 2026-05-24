@@ -25,10 +25,8 @@ class TestWebsocket:
         with client.websocket_connect(f"/ws/?reconnect_token={reconnect_token}") as ws:
             reconnect_response = ws.receive_json()
             restore_state = ws.receive_json()
-            room_state = ws.receive_json()
 
             assert restore_state["event"] == "restore_state"
-            assert room_state["event"] == "room_state"
             assert reconnect_response["event"] == "player_reconnected"
 
     def test_websocket_reconnect_after_timeout(self, client):

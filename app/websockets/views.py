@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from app.exceptions import PlayerNotFoundException
 from app.game.game_manager import GameManager, get_game_manager
 from app.game.websocket_sender import WebSocketSender
 
@@ -22,9 +23,9 @@ async def websocket_endpoint(
     now = datetime.now(timezone.utc)
 
     if reconnect_token:
-        player = await manager.handle_reconnect(websocket, reconnect_token, now)
-
-        if not player:
+        try:
+            player = await manager.handle_reconnect(websocket, reconnect_token, now)
+        except PlayerNotFoundException:
             await websocket.send_json({"event": "reconnection_failed"})
             await websocket.close()
             return
