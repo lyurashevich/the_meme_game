@@ -1,4 +1,8 @@
+from unittest.mock import AsyncMock
+
 from app.game.game_manager import get_game_manager
+from app.game.websocket_sender import get_websocket_sender
+from app.main import app
 
 
 class TestRoomViews:
@@ -48,6 +52,10 @@ class TestRoomViews:
         assert response.json()[0]["name"] == room.name
 
     async def test_join_room(self, test_room, test_player, client_with_no_db):
+        sender_mock = AsyncMock()
+        sender_mock.send = AsyncMock()
+        app.dependency_overrides[get_websocket_sender] = lambda: sender_mock
+
         new_player = await self.game_manager.create_player()
 
         response = client_with_no_db.patch(f"{self.url}/{test_room.id}", json={"player_id": new_player.id})
@@ -57,6 +65,9 @@ class TestRoomViews:
         updated_room = self.game_manager.active_rooms.get(test_room.id)
         assert new_player in self.game_manager.players.values()
         assert new_player in updated_room.players
+        sender_mock.send.assert_called_once_with(
+            player_id=new_player.id, event="room_joined", payload={"room_id": test_room.id}
+        )
 
     async def test_leave_room(self, websocket, test_room, client_with_no_db):
         new_player = await self.game_manager.create_player(websocket=websocket)

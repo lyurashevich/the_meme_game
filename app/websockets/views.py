@@ -19,26 +19,27 @@ async def websocket_endpoint(
     sender = WebSocketSender(manager)
 
     player = None
-    was_reconnected = False
     now = datetime.now(timezone.utc)
 
     if reconnect_token:
-        player, was_reconnected = await manager.handle_reconnect(websocket, reconnect_token, now)
+        player = await manager.handle_reconnect(websocket, reconnect_token, now)
 
         if not player:
             await websocket.send_json({"event": "reconnection_failed"})
             await websocket.close()
             return
 
-        await sender.send_restore_state(websocket, player)
-        await sender.send_room_state(websocket=websocket, room_id=player.room_id)
+        await sender.send(player.id, "player_reconnected", {"room_id": player.room_id})
+        await sender.send_restore_state(player)
+        if player.room_id:
+            await sender.send_room_state(room_id=player.room_id, player=player)
 
     if not player:
         player = await manager.create_player(websocket)
 
     await sender.send(
-        websocket,
-        "player_reconnected" if was_reconnected else "player_created",
+        player.id,
+        "player_created",
         {
             "player_id": player.id,
             "reconnect_token": player.reconnect_token,

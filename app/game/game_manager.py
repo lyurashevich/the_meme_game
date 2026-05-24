@@ -178,6 +178,7 @@ class GameManager:
         self.active_rooms[room.id] = room
         self.player_connections[owner.id] = room.id
         self.room_locks[room.id] = Lock()
+        owner.room_id = room.id
 
         return room
 
@@ -230,14 +231,13 @@ class GameManager:
         for player_id in players_to_remove:
             del self.player_connections[player_id]
 
-    async def handle_reconnect(self, websocket: WebSocket, reconnection_token: str, now: datetime):
-        try:
-            player = self.get_player_by_reconnect_token(reconnection_token)
-        except PlayerNotFoundException:
-            return None, False
+    async def handle_reconnect(self, websocket: WebSocket, reconnection_token: str, now: datetime) -> Player:
+        player = self.get_player_by_reconnect_token(reconnection_token)
+        if not player:
+            raise PlayerNotFoundException()
 
         if not player.disconnected_at or (now - player.disconnected_at).total_seconds() >= RECONNECT_TIMEOUT:
-            return None, False
+            raise PlayerNotFoundException()
 
         async def mark_reconnected():
             player.is_connected = True
@@ -252,7 +252,7 @@ class GameManager:
         else:
             await mark_reconnected()
 
-        return player, True
+        return player
 
 
 _game_manager = None

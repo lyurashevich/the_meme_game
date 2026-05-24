@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 
 from app.game.game_manager import GameManager, get_game_manager
+from app.game.websocket_sender import WebSocketSender, get_websocket_sender
 from app.schemas.room import (
     JoinRoomSchema,
     RoomCreateSchema,
@@ -54,6 +55,7 @@ async def join_room(
     request: JoinRoomSchema,
     room_id: str,
     manager: GameManager = Depends(get_game_manager),
+    sender: WebSocketSender = Depends(get_websocket_sender),
 ):
     player = manager.players.get(request.player_id)
     if not player:
@@ -64,6 +66,7 @@ async def join_room(
         raise HTTPException(status_code=404, detail="Room not found")
 
     await manager.join_room(room_id, player)
+    await sender.send(player_id=player.id, event="room_joined", payload={"room_id": room_id})
 
 
 @router.patch("/{room_id}/leave")
