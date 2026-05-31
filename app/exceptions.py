@@ -74,3 +74,9 @@ class NotEnoughCardsException(CustomException):
     code: str = "not_enough_cards"
     status_code: int = 400
     message: str = "Not enough cards to start game."
+
+
+class InvalidReconnectToken(CustomException):
+    code: str = "invalid_reconnect_token"
+    status_code: int = 400
+    message: str = "Invalid reconnect token"

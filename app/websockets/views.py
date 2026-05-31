@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from app.exceptions import PlayerNotFoundException
+from app.exceptions import InvalidReconnectToken, PlayerNotFoundException
 from app.game.game_manager import GameManager, get_game_manager
 from app.game.websocket_sender import WebSocketSender
 
@@ -25,27 +25,28 @@ async def websocket_endpoint(
     if reconnect_token:
         try:
             player = await manager.handle_reconnect(websocket, reconnect_token, now)
-        except PlayerNotFoundException:
-            await websocket.send_json({"event": "reconnection_failed"})
-            await websocket.close()
-            return
+            token = await manager.create_reconnect_token(player.id)
+            await sender.send(player.id, "player_reconnected", {"room_id": player.room_id, "reconnect_token": token})
+            await sender.send_restore_state(player)
 
-        await sender.send(player.id, "player_reconnected", {"room_id": player.room_id})
-        await sender.send_restore_state(player)
-        if player.room_id:
-            await sender.send_room_state(room_id=player.room_id, player=player)
+            if player.room_id:
+                await sender.send_room_state(room_id=player.room_id, player=player)
+
+        except (PlayerNotFoundException, InvalidReconnectToken):
+            player = None
 
     if not player:
         player = await manager.create_player(websocket)
+        token = await manager.create_reconnect_token(player.id)
 
-    await sender.send(
-        player.id,
-        "player_created",
-        {
-            "player_id": player.id,
-            "reconnect_token": player.reconnect_token,
-        },
-    )
+        await sender.send(
+            player.id,
+            "player_created",
+            {
+                "player_id": player.id,
+                "reconnect_token": token,
+            },
+        )
 
     try:
         while True:
@@ -62,7 +63,21 @@ async def websocket_endpoint(
                 await websocket.send_text(f"echo: {data}")
 
     except WebSocketDisconnect:
-        await manager.disconnect(player.id)
+        # normal disconnect
+        pass
+    except Exception:  # nosec B110
+        # todo: add logging
+        # ensure we don't leave player marked connected on unexpected errors
+        # (logged elsewhere or in future)
+        pass
+    finally:
+        if player:
+            try:
+                await manager.disconnect(player.id)
+            except Exception:  # nosec B110
+                # todo: add logging
+                # swallow to avoid raising from websocket endpoint
+                pass
 
 
 @router.get("/{room_id}/messages")

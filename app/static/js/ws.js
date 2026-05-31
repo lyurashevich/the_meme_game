@@ -51,6 +51,11 @@
             const roomId = data.payload.room_id;
             const roomName = data.payload.room_name;
 
+            reconnectToken = data.payload.reconnect_token;
+
+            localStorage.setItem("playerId", playerId);
+            localStorage.setItem("reconnectToken", reconnectToken);
+
             document.getElementById("createRoomBtn").disabled = false;
             document.getElementById('connectBtn').disabled = true;
 

@@ -1,4 +1,3 @@
-import secrets
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,10 +8,14 @@ from app.schemas.round import PlayerChoiceSchema
 
 
 @dataclass
+class ReconnectToken:
+    player_id: str
+    expires_at: datetime | None = None
+
+
+@dataclass
 class Player:
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    reconnect_token: str = field(default_factory=lambda: secrets.token_hex(16))
-    disconnected_at: datetime | None = None
     username: str | None = None
     handed_cards: list[MemeCard] = field(default_factory=list)
     is_host: bool = False  # Host is the first leader
