@@ -23,7 +23,8 @@ class StartGameResponse(BaseModel):
 
 
 class SelectWinnerRequest(BaseModel):
-    winner_id: str
+    # winner_id: str
+    card_id: int
 
 
 class SelectPlayerCardRequest(BaseModel):

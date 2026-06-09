@@ -1,6 +1,11 @@
 let playerId = null;
 let currentRoomId = null;
 let currentRoomName = null;
+let isLeader = false
+
+function updateLeaderStatus(leaderId) {
+  isLeader = (playerId === leaderId);
+}
 
 function showRoomInterface(roomId, roomName) {
   currentRoomId = roomId;

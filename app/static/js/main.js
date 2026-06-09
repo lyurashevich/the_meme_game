@@ -1,3 +1,38 @@
+let selectedCardId = null;
+
+document.addEventListener('click', (event) => {
+  const card = event.target.closest('.card');
+  if (!card) return;
+
+  selectedCardId = card.dataset.cardId;
+
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected')
+});
+
+document.getElementById("confirmChoice").addEventListener('click', async () => {
+  const selected = document.querySelector(".card.selected");
+
+  if (!selectedCardId) {
+  return;}
+
+  const response = await fetch(`/game/${currentRoomId}/players_choice`, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      player_id: playerId,
+      card_id: selectedCardId
+    })
+  })
+
+  if (!response.ok) {
+    return;
+  }
+
+  await animateCardToCenter(selected);
+  selected.remove();
+});
+
 document.getElementById("sendMessage").addEventListener("click", () => {
   const messageInput = document.getElementById("chatMessage");
   const message = messageInput.value.trim();
@@ -43,6 +78,7 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
   });
 
   const room = await response.json();
+  log("Создана комната: " + JSON.stringify(room, null, 2));
 
   showRoomInterface(room.id, room.name);
   await loadChatHistory(room.id);

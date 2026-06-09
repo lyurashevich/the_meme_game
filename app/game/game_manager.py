@@ -4,8 +4,6 @@ from asyncio import Lock, Task
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from starlette.websockets import WebSocket
-
 from app.exceptions import (
     GameNotFoundException,
     InvalidReconnectToken,
@@ -13,7 +11,8 @@ from app.exceptions import (
     RoomNotFoundException,
 )
 from app.game.dataclasses import Game, Player, ReconnectToken, Room
-from app.game.enums import WebsocketEvents
+from app.game.enums import RoundState, WebsocketEvents
+from app.game.websocket_sender import WebSocketSender
 from app.schemas.messages import ChatMessageResponse
 
 RECONNECT_TIMEOUT = 60  # seconds
@@ -22,10 +21,10 @@ RECONNECT_TOKEN_TTL_SECONDS = 60  # TTL for reconnect token (seconds)
 
 @dataclass
 class GameManager:
+    websocket_sender: WebSocketSender | None = None
     active_games: dict[str, Game] = field(default_factory=dict)  # room_id -> Game
     active_rooms: dict[str, Room] = field(default_factory=dict)  # room_id -> Room
     player_connections: dict[str, str] = field(default_factory=dict)  # player_id -> room_id
-    player_sockets: dict[str, WebSocket | None] = field(default_factory=dict)  # player_id -> Websocket
     players: dict[str, Player] = field(default_factory=dict)  # player_id -> Player
     room_locks: dict[str, Lock] = field(default_factory=dict)  # room_id -> Lock
     room_tasks: dict[str, dict[str, Task]] = field(default_factory=dict)  # room_id -> {task_name -> Task}
@@ -35,6 +34,42 @@ class GameManager:
     reconnect_tokens: dict[str, ReconnectToken] = field(default_factory=dict)
     # lock protecting reconnect_tokens
     reconnect_lock: Lock = field(default_factory=Lock)
+
+    async def phase_timer(self, room_id: str):
+
+        # print(
+        #     f"round state before timer: {self.get_game(room_id).current_round.state
+        #     if self.get_game(room_id).current_round else None}")
+        await asyncio.sleep(30)
+        # print(f"Phase timeout for room {room_id}")
+
+        async with self.get_room_lock(room_id):
+            game = self.get_game(room_id)
+            room = self.get_room(room_id)
+
+            if not game:
+                return
+
+            # Perform phase transition logic here, e.g.:
+            if game.current_round:
+                if game.current_round.state == RoundState.CHOOSING_CARDS:
+                    game.current_round.state = RoundState.LEADER_CHOOSING
+
+                    if self.websocket_sender is None:
+                        raise RuntimeError("WebSocketSender not configured")
+
+                    await self.websocket_sender.send_round_state_changed(room, RoundState.LEADER_CHOOSING.value)
+                    print(f"round state after timer: {game.current_round.state}")
+                elif game.current_round.state == RoundState.LEADER_CHOOSING:
+                    game.current_round.state = RoundState.ROUND_ENDED
+
+                    if self.websocket_sender is None:
+                        raise RuntimeError("WebSocketSender not configured")
+
+                    await self.websocket_sender.send_round_state_changed(room, RoundState.ROUND_ENDED.value)
+                    print(f"round state after timer: {game.current_round.state}")
+                else:
+                    return  # No transition needed
 
     async def add_timer(self, room_id: str, name: str, task: Task) -> None:
         self.room_tasks.setdefault(room_id, {})
@@ -86,10 +121,9 @@ class GameManager:
             self.room_locks[room_id] = Lock()
         return self.room_locks[room_id]
 
-    async def create_player(self, websocket: WebSocket | None = None, name: str | None = None) -> Player:
+    async def create_player(self, name: str | None = None) -> Player:
         player = Player(username=name)
         self.players[player.id] = player
-        self.player_sockets[player.id] = websocket
 
         return player
 
@@ -98,7 +132,6 @@ class GameManager:
         player = self.get_player(player_id)
 
         async def mark_disconnected():
-            self.player_sockets[player_id] = None
             player.is_connected = False
 
         # perform immediate state update without relying on room lock; room-specific
@@ -130,7 +163,6 @@ class GameManager:
                 await self.leave_room(player_id)
 
             self.players.pop(player_id, None)
-            self.player_sockets.pop(player_id, None)
 
             # Clean up any reconnect tokens for this player
             # to prevent memory leak and invalid token consumption
@@ -139,22 +171,7 @@ class GameManager:
         except PlayerNotFoundException:
             return
 
-    async def send_personal_message(self, player_id: str, message: str) -> None:
-        ws = self.player_sockets.get(player_id)
-        if ws:
-            await ws.send_text(message)
-
-    async def broadcast_to_room(self, room_id: str, message: dict, sender_id: str | None = None) -> None:
-        room = self.get_room(room_id=room_id)
-
-        for player in room.players:
-            if sender_id and player.id == sender_id:
-                continue
-            ws = self.player_sockets.get(player.id)
-            if ws:
-                await ws.send_json(message)
-
-    async def send_chat_message(self, room_id: str, player_id: str, message: str):
+    async def send_chat_message(self, room_id: str, player_id: str, message: str, connection_manager) -> None:
         # Get player first (caller guarantees player_id is valid from WebSocket)
         player = self.get_player(player_id)
 
@@ -178,13 +195,9 @@ class GameManager:
             room = self.get_room(room_id=room_id)
             room.messages.append(chat_message)
 
-            sockets = [
-                self.player_sockets.get(player.id) for player in room.players if self.player_sockets.get(player.id)
-            ]
+            sockets = [player.id for player in room.players]
 
-        for socket in sockets:
-            if socket:
-                await socket.send_json(response_message.model_dump())
+        await connection_manager.broadcast_to_room(sockets, response_message.model_dump())
 
     def get_room_players_count(self, room_id: str) -> int:
         room = self.active_rooms.get(room_id)
@@ -206,7 +219,7 @@ class GameManager:
 
         return room
 
-    async def join_room(self, room_id: str, player: Player) -> None:
+    async def join_room(self, room_id: str, player: Player, connection_manager) -> None:
         async with self.get_room_lock(room_id):
             room = self.get_room(room_id=room_id)
 
@@ -215,13 +228,13 @@ class GameManager:
             self.player_connections[player.id] = room_id
             player.room_id = room_id
 
-        await self.broadcast_to_room(
-            room_id=room_id,
-            message={
+        await connection_manager.broadcast_to_room(
+            [player.id for player in room.players],
+            {
                 "event": WebsocketEvents.PLAYER_JOINED.value,
                 "data": {"player_id": player.id, "username": player.username},
             },
-            sender_id=player.id,
+            exclude_id=player.id,
         )
 
     async def leave_room(self, player_id: str) -> None:
@@ -357,7 +370,7 @@ class GameManager:
                 del self.reconnect_tokens[token]
 
     # handle_reconnect now uses token storage + TTL checks
-    async def handle_reconnect(self, websocket: WebSocket, reconnection_token: str, now: datetime) -> Player:
+    async def handle_reconnect(self, reconnection_token: str, now: datetime) -> Player:
         """
         Reconnect a player using their token.
 
@@ -376,7 +389,6 @@ class GameManager:
 
         async def mark_reconnected():
             player.is_connected = True
-            self.player_sockets[player.id] = websocket
 
         room_id = player.room_id
 
@@ -387,13 +399,3 @@ class GameManager:
             await mark_reconnected()
 
         return player
-
-
-_game_manager = None
-
-
-def get_game_manager():
-    global _game_manager
-    if _game_manager is None:
-        _game_manager = GameManager()
-    return _game_manager
