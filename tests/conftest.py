@@ -6,9 +6,9 @@ from sqlalchemy.orm import sessionmaker
 from starlette.testclient import TestClient
 
 from app.db import TEST_DATABASE_URL, Base, get_db
+from app.dependencies import game_manager
 from app.game.dataclasses import Game, Player
 from app.game.game import game_logic
-from app.game.game_manager import get_game_manager
 from app.main import app
 from app.models import MemeCard, SituationCard
 
@@ -48,7 +48,6 @@ def db_session():
 
 @pytest.fixture
 def test_player():
-    game_manager = get_game_manager()
     player = Player(username="Lisaveta", id="333")
     game_manager.players[player.id] = player
     return player
@@ -62,7 +61,6 @@ def test_players():
 
 @pytest.fixture
 async def test_room(test_player):
-    game_manager = get_game_manager()
     room = await game_manager.create_room(owner=test_player)
     yield room
     game_manager.active_rooms.clear()
@@ -72,7 +70,6 @@ async def test_room(test_player):
 
 @pytest.fixture
 async def test_room_with_players(test_player, test_players):
-    game_manager = get_game_manager()
     room = await game_manager.create_room(owner=test_player)
     for player in test_players:
         await room.add_player(player)

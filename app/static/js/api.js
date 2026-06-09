@@ -45,12 +45,15 @@ async function loadRooms() {
 
 async function handleRoomState(payload) {
   currentRoomId = payload.room_id;
-
   localStorage.setItem("currentRoomId", payload.room_id);
 
   players = payload.players;
   gameState = payload.game_state;
   roundState = payload.round_state;
+
+  if (payload.leader_id) {
+    updateLeaderStatus(payload.leader_id);
+  }
 
   showRoomInterface(currentRoomId, "room.name");
   await loadChatHistory(currentRoomId);

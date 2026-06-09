@@ -35,6 +35,11 @@
             document.getElementById('playerCards').classList.remove('hidden');
           }
 
+          if (data.event === 'player_selected_card') {
+            console.log(data);
+            renderCardBack(data); // data.event, data.card_id, data.image_url
+          }
+
           if (data.event === 'player_joined') {
             displaySystemMessage({
               message: `${data.data.username} has joined the room`,
@@ -62,6 +67,26 @@
             if (!roomId) {
               await loadRooms();
             }
+          }
+
+          if (data.event === 'round_state_changed') {
+            const state = data.payload.state;
+
+            if (state === 'leader_choosing') {
+              enterLeaderChoosingPhase();
+            };
+
+            if (state === 'round_ended') {
+              exitLeaderChoosingPhase();
+            };
+          }
+
+          if (data.event === 'first_round_started') {
+            document.getElementById("playerCards").classList.remove("hidden");
+            document.getElementById("tableArea").classList.remove("hidden");
+
+            renderRound(data.payload);
+            renderPlayerCards(data.payload.player_cards);
           }
 
           if (data.event === "player_created") {

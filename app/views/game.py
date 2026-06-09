@@ -1,6 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.dependencies import (
+    get_connection_manager,
+    get_game_manager,
+    get_websocket_sender,
+)
+from app.game.connection_manager import ConnectionManager
 from app.game.game import game_logic
+from app.game.game_manager import GameManager
+from app.game.websocket_sender import WebSocketSender
 from app.schemas.game import (
     GameResponse,
     SelectPlayerCardRequest,
@@ -12,8 +20,14 @@ router = APIRouter(prefix="/game", tags=["game"])
 
 
 @router.post("/start", status_code=201, response_model=GameResponse)
-async def start_game(request: StartGameRequest):
+async def start_game(request: StartGameRequest, sender: WebSocketSender = Depends(get_websocket_sender)):
     game = await game_logic.prepare_game(room_id=request.room_id)
+    await game_logic.start_first_round(room_id=request.room_id)
+
+    if game is None:
+        return
+
+    await sender.send_first_round_started(game)
 
     return game
 
@@ -29,8 +43,28 @@ async def end_game():
 
 
 @router.patch("/{room_id}/players_choice")
-async def players_cards(room_id: str, data: SelectPlayerCardRequest):
+async def players_cards(
+    room_id: str,
+    data: SelectPlayerCardRequest,
+    manager: GameManager = Depends(get_game_manager),
+    connection_manager: ConnectionManager = Depends(get_connection_manager),
+):
     await game_logic.player_select_card(room_id, player_id=data.player_id, card_id=data.card_id)
+    async with manager.get_room_lock(room_id):
+        room = manager.get_room(room_id)
+        game = manager.get_game(room_id)
+
+        if not game.current_round:
+            return
+
+        choice = game.current_round.player_choices[data.player_id]
+
+        payload = {
+            "event": "player_selected_card",
+            "card_id": choice.id,
+            "image_url": choice.image_url,
+        }
+        await connection_manager.broadcast_to_room([player.id for player in room.players], payload)
 
 
 @router.patch("/{room_id}/select_winner")

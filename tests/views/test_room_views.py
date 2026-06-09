@@ -1,14 +1,12 @@
 from unittest.mock import AsyncMock
 
-from app.game.game_manager import get_game_manager
-from app.game.websocket_sender import get_websocket_sender
+from app.dependencies import connection_manager, game_manager, get_websocket_sender
 from app.main import app
 
 
 class TestRoomViews:
 
     def setup_method(self):
-        self.game_manager = get_game_manager()
         self.url = "/room"
 
     async def test_create_room(self, client_with_no_db, test_player):
@@ -44,7 +42,7 @@ class TestRoomViews:
         assert response.status_code == 404
 
     async def test_get_rooms(self, client_with_no_db, test_player):
-        room = await self.game_manager.create_room(owner=test_player)
+        room = await game_manager.create_room(owner=test_player)
         response = client_with_no_db.get(f"{self.url}/all")
 
         assert response.status_code == 200
@@ -56,27 +54,29 @@ class TestRoomViews:
         sender_mock.send = AsyncMock()
         app.dependency_overrides[get_websocket_sender] = lambda: sender_mock
 
-        new_player = await self.game_manager.create_player()
+        new_player = await game_manager.create_player()
 
         response = client_with_no_db.patch(f"{self.url}/{test_room.id}", json={"player_id": new_player.id})
 
         assert response.status_code == 200
 
-        updated_room = self.game_manager.active_rooms.get(test_room.id)
-        assert new_player in self.game_manager.players.values()
+        updated_room = game_manager.active_rooms.get(test_room.id)
+        assert new_player in game_manager.players.values()
         assert new_player in updated_room.players
         sender_mock.send.assert_called_once_with(
-            player_id=new_player.id, event="room_joined", payload={"room_id": test_room.id}
+            player_id=new_player.id,
+            event="room_joined",
+            payload={"room_id": test_room.id},
         )
 
     async def test_leave_room(self, websocket, test_room, client_with_no_db):
-        new_player = await self.game_manager.create_player(websocket=websocket)
-        await self.game_manager.join_room(test_room.id, new_player)
+        new_player = await game_manager.create_player()
+        await game_manager.join_room(test_room.id, new_player, connection_manager)
 
         response = client_with_no_db.patch(f"{self.url}/{test_room.id}/leave", json={"player_id": new_player.id})
 
         assert response.status_code == 200
 
-        updated_room = self.game_manager.active_rooms.get(test_room.id)
-        assert new_player in self.game_manager.players.values()
+        updated_room = game_manager.active_rooms.get(test_room.id)
+        assert new_player in game_manager.players.values()
         assert new_player not in updated_room.players

@@ -1,16 +1,15 @@
-from app.game.game_manager import get_game_manager
+from app.dependencies import game_manager
 
 
 class TestGameViews:
 
     def setup_method(self):
-        self.manager = get_game_manager()
         self.url = "/game"
 
     async def test_start_game(self, client_with_no_db, test_player, test_room_with_players):
         response = client_with_no_db.post(f"{self.url}/start", json={"room_id": test_room_with_players.id})
 
-        game = self.manager.get_game(room_id=test_room_with_players.id)
+        game = game_manager.get_game(room_id=test_room_with_players.id)
 
         expected_json = {
             "id": game.id,

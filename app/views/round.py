@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 
+from app.dependencies import get_game_manager
 from app.game.game import game_logic
-from app.game.game_manager import GameManager, get_game_manager
+from app.game.game_manager import GameManager
 from app.schemas.round import GameRoundInfoSchema
 
 router = APIRouter(prefix="/round", tags=["rounds"])

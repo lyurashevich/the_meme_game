@@ -64,12 +64,85 @@ body {
 .card {
   width: 150px;
   height: 200px;
-  border: 2px solid #ccc;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
+  background: #111;
+  border: 2px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.card.selected {
+  transform: scale(1.05);
+  border: 2px solid gold;
+}
+
+.card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .system-message {
   color: gray;
   text-align: center;
+}
+
+.table-area {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  width: 300px;
+  height: 200px;
+
+  border: 2px dashed #888;
+  border-radius: 12px;
+}
+
+.card.flying {
+  position: fixed;
+  z-index: 1000;
+
+  transition:
+    left 0.8s ease,
+    top 0.8s ease,
+    transform 0.8s ease;
+}
+
+.played-card {
+  width: 150px;
+  height: 200px;
+  border: 2px solid white;
+  border-radius: 10px;
+  margin: 10px;
+
+  background: darkslateblue;
+  position: relative;
+  overflow: hidden;
+}
+
+.played-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.played-card.revealed {
+  background: transparent;
+}
+
+.played-card.revealed img {
+  opacity: 1;
+}
+
+.played-card.selected-for-winner {
+  border: 3px solid gold;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255, 255, 0, 0.8);
 }

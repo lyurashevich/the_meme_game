@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+import app.dependencies
 from app.exceptions import (
     CardNotFoundException,
     InvalidGameStateException,
@@ -48,7 +49,7 @@ class TestGameLogic:
         assert not game.situation_discard_pile
         assert game.state == GameState.STARTING
         assert game.room == test_room_with_players
-        assert game_logic.game_manager.active_games[test_room_with_players.id] == game
+        assert app.dependencies.game_manager.active_games[test_room_with_players.id] == game
 
     async def test_prepare_game__not_enough_players(self, test_room):
         with pytest.raises(NotEnoughPlayersException) as e:

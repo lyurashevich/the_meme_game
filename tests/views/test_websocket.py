@@ -1,11 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
-from app.game.game_manager import get_game_manager
+from app.dependencies import game_manager
 
 
 class TestWebsocket:
-    manager = get_game_manager()
-
     def test_websocket_creates_player(self, client):
         with client.websocket_connect("/ws/") as ws:
             response = ws.receive_json()
@@ -22,7 +20,7 @@ class TestWebsocket:
             player_id = response["payload"]["player_id"]
 
         reconnect_token = next(
-            key for key, value in self.manager.reconnect_tokens.items() if value.player_id == player_id
+            key for key, value in game_manager.reconnect_tokens.items() if value.player_id == player_id
         )
 
         with client.websocket_connect(f"/ws/?reconnect_token={reconnect_token}") as ws:
@@ -39,9 +37,9 @@ class TestWebsocket:
             player_id = payload["player_id"]
 
         reconnect_token = next(
-            key for key, value in self.manager.reconnect_tokens.items() if value.player_id == player_id
+            key for key, value in game_manager.reconnect_tokens.items() if value.player_id == player_id
         )
-        token = self.manager.reconnect_tokens.get(reconnect_token)
+        token = game_manager.reconnect_tokens.get(reconnect_token)
         token.expires_at = datetime.now(timezone.utc) - timedelta(seconds=100)
 
         with client.websocket_connect(f"/ws/?reconnect_token={reconnect_token}") as ws:

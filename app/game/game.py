@@ -1,7 +1,9 @@
+import asyncio
 import random
 from typing import Optional
 
 from app.db import session_maker
+from app.dependencies import game_manager
 from app.exceptions import (
     CardNotFoundException,
     InvalidGameStateException,
@@ -15,7 +17,6 @@ from app.exceptions import (
 )
 from app.game.dataclasses import Game, GameRound, Room
 from app.game.enums import GameState, RoundState
-from app.game.game_manager import get_game_manager
 from app.game.game_settings import GameSettings
 from app.models import SituationCard
 from app.services.memes_services import CardService as MemeService
@@ -29,7 +30,7 @@ CARDS_PER_PLAYER = 6
 class GameLogic:
     def __init__(self):
         self.settings = GameSettings()
-        self.game_manager = get_game_manager()
+        self.game_manager = game_manager
 
     async def get_room(self, room_id) -> Room:
         if room_id not in self.game_manager.active_rooms:
@@ -76,6 +77,10 @@ class GameLogic:
             )
             game.current_round = new_round
             game.state = GameState.ACTIVE
+
+            task = asyncio.create_task(self.game_manager.phase_timer(room_id))
+
+            await self.game_manager.add_timer(room_id, "phase_timer", task)
 
         return game
 
