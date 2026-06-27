@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_game_manager
+from app.dependencies import get_game_manager, get_player_service
 from app.game.game_manager import GameManager
 from app.schemas.players import (
     PlayerCardsSchema,
     PlayerCreateSchema,
+    PlayerProfileResponseSchema,
+    PlayerProfileUpdateSchema,
     PlayerSchema,
     PlayerStateSchema,
 )
+from app.services.player_service import PlayerService
 
 router = APIRouter(prefix="/player", tags=["players"])
 
@@ -27,6 +30,7 @@ async def create_player(data: PlayerCreateSchema, manager: GameManager = Depends
 
 
 @router.get("/{player_id}", response_model=PlayerStateSchema, status_code=200)
+# todo: check if frontend uses this url and switch to a new one
 async def get_player_info(player_id: str, manager: GameManager = Depends(get_game_manager)):
     player = manager.players.get(player_id)
     if not player:
@@ -35,7 +39,17 @@ async def get_player_info(player_id: str, manager: GameManager = Depends(get_gam
     return player
 
 
+@router.get("/{player_id}/profile", response_model=PlayerProfileResponseSchema, status_code=200)
+async def get_player_profile(player_id: str, manager: GameManager = Depends(get_game_manager)):
+    player = manager.players.get(player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    return player
+
+
 @router.patch("/{player_id}", response_model=PlayerSchema, status_code=200)
+# todo: check if frontend uses this url and switch to a new one
 async def update_player(player_id: str, user: PlayerCreateSchema, manager: GameManager = Depends(get_game_manager)):
     player = manager.players.get(player_id)
     if not player:
@@ -44,4 +58,12 @@ async def update_player(player_id: str, user: PlayerCreateSchema, manager: GameM
     if user.username is not None:
         player.username = user.username
 
+    return player
+
+
+@router.patch("/{player_id}/profile", response_model=PlayerProfileResponseSchema)
+async def update_player_profile(
+    player_id: str, data: PlayerProfileUpdateSchema, player_srv: PlayerService = Depends(get_player_service)
+):
+    player = player_srv.update_player_profile(player_id, data)
     return player

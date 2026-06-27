@@ -1,6 +1,19 @@
 from pydantic import BaseModel, ConfigDict
 
 
+class BasePlayerProfileSchema(BaseModel):
+    pass
+
+
+class PlayerProfileResponseSchema(BasePlayerProfileSchema):
+    username: str
+    avatar: int
+
+
+class PlayerProfileUpdateSchema(BasePlayerProfileSchema):
+    username: str | None
+
+
 class PlayerCardsSchema(BaseModel):
     id: int
     image_url: str

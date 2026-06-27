@@ -11,7 +11,7 @@ from app.exceptions import (
     RoomNotFoundException,
 )
 from app.game.dataclasses import Game, Player, ReconnectToken, Room
-from app.game.enums import RoundState, WebsocketEvents
+from app.game.enums import WebsocketEvents
 from app.game.websocket_sender import WebSocketSender
 from app.schemas.messages import ChatMessageResponse
 
@@ -34,51 +34,6 @@ class GameManager:
     reconnect_tokens: dict[str, ReconnectToken] = field(default_factory=dict)
     # lock protecting reconnect_tokens
     reconnect_lock: Lock = field(default_factory=Lock)
-
-    async def phase_timer(self, room_id: str):
-
-        # print(
-        #     f"round state before timer: {self.get_game(room_id).current_round.state
-        #     if self.get_game(room_id).current_round else None}")
-        await asyncio.sleep(30)
-        # print(f"Phase timeout for room {room_id}")
-
-        async with self.get_room_lock(room_id):
-            game = self.get_game(room_id)
-            room = self.get_room(room_id)
-
-            if not game:
-                return
-
-            # Perform phase transition logic here, e.g.:
-            if game.current_round:
-                if game.current_round.state == RoundState.CHOOSING_CARDS:
-                    game.current_round.state = RoundState.LEADER_CHOOSING
-
-                    if self.websocket_sender is None:
-                        raise RuntimeError("WebSocketSender not configured")
-
-                    await self.websocket_sender.send_round_state_changed(room, RoundState.LEADER_CHOOSING.value)
-                    print(f"round state after timer: {game.current_round.state}")
-                elif game.current_round.state == RoundState.LEADER_CHOOSING:
-                    game.current_round.state = RoundState.ROUND_ENDED
-
-                    if self.websocket_sender is None:
-                        raise RuntimeError("WebSocketSender not configured")
-
-                    await self.websocket_sender.send_round_state_changed(room, RoundState.ROUND_ENDED.value)
-                    print(f"round state after timer: {game.current_round.state}")
-                else:
-                    return  # No transition needed
-
-    async def add_timer(self, room_id: str, name: str, task: Task) -> None:
-        self.room_tasks.setdefault(room_id, {})
-
-        old_task = self.room_tasks[room_id].get(name)
-        if old_task and not old_task.done():
-            old_task.cancel()
-
-        self.room_tasks[room_id][name] = task
 
     def get_game(self, room_id: str) -> Game:
         game = self.active_games.get(room_id)

@@ -7,6 +7,8 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from app.dependencies import get_connection_manager, get_game_manager
 from app.exceptions import InvalidReconnectToken, PlayerNotFoundException
 from app.game.connection_manager import ConnectionManager
+from app.game.dataclasses import Player
+from app.game.enums import WebsocketEvents
 from app.game.game_manager import GameManager
 from app.game.websocket_sender import WebSocketSender
 
@@ -33,14 +35,13 @@ async def websocket_endpoint(
             connection_manager.add_connection(player.id, websocket)
 
             token = await manager.create_reconnect_token(player.id)
-            await sender.send(player.id, "player_reconnected", {"room_id": player.room_id, "reconnect_token": token})
-            await sender.send_restore_state(player)
 
-            if player.room_id:
-                async with manager.get_room_lock(room_id=player.room_id):
-                    room = manager.get_room(player.room_id)
-                    game = manager.get_game(player.room_id)
-                    await sender.send_room_state(room=room, player=player, game=game)
+            if not player.room_id:
+                payload = (player.id, WebsocketEvents.PLAYER_RECONNECTED.value, {"reconnect_token": token})
+                await sender.send(*payload)
+            else:
+                payload = await build_reconnect_payload(manager, player, token)
+                await sender.send(*payload)
 
         except (PlayerNotFoundException, InvalidReconnectToken):
             player = None
@@ -53,10 +54,12 @@ async def websocket_endpoint(
 
         await sender.send(
             player.id,
-            "player_created",
+            WebsocketEvents.PLAYER_CREATED.value,
             {
                 "player_id": player.id,
                 "reconnect_token": token,
+                "username": player.username,
+                "avatar": player.avatar,
             },
         )
 
@@ -99,3 +102,43 @@ async def get_room_messages(room_id: str, manager: GameManager = Depends(get_gam
     room = manager.get_room(room_id)
 
     return room.messages[-50:]
+
+
+async def build_reconnect_payload(manager: GameManager, player: Player, token: str):
+    if not player.room_id:
+        return
+
+    async with manager.get_room_lock(room_id=player.room_id):
+        room = manager.get_room(player.room_id)
+        game = manager.get_game(player.room_id)
+        payload = (
+            player.id,
+            WebsocketEvents.PLAYER_RECONNECTED.value,
+            {
+                "reconnect_token": token,
+                "room_id": player.room_id,
+                "room_name": "name",
+                "handed_cards": [card.to_dict() for card in player.handed_cards],
+                "score": player.score,
+                "is_host": player.is_host,
+                "players": (
+                    [
+                        {
+                            "id": player.id,
+                            "username": player.username,
+                            "is_connected": player.is_connected,
+                            "score": player.score,
+                        }
+                        for player in room.players
+                    ]
+                    if room
+                    else []
+                ),
+                "game_state": game.state.value if game else None,
+                "round_state": (game.current_round.state.value if game and game.current_round else None),
+                "current_round_number": (game.current_round.round_number if game.current_round else None),
+                "leader_id": (game.current_round.leader_id if game.current_round else None),
+                "current_situation_card": (game.current_round.situation_card.to_dict() if game.current_round else None),
+            },
+        )
+        return payload

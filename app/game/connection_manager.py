@@ -44,6 +44,7 @@ class ConnectionManager:
                 await websocket.send_json(data)
             except Exception:  # nosec B110
                 pass  # todo: add logging
+                # print("CONNECTION_MANAGER.PY LINE 46:", traceback.print_exc())
 
     async def broadcast_to_room(self, player_ids: list[str], message: dict, exclude_id: str | None = None) -> None:
         """

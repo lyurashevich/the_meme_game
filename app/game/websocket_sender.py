@@ -1,5 +1,6 @@
 from app.game.connection_manager import ConnectionManager
-from app.game.dataclasses import Game, Player, Room
+from app.game.dataclasses import Game, Room
+from app.game.enums import WebsocketEvents
 
 
 class WebSocketSender:
@@ -15,48 +16,10 @@ class WebSocketSender:
             },
         )
 
-    async def send_restore_state(self, player: Player):
-        await self.send(
-            player.id,
-            event="restore_state",
-            payload={
-                "handed_cards": [card.to_dict() for card in player.handed_cards],
-                "score": player.score,
-                "is_host": player.is_host,
-                # 'round_phase': ...,
-            },
-        )
-
-    async def send_room_state(self, room: Room, player: Player, game: Game | None = None):
-
-        await self.send(
-            player.id,
-            "room_state",
-            {
-                "room_id": room.id,
-                "players": (
-                    [
-                        {
-                            "id": player.id,
-                            "username": player.username,
-                            "is_connected": player.is_connected,
-                            "score": player.score,
-                        }
-                        for player in room.players
-                    ]
-                    if room
-                    else []
-                ),
-                "game_state": game.state if game else None,
-                "round_state": (game.current_round.state if game and game.current_round else None),
-                # 'time_left': ...,
-            },
-        )
-
     async def send_round_state_changed(self, room: Room, round_state: str):
 
         for player in room.players:
-            await self.send(player.id, "round_state_changed", {"state": round_state})
+            await self.send(player.id, WebsocketEvents.ROUND_STATE_CHANGED.value, {"state": round_state})
 
     async def send_first_round_started(self, game: Game):
 

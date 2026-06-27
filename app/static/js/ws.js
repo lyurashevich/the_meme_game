@@ -21,10 +21,7 @@
       ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
-
-          if (data.event === 'room_state') {
-            await handleRoomState(data.payload);
-          }
+          console.log(data);
 
           if (data.event === 'round_started') {
             renderRound(data.round_data);
@@ -63,6 +60,16 @@
 
             document.getElementById("createRoomBtn").disabled = false;
             document.getElementById('connectBtn').disabled = true;
+            document.getElementById('startGameBtn').disabled = true;
+
+            await showRoomInterface(roomId, roomName);
+            await loadChatHistory(roomId);
+
+            document.getElementById("playerCards").classList.remove("hidden");
+            document.getElementById("tableArea").classList.remove("hidden");
+
+            renderRound(data.payload);
+            renderPlayerCards(data.payload.handed_cards);
 
             if (!roomId) {
               await loadRooms();
@@ -89,8 +96,14 @@
             renderPlayerCards(data.payload.player_cards);
           }
 
+          if (data.event === 'player_profile_updated') {
+            document.querySelector("#username").textContent = data.username;
+          }
+
           if (data.event === "player_created") {
+            avatar = data.payload.avatar;
             playerId = data.payload.player_id;
+            console.log(playerId);
             reconnectToken = data.payload.reconnect_token;
 
             localStorage.setItem("playerId", playerId);
@@ -98,6 +111,8 @@
 
             document.getElementById("createRoomBtn").disabled = false;
             document.getElementById("connectBtn").disabled = true;
+
+            loadProfile(data.payload.player_id);
         } else if (data.event == 'chat_message') {
           if (currentRoomId && data.room_id === currentRoomId) {
             displayChatMessage(data);

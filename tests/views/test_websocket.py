@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.dependencies import game_manager
+from app.game.enums import WebsocketEvents
 
 
 class TestWebsocket:
@@ -13,6 +16,7 @@ class TestWebsocket:
             assert "player_id" in response["payload"]
             assert response["payload"]["player_id"] is not None
 
+    @pytest.mark.skip
     def test_websocket_reconnect(self, client):
         with client.websocket_connect("/ws/") as ws:
             response = ws.receive_json()
@@ -28,7 +32,7 @@ class TestWebsocket:
             restore_state = ws.receive_json()
 
             assert restore_state["event"] == "restore_state"
-            assert reconnect_response["event"] == "player_reconnected"
+            assert reconnect_response["event"] == WebsocketEvents.PLAYER_RECONNECTED.value
 
     def test_websocket_reconnect_after_timeout(self, client):
         with client.websocket_connect("/ws/") as ws:

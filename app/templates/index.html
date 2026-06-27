@@ -8,6 +8,23 @@
 <body>
   <h1>Игра: тест WS + REST</h1>
 
+  <div class="header">
+      <img id="avatar" class="avatar" alt="Settings" />
+    <span id="username"></span>
+  </div>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Profile settings</h2>
+
+      <label>Name:</label>
+      <input id="settingsUsername" type="text" />
+
+      <button id="saveSettingsBtn">Save</button>
+      <button id="closeSettingsBtn">Close</button>
+    </div>
+  </div>
+
   <button id="connectBtn">Подключиться (создать игрока)</button>
   <button id="createRoomBtn" disabled>Создать комнату</button>
 
@@ -38,6 +55,7 @@
   </div>
 
   <button id="confirmChoice">Choose</button>
+  <button id="confirmWinner" class="hidden">Confirm winner</button>
 
   <pre id="log"></pre>
 

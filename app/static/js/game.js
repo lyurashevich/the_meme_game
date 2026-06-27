@@ -1,4 +1,5 @@
 let leaderChoosingPhaseInitialized = false;
+let selectedWinnerCardId = null;
 
 function enterLeaderChoosingPhase () {
   if (leaderChoosingPhaseInitialized) {
@@ -14,6 +15,7 @@ function enterLeaderChoosingPhase () {
 
   if (isLeader) {
     attachWinnerSelectionHandler();
+    document.getElementById('confirmWinner').classList.remove('hidden');
   }
 }
 
@@ -27,47 +29,12 @@ function attachWinnerSelectionHandler () {
 
 async function handlePlayedCardClick(event) {
   const card = event.currentTarget;
-  const cardId = card.dataset.cardId;
-
-
-  if (!cardId) {
-    console.warn("Card ID not found");
-    return;
-  }
+  selectedWinnerCardId = card.dataset.cardId;
 
   document.querySelectorAll('.played-card').forEach(c => {
     c.classList.remove('selected-for-winner');
   });
   card.classList.add('selected-for-winner');
-
-  try {
-    ws.send(JSON.stringify({
-      event: 'winner_card_selected',
-      payload: {
-        card_id: cardId
-      }
-    }));
-
-    const response = await fetch(`/game/${currentRoomId}/select_winner`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        card_id: cardId,
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("Failed to select winner: ", error.detail);
-      return;
-    }
-    log('winner card selected');
-
-    leaderChoosingPhaseInitialized = false;
-  } catch (error) {
-    console.error('error selecting winner:', error);
-    log('error selecting winner: ' + error);
-  }
 }
 
 function exitLeaderChoosingPhase() {
@@ -76,6 +43,9 @@ function exitLeaderChoosingPhase() {
   document.querySelectorAll('.played-card').forEach(card => {
     card.classList.remove('selected-for-winner');
   });
+
+  document.getElementById('confirmWinner').classList.add('hidden');
+  selectedWinnerCardId = null;
 }
 
 
@@ -86,6 +56,9 @@ function renderRound(payload) {
     <p>Leader: ${payload.leader_id}</p>
     <p>Situation: ${payload.current_situation_card.text}</p>
   `;
+
+  updateLeaderStatus(payload.leader_id);
+  console.log('GAME.JS LINE 91: IS_LEADER = ', isLeader);
 }
 
 async function renderPlayerCards(cards) {
