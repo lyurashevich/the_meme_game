@@ -1,10 +1,15 @@
+import random
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from faker.proxy import Faker
+
 from app.game.enums import GameState, RoundState
 from app.models import MemeCard, SituationCard
 from app.schemas.round import PlayerChoiceSchema
+
+AVATAR_COUNT = 4
 
 
 @dataclass
@@ -23,10 +28,14 @@ class Player:
     is_connected: bool = True
     connection_order: int = 0  # Order of connection for leader rotation
     room_id: str | None = None
+    avatar: int | None = None
 
     def __post_init__(self):
         if not self.username:
-            self.username = f"user{self.id}"
+            self.username = Faker().name()
+
+        if not self.avatar:
+            self.avatar = random.randint(1, AVATAR_COUNT)  # nosec B311 - game logic only, not cryptography
 
 
 @dataclass
@@ -85,6 +94,7 @@ class GameRound:
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
     time_limit: int = 60  # seconds
+    finalized: bool = False
 
     @property
     def player_choices_list(self):

@@ -1,6 +1,7 @@
 import pytest
 
 from app.dependencies import connection_manager, game_manager
+from app.exceptions import RoomNotFoundException
 from app.game.dataclasses import Player
 
 
@@ -48,12 +49,11 @@ class TestGameManager:
 
         assert "You have already joined" in str(e.value)
 
-    @pytest.mark.skip
     async def test_join_room__room_not_found(self, test_player):
-        with pytest.raises(Exception) as e:
+        with pytest.raises(RoomNotFoundException) as e:
             await game_manager.join_room("abc", test_player, connection_manager)
 
-        assert "Room not found" in str(e.value)
+        assert "Room not found" in str(e.value.message)
 
     async def test_join_room__full_room(self, test_room):
         test_room.max_players = 1

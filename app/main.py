@@ -27,6 +27,7 @@ async def custom_exception_handler(request: Request, exception: CustomException)
 base_dir = Path(__file__).parent
 static_dir = base_dir / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.mount("/avatars", StaticFiles(directory=base_dir.parent / "avatars"), name="avatars")
 
 app.include_router(memes_router)
 app.include_router(situations_router)

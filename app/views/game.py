@@ -6,6 +6,7 @@ from app.dependencies import (
     get_websocket_sender,
 )
 from app.game.connection_manager import ConnectionManager
+from app.game.enums import WebsocketEvents
 from app.game.game import game_logic
 from app.game.game_manager import GameManager
 from app.game.websocket_sender import WebSocketSender
@@ -60,7 +61,7 @@ async def players_cards(
         choice = game.current_round.player_choices[data.player_id]
 
         payload = {
-            "event": "player_selected_card",
+            "event": WebsocketEvents.PLAYER_SELECTED_CARD.value,
             "card_id": choice.id,
             "image_url": choice.image_url,
         }
@@ -69,4 +70,4 @@ async def players_cards(
 
 @router.patch("/{room_id}/select_winner")
 async def select_winner(room_id: str, data: SelectWinnerRequest):
-    await game_logic.leader_choose_winner(room_id, winner_player_id=data.winner_id)
+    await game_logic.leader_choose_winner(room_id, card_id=data.card_id)

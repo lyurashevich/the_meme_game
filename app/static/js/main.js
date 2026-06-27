@@ -10,6 +10,24 @@ document.addEventListener('click', (event) => {
   card.classList.add('selected')
 });
 
+document.getElementById('confirmWinner').addEventListener('click', async () => {
+  if (!selectedWinnerCardId || !isLeader) return;
+
+  const response = await fetch(`/game/${currentRoomId}/select_winner`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', },
+    body: JSON.stringify({ card_id: Number(selectedWinnerCardId) })
+  });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error("Failed to select winner: ", error.detail);
+      return;
+    }
+    log('winner card selected');
+    exitLeaderChoosingPhase();
+});
+
 document.getElementById("confirmChoice").addEventListener('click', async () => {
   const selected = document.querySelector(".card.selected");
 
