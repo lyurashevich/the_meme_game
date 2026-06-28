@@ -82,7 +82,7 @@ class GameManager:
 
         return player
 
-    async def disconnect(self, player_id) -> None:
+    async def disconnect(self, player_id, connection_manager) -> None:
         # mark player disconnected asap to avoid races with other flows
         player = self.get_player(player_id)
 
@@ -103,9 +103,9 @@ class GameManager:
             # if anything goes wrong, ignore token creation — disconnection proceeds
             pass
 
-        asyncio.create_task(self.players_cleanup(player_id))
+        asyncio.create_task(self.players_cleanup(player_id, connection_manager))
 
-    async def players_cleanup(self, player_id: str):
+    async def players_cleanup(self, player_id: str, connection_manager):
         await asyncio.sleep(RECONNECT_TIMEOUT)
 
         try:
@@ -115,7 +115,7 @@ class GameManager:
                 return
 
             if player.room_id:
-                await self.leave_room(player_id)
+                await self.leave_room(player_id, connection_manager)
 
             self.players.pop(player_id, None)
 
@@ -178,7 +178,7 @@ class GameManager:
         async with self.get_room_lock(room_id):
             room = self.get_room(room_id=room_id)
 
-            await room.add_player(player)
+            room.add_player(player)
             self.players[player.id] = player
             self.player_connections[player.id] = room_id
             player.room_id = room_id
@@ -186,13 +186,13 @@ class GameManager:
         await connection_manager.broadcast_to_room(
             [player.id for player in room.players],
             {
-                "event": WebsocketEvents.PLAYER_JOINED.value,
-                "data": {"player_id": player.id, "username": player.username},
+                "event": WebsocketEvents.PLAYER_JOINED_ROOM.value,
+                "payload": {"player_id": player.id, "username": player.username},
             },
             exclude_id=player.id,
         )
 
-    async def leave_room(self, player_id: str) -> None:
+    async def leave_room(self, player_id: str, connection_manager) -> None:
         player = self.get_player(player_id)
         need_cleanup = False
 
@@ -200,11 +200,20 @@ class GameManager:
         async with self.get_room_lock(room_id):
             room = self.get_room(room_id=room_id)
 
-            await room.remove_player(player)
+            room.remove_player(player)
             del self.player_connections[player_id]
             player.room_id = None
             if not room.players:
                 need_cleanup = True
+
+        await connection_manager.broadcast_to_room(
+            [player.id for player in room.players],
+            {
+                "event": WebsocketEvents.PLAYER_LEFT_ROOM.value,
+                "payload": {"player_id": player.id, "username": player.username},
+            },
+            exclude_id=player.id,
+        )
 
         if need_cleanup:
             await self.cleanup_room(room_id)

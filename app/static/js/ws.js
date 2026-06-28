@@ -37,16 +37,21 @@
             renderCardBack(data); // data.event, data.card_id, data.image_url
           }
 
-          if (data.event === 'player_joined') {
+          if (data.event === 'player_joined_room') {
+            currentRoomId = data.payload.room_id;
+            localStorage.setItem("currentRoomId", currentRoomId);
+
             displaySystemMessage({
-              message: `${data.data.username} has joined the room`,
+              message: `${data.payload.username} has joined the room`,
               timestamp: new Date().toISOString()
             });
           }
 
-          if (data.event === "room_joined") {
-            currentRoomId = data.payload.room_id;
-            localStorage.setItem("currentRoomId", currentRoomId);
+          if (data.event === "player_left_room") {
+            displaySystemMessage({
+              message: `${data.payload.username} has left the room.`,
+              timestamp: new Date().toISOString()
+            });
           }
 
           if (data.event === "player_reconnected") {
