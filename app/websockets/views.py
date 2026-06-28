@@ -99,7 +99,7 @@ async def websocket_endpoint(
         if player:
             try:
                 connection_manager.remove_connection(player.id)
-                await manager.disconnect(player.id)
+                await manager.disconnect(player.id, connection_manager)
             except Exception:  # nosec B110
                 # todo: add logging
                 # swallow to avoid raising from websocket endpoint

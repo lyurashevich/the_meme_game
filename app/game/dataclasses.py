@@ -69,7 +69,7 @@ class Room:
             self.players.append(self.owner)
             self.players[0].is_host = True
 
-    async def add_player(self, player: Player) -> None:
+    def add_player(self, player: Player) -> None:
         if len(self.players) >= self.max_players:
             raise Exception("The room is full")
         if player in self.players:
@@ -77,7 +77,7 @@ class Room:
 
         self.players.append(player)
 
-    async def remove_player(self, player: Player) -> None:
+    def remove_player(self, player: Player) -> None:
         if player not in self.players:
             raise Exception("User not found")
 

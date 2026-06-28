@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock
 
 from app.dependencies import connection_manager, game_manager, get_websocket_sender
+from app.game.enums import WebsocketEvents
 from app.main import app
 
 
@@ -65,7 +66,7 @@ class TestRoomViews:
         assert new_player in updated_room.players
         sender_mock.send.assert_called_once_with(
             player_id=new_player.id,
-            event="room_joined",
+            event=WebsocketEvents.PLAYER_JOINED_ROOM.value,
             payload={"room_id": test_room.id},
         )
 
