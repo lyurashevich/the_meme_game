@@ -52,6 +52,8 @@
           if (data.event === "player_reconnected") {
             const roomId = data.payload.room_id;
             const roomName = data.payload.room_name;
+            avatar = data.payload.avatar;
+            console.log('AVATART AFTER RECONNECT: ', avatar);
 
             reconnectToken = data.payload.reconnect_token;
 
@@ -62,14 +64,23 @@
             document.getElementById('connectBtn').disabled = true;
             document.getElementById('startGameBtn').disabled = true;
 
-            await showRoomInterface(roomId, roomName);
-            await loadChatHistory(roomId);
+            if ('room_id' in data.payload) {
+              console.log('BEFORE SHOW_ROOM_INTERFACE');
+                await showRoomInterface(roomId, roomName);
+                console.log('AFTER SHOW_ROOM_INTERFACE');
+                await loadChatHistory(roomId);
+            }
 
-            document.getElementById("playerCards").classList.remove("hidden");
-            document.getElementById("tableArea").classList.remove("hidden");
+            console.log('WS.JS LINE 72: ', data);
+            loadProfile(data.payload.player_id);
 
-            renderRound(data.payload);
-            renderPlayerCards(data.payload.handed_cards);
+            if ('game_state' in data.payload) {
+              document.getElementById("playerCards").classList.remove("hidden");
+              document.getElementById("tableArea").classList.remove("hidden");
+
+              renderRound(data.payload);
+              renderPlayerCards(data.payload.handed_cards);
+            }
 
             if (!roomId) {
               await loadRooms();

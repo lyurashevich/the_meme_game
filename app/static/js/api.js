@@ -43,21 +43,24 @@ async function loadRooms() {
   }
 }
 
-function updateUsername(newName) {
-  return fetch(`/player/${playerId}/profile`, {
+function saveSettings() {
+  const newName = document.querySelector('#settingsUsername').value;
+  updateUsername(newName);
+}
+
+async function updateUsername(newName) {
+  const res = await fetch(`/player/${playerId}/profile`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username: newName })
-  })
-    .then(res => res.json())
-    .then(data => {
-      document.querySelector("#username").textContent = data.username;
-    });
-  }
+  });
 
-document.querySelector("#saveSettingsBtn").addEventListener("click", () => {
-    const newName = document.querySelector("#settingsUsername").value;
-    updateUsername(newName);
+  const data = await res.json();
+  document.querySelector("#username").textContent = data.username;
+}
+
+document.querySelector('#saveSettingsBtn').addEventListener('click', () => {
+  saveSettings();
 });
 
 function loadProfile(playerId) {
@@ -73,6 +76,23 @@ function loadProfile(playerId) {
 
 let avatar = document.querySelector("#avatar");
 const modal = document.querySelector("#settingsModal");
+
+function isSettingsOpen() {
+  return !modal.classList.contains('hidden');
+}
+
+document.addEventListener('keydown', (event) => {
+  if (!isSettingsOpen()) return;
+
+  if (event.key === 'Escape') {
+    modal.classList.add('hidden');
+  }
+
+  if (event.key === 'Enter') {
+    saveSettings();
+    modal.classList.add('hidden');
+  }
+});
 
 avatar.addEventListener("click", () => {
   modal.classList.remove("hidden");
