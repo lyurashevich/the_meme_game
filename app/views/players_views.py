@@ -65,5 +65,5 @@ async def update_player(player_id: str, user: PlayerCreateSchema, manager: GameM
 async def update_player_profile(
     player_id: str, data: PlayerProfileUpdateSchema, player_srv: PlayerService = Depends(get_player_service)
 ):
-    player = player_srv.update_player_profile(player_id, data)
+    player = await player_srv.update_player_profile(player_id, data)
     return player
