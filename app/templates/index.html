@@ -13,6 +13,26 @@
     <span id="username"></span>
   </div>
 
+  <div id="scoreModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Game score</h2>
+
+      <table id="scoreTable">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="scoreList"></tbody>
+      </table>
+
+      <button id="closeScoreBtn">Close</button>
+    </div>
+  </div>
+
+  <button id="score" class="hidden">Score</button>
+
   <div id="settingsModal" class="modal hidden">
     <div class="modal-content">
       <h2>Profile settings</h2>
@@ -65,6 +85,7 @@
   <script src="/static/js/api.js"></script>
   <script src="/static/js/ws.js"></script>
   <script src="/static/js/main.js"></script>
+  <script src="/static/js/score.js"></script>
 
 </body>
 </html>
