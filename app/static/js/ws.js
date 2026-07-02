@@ -32,6 +32,10 @@
             document.getElementById('playerCards').classList.remove('hidden');
           }
 
+          if (data.event === "game_started") {
+            scoreBtn.classList.remove("hidden");
+          }
+
           if (data.event === 'player_selected_card') {
             console.log(data);
             renderCardBack(data); // data.event, data.card_id, data.image_url

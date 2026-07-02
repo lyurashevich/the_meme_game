@@ -37,4 +37,4 @@ class WebSocketSender:
                 "player_cards": [card.to_dict() for card in player.handed_cards],
             }
 
-            await self.send(player.id, "first_round_started", payload)
+            await self.send(player.id, WebsocketEvents.GAME_STARTED.value, payload)

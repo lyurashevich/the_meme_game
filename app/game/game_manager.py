@@ -13,6 +13,7 @@ from app.exceptions import (
 from app.game.dataclasses import Game, Player, ReconnectToken, Room
 from app.game.enums import WebsocketEvents
 from app.game.websocket_sender import WebSocketSender
+from app.schemas.game import GameScore
 from app.schemas.messages import ChatMessageResponse
 
 RECONNECT_TIMEOUT = 60  # seconds
@@ -34,6 +35,14 @@ class GameManager:
     reconnect_tokens: dict[str, ReconnectToken] = field(default_factory=dict)
     # lock protecting reconnect_tokens
     reconnect_lock: Lock = field(default_factory=Lock)
+
+    async def get_game_score(self, room_id: str) -> list[GameScore]:
+        async with self.get_room_lock(room_id):
+            game = self.get_game(room_id)
+
+            return [
+                GameScore(id=player.id, username=player.username, score=player.score) for player in game.room.players
+            ]
 
     def get_game(self, room_id: str) -> Game:
         game = self.active_games.get(room_id)

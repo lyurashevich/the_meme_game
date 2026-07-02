@@ -12,6 +12,7 @@ from app.game.game_manager import GameManager
 from app.game.websocket_sender import WebSocketSender
 from app.schemas.game import (
     GameResponse,
+    GameScore,
     SelectPlayerCardRequest,
     SelectWinnerRequest,
     StartGameRequest,
@@ -33,9 +34,9 @@ async def start_game(request: StartGameRequest, sender: WebSocketSender = Depend
     return game
 
 
-@router.get("/{room_id}")
-async def get_game():
-    pass
+@router.get("/{room_id}/score", response_model=list[GameScore])
+async def get_game_score(room_id: str, game_manager: GameManager = Depends(get_game_manager)):
+    return await game_manager.get_game_score(room_id)
 
 
 @router.patch("/{room_id}/end")

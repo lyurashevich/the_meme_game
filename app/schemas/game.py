@@ -29,3 +29,9 @@ class SelectWinnerRequest(BaseModel):
 class SelectPlayerCardRequest(BaseModel):
     player_id: str
     card_id: int
+
+
+class GameScore(BaseModel):
+    id: str
+    username: str
+    score: int
