@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 import pytest
 
-import app.dependencies
 from app.exceptions import (
     CardNotFoundException,
     GameNotFoundException,
@@ -16,32 +15,31 @@ from app.exceptions import (
     RoundNotFoundException,
 )
 from app.game.enums import GameState, RoundState
-from app.game.game import CARDS_PER_PLAYER, GameLogic, game_logic
+from app.game.game import CARDS_PER_PLAYER
 
 
 class TestGameLogic:
-
-    game_logic = GameLogic()
-
-    async def test_get_room(self, test_room):
-        room = await game_logic.get_room(test_room.id)
+    async def test_get_room(self, test_room, room_service):
+        room = room_service.get_room(test_room.id)
 
         assert room
         assert room.id == test_room.id
 
-    async def test_get_room__not_found(self):
+    async def test_get_room__not_found(self, room_service):
         with pytest.raises(RoomNotFoundException) as e:
-            await game_logic.get_room("qwerty")
+            room_service.get_room("qwerty")
 
         assert str(e.value.message) == "Room not found"
 
-    async def test_prepare_game(self, test_room_with_players, mock_situation_cards, mock_meme_cards):
+    async def test_prepare_game(
+        self, test_room_with_players, mock_situation_cards, mock_meme_cards, game_service, game_manager
+    ):
 
         with patch("app.game.game.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
             "app.game.game.SituationService.get_situation_cards", return_value=mock_situation_cards
         ):
 
-            game = await game_logic.prepare_game(test_room_with_players.id)
+            game = await game_service.prepare_game(test_room_with_players.id)
 
         assert not game.current_round
         assert game.meme_deck_count == len(mock_meme_cards)
@@ -50,22 +48,22 @@ class TestGameLogic:
         assert not game.situation_discard_pile
         assert game.state == GameState.STARTING
         assert game.room == test_room_with_players
-        assert app.dependencies.game_manager.active_games[test_room_with_players.id] == game
+        assert game_manager.active_games[test_room_with_players.id] == game
 
-    async def test_prepare_game__not_enough_players(self, test_room):
+    async def test_prepare_game__not_enough_players(self, test_room, game_service):
         with pytest.raises(NotEnoughPlayersException) as e:
-            await game_logic.prepare_game(test_room.id)
+            await game_service.prepare_game(test_room.id)
 
-        assert str(e.value.message) == "Not enough players to start game. You need at least 3 players."
+        assert str(e.value.message) == NotEnoughPlayersException.message
 
-    async def test_prepare_game__room_not_found(self):
+    async def test_prepare_game__room_not_found(self, game_service):
         with pytest.raises(RoomNotFoundException) as e:
-            await game_logic.prepare_game("qwerty")
+            await game_service.prepare_game("qwerty")
 
-        assert str(e.value.message) == "Room not found"
+        assert str(e.value.message) == RoomNotFoundException.message
 
-    async def test_start_first_round(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_start_first_round(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
 
         assert prepared_game.current_round.round_number == 1
         assert prepared_game.current_round.situation_card not in prepared_game.situation_deck
@@ -76,235 +74,235 @@ class TestGameLogic:
         for player in prepared_game.room.players:
             assert len(player.handed_cards) == CARDS_PER_PLAYER
 
-    async def test_start_first_round__wrong_game_state(self, prepared_game):
+    async def test_start_first_round__wrong_game_state(self, prepared_game, game_service):
         prepared_game.state = GameState.FINISHED
         with pytest.raises(InvalidGameStateException) as e:
-            await game_logic.start_first_round(prepared_game.room_id)
+            await game_service.start_first_round(prepared_game.room_id)
 
         assert (
             str(e.value.message)
             == f"Invalid game state. Game state must be {GameState.STARTING.value} to perform this action"
-        )
+        )  # todo: подправить
 
-    async def test_start_first_round__no_situation_cards(self, prepared_game):
+    async def test_start_first_round__no_situation_cards(self, prepared_game, game_service):
         prepared_game.situation_deck.clear()
         with pytest.raises(NotEnoughCardsException) as e:
-            await game_logic.start_first_round(prepared_game.room_id)
+            await game_service.start_first_round(prepared_game.room_id)
 
-        assert str(e.value.message) == "Not enough cards to start game."
+        assert str(e.value.message) == NotEnoughCardsException.message
 
-    async def test_start_first_round__no_meme_cards(self, prepared_game):
+    async def test_start_first_round__no_meme_cards(self, prepared_game, game_service):
         prepared_game.meme_deck.clear()
         with pytest.raises(NotEnoughCardsException) as e:
-            await game_logic.start_first_round(prepared_game.room_id)
+            await game_service.start_first_round(prepared_game.room_id)
 
-        assert str(e.value.message) == "Not enough cards to start game."
+        assert str(e.value.message) == NotEnoughCardsException.message
 
-    async def test_player_select_card(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
         selected_card = player.handed_cards[0]
 
-        await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
+        await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
         assert prepared_game.current_round.player_choices[player.id] == selected_card
         assert selected_card not in player.handed_cards
         assert len(player.handed_cards) == CARDS_PER_PLAYER - 1
 
-    async def test_player_select_card__player_is_leader(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__player_is_leader(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[0]
         selected_card = player.handed_cards[0]
 
         with pytest.raises(InvalidPlayerActionException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
+            await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
-        assert str(e.value.message) == "Invalid player action. Leader cannot choose a card"
+        assert str(e.value.message) == "Invalid player action. Leader cannot choose a card"  # todo: подправить
 
-    async def test_player_select_card__player_not_found(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__player_not_found(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
 
         with pytest.raises(PlayerNotFoundException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, "player.id", 999)
+            await game_service.player_select_card(prepared_game.room_id, "player.id", 999)
 
-        assert str(e.value.message) == "Player not found"
+        assert str(e.value.message) == PlayerNotFoundException.message
 
-    async def test_player_select_card__card_not_found(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__card_not_found(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
 
         with pytest.raises(CardNotFoundException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, player.id, 999)
+            await game_service.player_select_card(prepared_game.room_id, player.id, 999)
 
-        assert str(e.value.message) == "Card not found"
+        assert str(e.value.message) == CardNotFoundException.message
 
-    async def test_player_select_card__wrong_state(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__wrong_state(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         prepared_game.state = GameState.FINISHED
         player = prepared_game.room.players[1]
         selected_card = player.handed_cards[0]
 
         with pytest.raises(InvalidGameStateException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
+            await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
         assert (
             str(e.value.message)
             == f"Invalid game state. Game state must be {GameState.ACTIVE.value} to perform this action"
-        )
+        )  # todo: подправить
 
-    async def test_player_select_card__card_already_selected(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__card_already_selected(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
         prepared_game.current_round.player_choices[player.id] = player.handed_cards[0]
         selected_card = player.handed_cards[1]
 
         with pytest.raises(InvalidPlayerActionException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
+            await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
-        assert str(e.value.message) == "Invalid player action. Player already selected a card"
+        assert str(e.value.message) == "Invalid player action. Player already selected a card"  # todo: подправить
 
-    async def test_player_select_card__round_not_found(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__round_not_found(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         prepared_game.current_round = None
         player = prepared_game.room.players[1]
         selected_card = player.handed_cards[0]
 
         with pytest.raises(RoundNotFoundException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
+            await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
-        assert str(e.value.message) == "Round not found"
+        assert str(e.value.message) == RoundNotFoundException.message
 
-    async def test_player_select_card__wrong_round_state(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_player_select_card__wrong_round_state(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
         selected_card = player.handed_cards[0]
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
         with pytest.raises(InvalidRoundStateException) as e:
-            await game_logic.player_select_card(prepared_game.room_id, player.id, selected_card.id)
+            await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
         assert (
             str(e.value.message)
             == f"Invalid round state. Round state must be {RoundState.CHOOSING_CARDS.value} to perform this action"
-        )
+        )  # todo: подправить
 
-    async def test_leader_choose_winner(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_leader_choose_winner(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_logic.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
-        await game_logic.leader_choose_winner(prepared_game.room_id, winner_card_id)
+        await game_service.leader_choose_winner(prepared_game.room_id, winner_card_id)
 
         assert winner.score == 1
 
-    async def test_leader_choose_winner__game_not_found(self, prepared_game, test_game):
+    async def test_leader_choose_winner__game_not_found(self, prepared_game, test_game, game_service):
 
         winner = prepared_game.room.players[2]
 
         with pytest.raises(GameNotFoundException) as e:
-            await game_logic.leader_choose_winner(test_game.room_id, winner.id)
+            await game_service.leader_choose_winner(test_game.room_id, winner.id)
 
-        assert str(e.value.message) == "Game not found"
+        assert str(e.value.message) == GameNotFoundException.message
 
-    async def test_leader_choose_winner__round_not_found(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_leader_choose_winner__round_not_found(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         prepared_game.current_round = None
 
         winner = prepared_game.room.players[2]
 
         with pytest.raises(RoundNotFoundException) as e:
-            await game_logic.leader_choose_winner(prepared_game.room_id, winner.id)
+            await game_service.leader_choose_winner(prepared_game.room_id, winner.id)
 
-        assert str(e.value.message) == "Round not found"
+        assert str(e.value.message) == RoundNotFoundException.message
 
-    async def test_leader_choose_winner__wrong_round_state(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_leader_choose_winner__wrong_round_state(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_logic.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
         winner_id = prepared_game.room.players[2].id
 
         with pytest.raises(InvalidRoundStateException) as e:
-            await game_logic.leader_choose_winner(
+            await game_service.leader_choose_winner(
                 prepared_game.room_id, prepared_game.current_round.player_choices[winner_id].id
             )
 
         assert (
             str(e.value)
             == f"Invalid round state. Round state must be {RoundState.LEADER_CHOOSING.value} to perform this action"
-        )
+        )  # todo: подправить
 
-    async def test_leader_choose_winner__wrong_game_state(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_leader_choose_winner__wrong_game_state(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         prepared_game.state = GameState.FINISHED
 
         winner = prepared_game.room.players[2]
 
         with pytest.raises(InvalidGameStateException) as e:
-            await game_logic.leader_choose_winner(prepared_game.room_id, winner.id)
+            await game_service.leader_choose_winner(prepared_game.room_id, winner.id)
 
         assert (
             str(e.value.message)
             == f"Invalid game state. Game state must be {GameState.ACTIVE.value} to perform this action"
-        )
+        )  # todo: подправить
 
-    async def test_leader_choose_winner__player_not_found(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_leader_choose_winner__player_not_found(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
         with pytest.raises(PlayerNotFoundException) as e:
-            await game_logic.leader_choose_winner(prepared_game.room_id, "winner.id")
+            await game_service.leader_choose_winner(prepared_game.room_id, "winner.id")
 
-        assert str(e.value.message) == "Player not found"
+        assert str(e.value.message) == PlayerNotFoundException.message
 
-    async def test_end_round(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_end_round(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_logic.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
         winner = prepared_game.room.players[2]
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
-        await game_logic.leader_choose_winner(
+        await game_service.leader_choose_winner(
             prepared_game.room_id, prepared_game.current_round.player_choices[winner.id].id
         )
 
         assert len(prepared_game.meme_discard_pile) > 0
         assert len(prepared_game.situation_discard_pile) > 0
 
-    async def test_end_round__round_not_found(self, prepared_game):
+    async def test_end_round__round_not_found(self, prepared_game, game_service):
         prepared_game.state = GameState.ACTIVE
         with pytest.raises(RoundNotFoundException) as e:
-            await game_logic.end_round(prepared_game.room_id)
+            await game_service.end_round(prepared_game.room_id)
 
-        assert str(e.value.message) == "Round not found"
+        assert str(e.value.message) == RoundNotFoundException.message
 
-    async def test_end_round__game_not_active(self, prepared_game):
+    async def test_end_round__game_not_active(self, prepared_game, game_service):
         prepared_game.state = GameState.FINISHED
         with pytest.raises(InvalidGameStateException) as e:
-            await game_logic.end_round(prepared_game.room_id)
+            await game_service.end_round(prepared_game.room_id)
 
         assert (
             str(e.value.message)
             == f"Invalid game state. Game state must be {GameState.ACTIVE.value} to perform this action"
-        )
+        )  # todo: подправить
 
-    async def test_start_new_round(self, prepared_game):
-        await game_logic.start_first_round(prepared_game.room_id)
+    async def test_start_new_round(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_logic.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
-        await game_logic.leader_choose_winner(
+        await game_service.leader_choose_winner(
             prepared_game.room_id, prepared_game.current_round.player_choices[prepared_game.room.players[2].id].id
         )
 

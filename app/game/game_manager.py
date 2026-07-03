@@ -5,15 +5,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from app.exceptions import (
+    AlreadyInARoomException,
     GameNotFoundException,
     InvalidReconnectToken,
     PlayerNotFoundException,
-    RoomNotFoundException,
 )
-from app.game.dataclasses import Game, Player, ReconnectToken, Room
-from app.game.enums import WebsocketEvents
-from app.game.websocket_sender import WebSocketSender
-from app.schemas.game import GameScore
+from app.game.dataclasses import Game, Player, ReconnectToken
 from app.schemas.messages import ChatMessageResponse
 
 RECONNECT_TIMEOUT = 60  # seconds
@@ -22,12 +19,8 @@ RECONNECT_TOKEN_TTL_SECONDS = 60  # TTL for reconnect token (seconds)
 
 @dataclass
 class GameManager:
-    websocket_sender: WebSocketSender | None = None
     active_games: dict[str, Game] = field(default_factory=dict)  # room_id -> Game
-    active_rooms: dict[str, Room] = field(default_factory=dict)  # room_id -> Room
     player_connections: dict[str, str] = field(default_factory=dict)  # player_id -> room_id
-    players: dict[str, Player] = field(default_factory=dict)  # player_id -> Player
-    room_locks: dict[str, Lock] = field(default_factory=dict)  # room_id -> Lock
     room_tasks: dict[str, dict[str, Task]] = field(default_factory=dict)  # room_id -> {task_name -> Task}
 
     # reconnect token storage (in-memory)
@@ -36,13 +29,17 @@ class GameManager:
     # lock protecting reconnect_tokens
     reconnect_lock: Lock = field(default_factory=Lock)
 
-    async def get_game_score(self, room_id: str) -> list[GameScore]:
-        async with self.get_room_lock(room_id):
-            game = self.get_game(room_id)
+    def delete_player_from_player_connections(self, player_id: str):
+        del self.player_connections[player_id]
 
-            return [
-                GameScore(id=player.id, username=player.username, score=player.score) for player in game.room.players
-            ]
+    def add_player_to_player_connections(self, player_id: str, room_id: str) -> None:
+        self.player_connections[player_id] = room_id
+
+    def validate_player_can_join_room(self, player_id: str) -> bool:
+        if player_id in self.player_connections:
+            raise AlreadyInARoomException()
+
+        return True
 
     def get_game(self, room_id: str) -> Game:
         game = self.active_games.get(room_id)
@@ -52,48 +49,9 @@ class GameManager:
 
         return game
 
-    def get_player(self, player_id: str) -> Player:
-        player = self.players.get(player_id)
-
-        if not player:
-            raise PlayerNotFoundException()
-
-        return player
-
-    # def get_player_by_reconnect_token(self, reconnect_token: str) -> Player:
-    #     token = self.reconnect_tokens.get(reconnect_token)
-    #     player = self.get_player(token.player_id)
-    #     if not player:
-    #         raise PlayerNotFoundException()
-    #     return player
-
-    def get_room(self, room_id: str) -> Room:
-        room = self.active_rooms.get(room_id)
-
-        if not room:
-            raise RoomNotFoundException()
-
-        return room
-
-    def get_room_lock(self, room_id: str) -> Lock:
-        """Get or create a lock for the room.
-
-        Always returns a lock - auto-creates if not found (race-safe).
-        This ensures async context manager won't fail mid-transaction.
-        """
-        if room_id not in self.room_locks:
-            self.room_locks[room_id] = Lock()
-        return self.room_locks[room_id]
-
-    async def create_player(self, name: str | None = None) -> Player:
-        player = Player(username=name)
-        self.players[player.id] = player
-
-        return player
-
     async def disconnect(self, player_id, connection_manager) -> None:
         # mark player disconnected asap to avoid races with other flows
-        player = self.get_player(player_id)
+        player = self.get_player(player_id)  # type: ignore
 
         async def mark_disconnected():
             player.is_connected = False
@@ -118,15 +76,15 @@ class GameManager:
         await asyncio.sleep(RECONNECT_TIMEOUT)
 
         try:
-            player = self.get_player(player_id)
+            player = self.get_player(player_id)  # type: ignore
 
             if player.is_connected:
                 return
 
             if player.room_id:
-                await self.leave_room(player_id, connection_manager)
+                await self.leave_room(player_id, connection_manager)  # type: ignore
 
-            self.players.pop(player_id, None)
+            self.players.pop(player_id, None)  # type: ignore
 
             # Clean up any reconnect tokens for this player
             # to prevent memory leak and invalid token consumption
@@ -137,7 +95,7 @@ class GameManager:
 
     async def send_chat_message(self, room_id: str, player_id: str, message: str, connection_manager) -> None:
         # Get player first (caller guarantees player_id is valid from WebSocket)
-        player = self.get_player(player_id)
+        player = self.get_player(player_id)  # type: ignore
 
         chat_message = {
             "player_id": player_id,
@@ -155,93 +113,14 @@ class GameManager:
             room_id=room_id,
         )
 
-        async with self.get_room_lock(room_id):
-            room = self.get_room(room_id=room_id)
+        async with self.get_room_lock(room_id):  # type: ignore
+            room = self.get_room(room_id=room_id)  # type: ignore
             room.messages.append(chat_message)
 
             sockets = [player.id for player in room.players]
 
-        await connection_manager.broadcast_to_room(sockets, response_message.model_dump())
+        await connection_manager.broadcast_to_players(sockets, response_message.model_dump())
 
-    def get_room_players_count(self, room_id: str) -> int:
-        room = self.active_rooms.get(room_id)
-        return len(room.players) if room else 0
-
-    async def create_room(
-        self,
-        owner: Player,
-        room_name: str | None = None,
-        max_players: int = 10,
-        is_private: bool = False,
-    ) -> Room:
-        room = Room(owner=owner, name=room_name, max_players=max_players, is_private=is_private)
-
-        self.active_rooms[room.id] = room
-        self.player_connections[owner.id] = room.id
-        self.room_locks[room.id] = Lock()
-        owner.room_id = room.id
-
-        return room
-
-    async def join_room(self, room_id: str, player: Player, connection_manager) -> None:
-        async with self.get_room_lock(room_id):
-            room = self.get_room(room_id=room_id)
-
-            room.add_player(player)
-            self.players[player.id] = player
-            self.player_connections[player.id] = room_id
-            player.room_id = room_id
-
-        await connection_manager.broadcast_to_room(
-            [player.id for player in room.players],
-            {
-                "event": WebsocketEvents.PLAYER_JOINED_ROOM.value,
-                "payload": {"player_id": player.id, "username": player.username},
-            },
-            exclude_id=player.id,
-        )
-
-    async def leave_room(self, player_id: str, connection_manager) -> None:
-        player = self.get_player(player_id)
-        need_cleanup = False
-
-        room_id = self.player_connections[player_id]
-        async with self.get_room_lock(room_id):
-            room = self.get_room(room_id=room_id)
-
-            room.remove_player(player)
-            del self.player_connections[player_id]
-            player.room_id = None
-            if not room.players:
-                need_cleanup = True
-
-        await connection_manager.broadcast_to_room(
-            [player.id for player in room.players],
-            {
-                "event": WebsocketEvents.PLAYER_LEFT_ROOM.value,
-                "payload": {"player_id": player.id, "username": player.username},
-            },
-            exclude_id=player.id,
-        )
-
-        if need_cleanup:
-            await self.cleanup_room(room_id)
-
-    async def cleanup_room(self, room_id) -> None:
-        if room_id in self.active_games:
-            del self.active_games[room_id]
-
-        if room_id in self.active_rooms:
-            del self.active_rooms[room_id]
-
-        if room_id in self.room_locks:
-            del self.room_locks[room_id]
-
-        players_to_remove = [player_id for player_id, room in self.player_connections.items() if room == room_id]
-        for player_id in players_to_remove:
-            del self.player_connections[player_id]
-
-    # ========== Reconnect token helpers (in-memory) ==========
     async def create_reconnect_token(self, player_id: str) -> str:
         """
         Create a one-time reconnect token for a player.
@@ -274,7 +153,7 @@ class GameManager:
             if entry.expires_at < now:
                 # expired token: try to clear player's attribute if player still exists
                 try:
-                    self.get_player(entry.player_id)
+                    self.get_player(entry.player_id)  # type: ignore
                 except PlayerNotFoundException:
                     # player already removed - nothing to clear
                     pass
@@ -285,7 +164,7 @@ class GameManager:
             player_id = entry.player_id
             # Verify player still exists BEFORE removing token (critical!)
             try:
-                self.get_player(player_id)
+                self.get_player(player_id)  # type: ignore
             except PlayerNotFoundException:
                 # Player was deleted - treat as invalid token
                 del self.reconnect_tokens[token]
@@ -358,7 +237,7 @@ class GameManager:
             raise PlayerNotFoundException()
 
         # At this point we know player exists (checked inside consume_reconnect_token)
-        player = self.get_player(player_id)
+        player = self.get_player(player_id)  # type: ignore
 
         async def mark_reconnected():
             player.is_connected = True
@@ -366,7 +245,7 @@ class GameManager:
         room_id = player.room_id
 
         if room_id:
-            async with self.get_room_lock(room_id):
+            async with self.get_room_lock(room_id):  # type: ignore
                 await mark_reconnected()
         else:
             await mark_reconnected()

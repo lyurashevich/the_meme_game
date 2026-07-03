@@ -31,3 +31,4 @@ class RoomStateSchema(BaseModel):
 
 class JoinRoomSchema(BaseModel):
     player_id: str
+    room_id: str

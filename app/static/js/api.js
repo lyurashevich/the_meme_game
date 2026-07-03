@@ -4,12 +4,14 @@ async function joinRoom(roomId, roomName) {
       method: "PATCH",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
-        player_id: playerId
+        player_id: playerId,
+        room_id: roomId
       })
     });
 
     if (response.ok) {
       currentRoomId = roomId;
+      console.log('API.JS LINE 13 currentRoomId = ', currentRoomId);
       document.getElementById('chatContainer').classList.remove('hidden');
       await showRoomInterface(roomId, roomName);
       await loadChatHistory(roomId);

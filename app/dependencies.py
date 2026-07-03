@@ -1,7 +1,8 @@
 from app.game.connection_manager import ConnectionManager
+from app.game.game import GameService
 from app.game.game_manager import GameManager
-from app.game.websocket_sender import WebSocketSender
 from app.services.player_service import PlayerService
+from app.services.room_service import RoomService
 
 connection_manager = ConnectionManager()
 
@@ -17,18 +18,22 @@ def get_game_manager() -> GameManager:
     return game_manager
 
 
-websocket_sender = WebSocketSender(connection_manager=connection_manager)
+room_service = RoomService()
 
 
-def get_websocket_sender() -> WebSocketSender:
-    return websocket_sender
+def get_room_service() -> RoomService:
+    return room_service
 
 
-game_manager.websocket_sender = websocket_sender
-
-
-player_service = PlayerService(manager=game_manager, sender=websocket_sender, connection_manager=connection_manager)
+player_service = PlayerService(connection_manager=connection_manager, room_service=room_service)
 
 
 def get_player_service() -> PlayerService:
     return player_service
+
+
+game_service = GameService(room_service, game_manager, connection_manager)
+
+
+def get_game_service() -> GameService:
+    return game_service

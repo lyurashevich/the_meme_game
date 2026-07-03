@@ -28,7 +28,9 @@ document.getElementById('confirmWinner').addEventListener('click', async () => {
     exitLeaderChoosingPhase();
 });
 
-document.getElementById("confirmChoice").addEventListener('click', async () => {
+const confirmChoiceBtn = document.getElementById("confirmChoice")
+
+confirmChoiceBtn.addEventListener('click', async () => {
   const selected = document.querySelector(".card.selected");
 
   if (!selectedCardId) {
@@ -82,6 +84,8 @@ document.getElementById('chatMessage').addEventListener('keypress', (e) => {
   }
 });
 
+
+
 document.getElementById("createRoomBtn").addEventListener("click", async () => {
   if (!playerId) {
     log("Сначала подключитесь!");
@@ -115,7 +119,7 @@ document.getElementById("leaveRoomBtn").addEventListener("click", async () => {
     const response = await fetch(`/room/${currentRoomId}/leave`, {
       method: "PATCH",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ player_id: playerId })
+      body: JSON.stringify({ player_id: playerId, room_id: currentRoomId })
     });
 
     if (response.ok) {
