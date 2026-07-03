@@ -5,7 +5,12 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from app.dependencies import get_connection_manager, get_game_manager
+from app.dependencies import (
+    get_connection_manager,
+    get_game_manager,
+    get_player_service,
+    get_room_service,
+)
 from app.exceptions import (
     GameNotFoundException,
     InvalidReconnectToken,
@@ -15,7 +20,8 @@ from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
 from app.game.enums import WebsocketEvents
 from app.game.game_manager import GameManager
-from app.game.websocket_sender import WebSocketSender
+from app.services.player_service import PlayerService
+from app.services.room_service import RoomService
 
 router = APIRouter(prefix="/ws")
 
@@ -26,10 +32,9 @@ async def websocket_endpoint(
     reconnect_token: str | None = None,
     manager: GameManager = Depends(get_game_manager),
     connection_manager: ConnectionManager = Depends(get_connection_manager),
+    player_service: PlayerService = Depends(get_player_service),
 ):
     await websocket.accept()
-
-    sender = WebSocketSender(connection_manager)
 
     player = None
     now = datetime.now(timezone.utc)
@@ -44,31 +49,35 @@ async def websocket_endpoint(
             if not player.room_id:
                 payload = (
                     player.id,
-                    WebsocketEvents.PLAYER_RECONNECTED.value,
-                    {"reconnect_token": token, "avatar": player.avatar, "player_id": player.id},
+                    {
+                        "event": WebsocketEvents.PLAYER_RECONNECTED.value,
+                        "payload": {"reconnect_token": token, "avatar": player.avatar, "player_id": player.id},
+                    },
                 )
-                await sender.send(*payload)
+                await connection_manager.send_personal_json(*payload)
             else:
                 payload = await build_reconnect_payload(manager, player, token)
-                await sender.send(*payload)
+                await connection_manager.send_personal_json(*payload)
 
         except (PlayerNotFoundException, InvalidReconnectToken):
             player = None
 
     if not player:
-        player = await manager.create_player()
+        player = player_service.create_player()
         connection_manager.add_connection(player.id, websocket)
 
         token = await manager.create_reconnect_token(player.id)
 
-        await sender.send(
+        await connection_manager.send_personal_json(
             player.id,
-            WebsocketEvents.PLAYER_CREATED.value,
             {
-                "player_id": player.id,
-                "reconnect_token": token,
-                "username": player.username,
-                "avatar": player.avatar,
+                "event": WebsocketEvents.PLAYER_CREATED.value,
+                "payload": {
+                    "player_id": player.id,
+                    "reconnect_token": token,
+                    "username": player.username,
+                    "avatar": player.avatar,
+                },
             },
         )
 
@@ -107,18 +116,20 @@ async def websocket_endpoint(
 
 
 @router.get("/{room_id}/messages")
-async def get_room_messages(room_id: str, manager: GameManager = Depends(get_game_manager)):
-    room = manager.get_room(room_id)
+async def get_room_messages(room_id: str, room_service: RoomService = Depends(get_room_service)):
+    room = room_service.get_room(room_id)
 
     return room.messages[-50:]
 
 
-async def build_reconnect_payload(manager: GameManager, player: Player, token: str):
+async def build_reconnect_payload(
+    manager: GameManager, player: Player, token: str, room_service: RoomService = Depends(get_room_service)
+):
     if not player.room_id:
         return
 
-    async with manager.get_room_lock(room_id=player.room_id):
-        room = manager.get_room(player.room_id)
+    async with room_service.get_room_lock(room_id=player.room_id):
+        room = room_service.get_room(player.room_id)
         payload_data: dict[str, Any] = {
             "reconnect_token": token,
             "room_id": player.room_id,

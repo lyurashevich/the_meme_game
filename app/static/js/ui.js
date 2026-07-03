@@ -31,7 +31,8 @@ function hiddenRoomInterface() {
   document.getElementById('startGameBtn').classList.add('hidden');
 
   document.getElementById('rooms').style.display = 'inline-block';
-  document.getElementById('createRoomBtn').style.display = 'inline-block';
+//  document.getElementById('createRoomBtn').style.display = 'inline-block';
+  document.getElementById('createRoomBtn').classList.remove("hidden");
 
   document.getElementById('messages').innerHTML = '';
   document.getElementById('chatMessage').value = '';

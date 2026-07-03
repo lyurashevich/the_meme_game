@@ -6,11 +6,14 @@ from sqlalchemy.orm import sessionmaker
 from starlette.testclient import TestClient
 
 from app.db import TEST_DATABASE_URL, Base, get_db
-from app.dependencies import game_manager
+from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Game, Player
-from app.game.game import game_logic
+from app.game.game import GameService
+from app.game.game_manager import GameManager
 from app.main import app
 from app.models import MemeCard, SituationCard
+from app.services.player_service import PlayerService
+from app.services.room_service import RoomService
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -18,6 +21,31 @@ pytest_plugins = ("pytest_asyncio",)
 
 test_engine = create_engine(TEST_DATABASE_URL, echo=True)
 test_session_maker = sessionmaker(test_engine, expire_on_commit=False)
+
+
+@pytest.fixture
+def connection_manager():
+    return ConnectionManager()
+
+
+@pytest.fixture
+def room_service():
+    return RoomService()
+
+
+@pytest.fixture
+def game_manager():
+    return GameManager()
+
+
+@pytest.fixture
+def player_service(connection_manager, room_service):
+    return PlayerService(connection_manager, room_service)
+
+
+@pytest.fixture
+def game_service(room_service, game_manager, connection_manager):
+    return GameService(room_service, game_manager, connection_manager)
 
 
 @pytest.fixture
@@ -47,9 +75,9 @@ def db_session():
 
 
 @pytest.fixture
-def test_player():
+def test_player(player_service):
     player = Player(username="Lisaveta", id="333")
-    game_manager.players[player.id] = player
+    player_service.players[player.id] = player
     return player
 
 
@@ -60,33 +88,33 @@ def test_players():
 
 
 @pytest.fixture
-async def test_room(test_player):
-    room = await game_manager.create_room(owner=test_player)
+async def test_room(test_player, room_service, player_service, game_manager):
+    room = await room_service.create_room(owner=test_player)
     yield room
-    game_manager.active_rooms.clear()
-    game_manager.players.clear()
+    room_service.active_rooms.clear()
+    player_service.players.clear()
     game_manager.active_games.clear()
 
 
 @pytest.fixture
-async def test_room_with_players(test_player, test_players):
-    room = await game_manager.create_room(owner=test_player)
+async def test_room_with_players(test_player, test_players, room_service, player_service, game_manager):
+    room = await room_service.create_room(owner=test_player)
     for player in test_players:
-        await room.add_player(player)
+        room.add_player(player)
 
     yield room
-    game_manager.active_rooms.clear()
-    game_manager.players.clear()
+    room_service.active_rooms.clear()
+    player_service.players.clear()
     game_manager.active_games.clear()
 
 
 @pytest.fixture
-async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_cards):
+async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_cards, game_service):
     """non-started game yet"""
     with patch("app.game.game.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
         "app.game.game.SituationService.get_situation_cards", return_value=mock_situation_cards
     ):
-        game = await game_logic.prepare_game(room_id=test_room_with_players.id)
+        game = await game_service.prepare_game(room_id=test_room_with_players.id)
 
     yield game
 

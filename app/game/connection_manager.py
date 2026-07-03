@@ -46,7 +46,7 @@ class ConnectionManager:
                 pass  # todo: add logging
                 # print("CONNECTION_MANAGER.PY LINE 46:", traceback.print_exc())
 
-    async def broadcast_to_room(self, player_ids: list[str], message: dict, exclude_id: str | None = None) -> None:
+    async def broadcast_to_players(self, player_ids: list[str], message: dict, exclude_id: str | None = None) -> None:
         """
         Broadcast JSON message to specific players (safe).
 

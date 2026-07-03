@@ -24,3 +24,4 @@ class WebsocketEvents(Enum):
     PLAYER_JOINED_ROOM = "player_joined_room"
     PLAYER_LEFT_ROOM = "player_left_room"
     GAME_STARTED = "game_started"
+    ROOM_CREATED = "room_created"

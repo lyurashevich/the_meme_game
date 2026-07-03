@@ -1,7 +1,6 @@
     let ws;
     playerId = localStorage.getItem("playerId");
     let reconnectToken = localStorage.getItem("reconnectToken");
-    currentRoomId = localStorage.getItem("currentRoomId");
 
     document.getElementById("connectBtn").addEventListener("click", () => {
 
@@ -21,29 +20,33 @@
       ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log(data);
+          console.log(data.event);
 
-          if (data.event === 'round_started') {
-            renderRound(data.round_data);
+//          ==============ROOM EVENTS==============
 
-            const cardResponse = await fetch(`/player/${playerId}/cards`);
-            const playerCards = await cardResponse.json();
-            renderPlayerCards(playerCards);
-            document.getElementById('playerCards').classList.remove('hidden');
+          if (data.event === 'room_created') {
+            document.getElementById("createRoomBtn").classList.add("hidden");
+            currentRoomId = data.payload.room_id;
+            currentRoomName = data.payload.room_name;
+
+            addRoomToList(currentRoomId, currentRoomName)
           }
 
-          if (data.event === "game_started") {
-            scoreBtn.classList.remove("hidden");
+          if (data.event === 'room_deleted') {
+
           }
 
-          if (data.event === 'player_selected_card') {
-            console.log(data);
-            renderCardBack(data); // data.event, data.card_id, data.image_url
+          if (data.event === 'room_updated') {
+
           }
+
+//          ===============PLAYER EVENTS==============
 
           if (data.event === 'player_joined_room') {
             currentRoomId = data.payload.room_id;
             localStorage.setItem("currentRoomId", currentRoomId);
+
+            document.getElementById("createRoomBtn").classList.add("hidden");
 
             displaySystemMessage({
               message: `${data.payload.username} has joined the room`,
@@ -52,6 +55,8 @@
           }
 
           if (data.event === "player_left_room") {
+            document.getElementById("createRoomBtn").classList.remove("hidden");
+            console.log(data);
             displaySystemMessage({
               message: `${data.payload.username} has left the room.`,
               timestamp: new Date().toISOString()
@@ -69,18 +74,18 @@
             localStorage.setItem("playerId", playerId);
             localStorage.setItem("reconnectToken", reconnectToken);
 
-            document.getElementById("createRoomBtn").disabled = false;
+            if (!roomId) {
+              document.getElementById("createRoomBtn").classList.remove("hidden");
+            }
+
             document.getElementById('connectBtn').disabled = true;
             document.getElementById('startGameBtn').disabled = true;
 
             if ('room_id' in data.payload) {
-              console.log('BEFORE SHOW_ROOM_INTERFACE');
                 await showRoomInterface(roomId, roomName);
-                console.log('AFTER SHOW_ROOM_INTERFACE');
                 await loadChatHistory(roomId);
             }
 
-            console.log('WS.JS LINE 72: ', data);
             loadProfile(data.payload.player_id);
 
             if ('game_state' in data.payload) {
@@ -96,11 +101,31 @@
             }
           }
 
+          if (data.event === 'round_started') {
+            renderRound(data.round_data);
+
+            const cardResponse = await fetch(`/player/${playerId}/cards`);
+            const playerCards = await cardResponse.json();
+            renderPlayerCards(playerCards);
+            document.getElementById('playerCards').classList.remove('hidden');
+          }
+
+          if (data.event === "game_started") {
+            currentRoomId = data.payload.room_id;
+            scoreBtn.classList.remove("hidden");
+            console.log(data);
+          }
+
+          if (data.event === 'player_selected_card') {
+            renderCardBack(data); // data.event, data.card_id, data.image_url
+          }
+
           if (data.event === 'round_state_changed') {
             const state = data.payload.state;
 
             if (state === 'leader_choosing') {
               enterLeaderChoosingPhase();
+              confirmChoiceBtn.classList.add("hidden");
             };
 
             if (state === 'round_ended') {
@@ -108,12 +133,17 @@
             };
           }
 
-          if (data.event === 'first_round_started') {
+          if (data.event === 'game_started') {
+
             document.getElementById("playerCards").classList.remove("hidden");
             document.getElementById("tableArea").classList.remove("hidden");
 
             renderRound(data.payload);
             renderPlayerCards(data.payload.player_cards);
+
+            if (!isLeader) {
+              confirmChoiceBtn.classList.remove("hidden");
+            }
           }
 
           if (data.event === 'player_profile_updated') {
@@ -129,7 +159,7 @@
             localStorage.setItem("playerId", playerId);
             localStorage.setItem("reconnectToken", reconnectToken);
 
-            document.getElementById("createRoomBtn").disabled = false;
+            document.getElementById("createRoomBtn").classList.remove("hidden");
             document.getElementById("connectBtn").disabled = true;
 
             loadProfile(data.payload.player_id);

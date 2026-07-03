@@ -80,3 +80,9 @@ class InvalidReconnectToken(CustomException):
     code: str = "invalid_reconnect_token"
     status_code: int = 400
     message: str = "Invalid reconnect token"
+
+
+class AlreadyInARoomException(CustomException):
+    code: str = "already_in_a_room"
+    status_code = 400
+    message: str = "You have already joined another room"

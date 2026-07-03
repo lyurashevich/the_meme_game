@@ -38,7 +38,7 @@ class TestRoom:
 
         players_quantity = len(test_room.players)
 
-        await test_room.add_player(player)
+        test_room.add_player(player)
 
         assert players_quantity != len(test_room.players)
         assert len(test_room.players) == 2
@@ -47,7 +47,7 @@ class TestRoom:
 
     async def test_add_player__already_joined(self, test_room):
         player = Player(id="2")
-        await test_room.add_player(player)
+        test_room.add_player(player)
 
         with pytest.raises(Exception) as e:
             await test_room.add_player(player)
@@ -59,7 +59,7 @@ class TestRoom:
         player = Player(id="2")
 
         with pytest.raises(Exception) as e:
-            await test_room.add_player(player)
+            test_room.add_player(player)
 
         assert "The room is full" in str(e.value)
 
@@ -67,15 +67,15 @@ class TestRoom:
         player = Player(id="2")
 
         with pytest.raises(Exception) as e:
-            await test_room.remove_player(player)
+            test_room.remove_player(player)
 
         assert str(e.value) == "User not found"
 
     async def test_remove_player(self, test_room):
         player = Player(id="2")
-        await test_room.add_player(player)
+        test_room.add_player(player)
 
-        await test_room.remove_player(player)
+        test_room.remove_player(player)
 
         assert len(test_room.players) == 1
         assert test_room.owner in test_room.players

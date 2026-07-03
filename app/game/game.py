@@ -4,7 +4,6 @@ from asyncio import Task
 from typing import Optional
 
 from app.db import session_maker
-from app.dependencies import game_manager, websocket_sender
 from app.exceptions import (
     CardNotFoundException,
     InvalidGameStateException,
@@ -13,14 +12,16 @@ from app.exceptions import (
     NotEnoughCardsException,
     NotEnoughPlayersException,
     PlayerNotFoundException,
-    RoomNotFoundException,
     RoundNotFoundException,
 )
+from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Game, GameRound, Room
 from app.game.enums import GameState, RoundState
-from app.game.game_settings import GameSettings
+from app.game.game_manager import GameManager
 from app.models import SituationCard
+from app.schemas.game import GameScore
 from app.services.memes_services import CardService as MemeService
+from app.services.room_service import RoomService
 from app.services.situations_services import CardService as SituationService
 
 MEME_CARDS_COOLDOWN = 20
@@ -28,23 +29,30 @@ SITUATION_CARDS_COOLDOWN = 30
 CARDS_PER_PLAYER = 6
 
 
-class GameLogic:
-    def __init__(self):
-        self.settings = GameSettings()
+class GameService:
+    def __init__(self, room_service: RoomService, game_manager: GameManager, connection_manager: ConnectionManager):
+        self.room_service = room_service
         self.game_manager = game_manager
-        self.websocket_sender = websocket_sender
+        self.connection_manager = connection_manager
+
+    async def get_game_score(self, room_id: str) -> list[GameScore]:
+        async with self.room_service.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
+
+            return [
+                GameScore(id=player.id, username=player.username, score=player.score) for player in game.room.players
+            ]
 
     async def phase_timer(self, room_id: str):
 
         # print(
         #     f"round state before timer: {self.get_game(room_id).current_round.state
         #     if self.get_game(room_id).current_round else None}")
-        await asyncio.sleep(30)
+        await asyncio.sleep(120)
         # print(f"Phase timeout for room {room_id}")
 
-        async with game_manager.get_room_lock(room_id):
-            game = game_manager.get_game(room_id)
-            room = game_manager.get_room(room_id)
+        async with self.room_service.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
 
             if not game:
                 return
@@ -54,50 +62,49 @@ class GameLogic:
                 if game.current_round.state == RoundState.CHOOSING_CARDS:
                     game.current_round.state = RoundState.LEADER_CHOOSING
 
-                    if self.websocket_sender is None:
-                        raise RuntimeError("WebSocketSender not configured")
-
-                    await self.websocket_sender.send_round_state_changed(room, RoundState.LEADER_CHOOSING.value)
-                    print(f"round state after timer: {game.current_round.state}")
+                    # if self.connection_manager is None:
+                    #     raise RuntimeError("WebSocketSender not configured")
+                    #
+                    # await self.websocket_sender.send_round_state_changed(room, RoundState.LEADER_CHOOSING.value)
+                    # print(f"round state after timer: {game.current_round.state}")
                 elif game.current_round.state == RoundState.LEADER_CHOOSING:
                     game.current_round.state = RoundState.ROUND_ENDED
 
-                    if self.websocket_sender is None:
-                        raise RuntimeError("WebSocketSender not configured")
-
-                    await self.websocket_sender.send_round_state_changed(room, RoundState.ROUND_ENDED.value)
+                    # if self.websocket_sender is None:
+                    #     raise RuntimeError("WebSocketSender not configured")
+                    #
+                    # await self.websocket_sender.send_round_state_changed(room, RoundState.ROUND_ENDED.value)
                     await self.end_round(room_id)
                     print(f"round state after timer: {game.current_round.state}")
                 else:
                     return  # No transition needed
 
-    @staticmethod
-    async def add_timer(room_id: str, name: str, task: Task) -> None:
-        game_manager.room_tasks.setdefault(room_id, {})
+    async def add_timer(self, room_id: str, name: str, task: Task) -> None:
+        self.game_manager.room_tasks.setdefault(room_id, {})
 
-        old_task = game_manager.room_tasks[room_id].get(name)
+        old_task = self.game_manager.room_tasks[room_id].get(name)
         if old_task and not old_task.done():
             old_task.cancel()
 
-        game_manager.room_tasks[room_id][name] = task
+        self.game_manager.room_tasks[room_id][name] = task
 
-    async def get_room(self, room_id) -> Room:
-        if room_id not in self.game_manager.active_rooms:
-            raise RoomNotFoundException()
-
-        room = self.game_manager.active_rooms[room_id]
-        return room
+    # async def get_room(self, room_id) -> Room:
+    #     if room_id not in self.game_manager.active_rooms:
+    #         raise RoomNotFoundException()
+    #
+    #     room = self.game_manager.active_rooms[room_id]
+    #     return room
 
     @staticmethod
-    async def validate_room_can_start_game(room: Room) -> None:
+    def validate_room_can_start_game(room: Room) -> None:
         if len(room.players) < 3:
             raise NotEnoughPlayersException()
 
     async def prepare_game(self, room_id: str) -> Game | None:
 
-        async with self.game_manager.get_room_lock(room_id=room_id):
-            room = await self.get_room(room_id)
-            await self.validate_room_can_start_game(room)
+        async with self.room_service.get_room_lock(room_id=room_id):
+            room = self.room_service.get_room(room_id)
+            self.validate_room_can_start_game(room)
 
             game = Game(room=room)
 
@@ -110,7 +117,7 @@ class GameLogic:
 
     async def start_first_round(self, room_id: str) -> Game:
 
-        async with self.game_manager.get_room_lock(room_id):
+        async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
             if game.state != GameState.STARTING:
@@ -120,7 +127,7 @@ class GameLogic:
             await self.hand_out_initial_cards(game)
             new_round = GameRound(
                 round_number=1,
-                leader=game.room.owner,
+                leader=game.room.owner,  # type: ignore
                 situation_card=situation_card,
                 game=game,  # state = RoundState.CHOOSING_CARDS
             )
@@ -134,7 +141,7 @@ class GameLogic:
         return game
 
     async def start_new_round(self, room_id: str):
-        async with self.game_manager.get_room_lock(room_id):
+        async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
             prev_round = game.current_round
@@ -142,13 +149,13 @@ class GameLogic:
             if game.state != GameState.ACTIVE:
                 raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
 
-            if prev_round.state != RoundState.ROUND_ENDED:
+            if prev_round.state != RoundState.ROUND_ENDED:  # type: ignore
                 raise InvalidRoundStateException(round_state=RoundState.ROUND_ENDED.value)
 
             situation_card = await self.get_situation_card(game)
             await self.hand_out_one_card(game)
 
-            round_number = prev_round.round_number + 1
+            round_number = prev_round.round_number + 1  # type: ignore
             new_leader = await self.choose_leader(game)
 
             new_round = GameRound(
@@ -234,7 +241,7 @@ class GameLogic:
 
     async def player_select_card(self, room_id: str, player_id: str, card_id: int):
 
-        async with self.game_manager.get_room_lock(room_id):
+        async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
             if not game.current_round:
@@ -270,7 +277,7 @@ class GameLogic:
 
     async def leader_choose_winner(self, room_id: str, card_id: int):
 
-        async with self.game_manager.get_room_lock(room_id):
+        async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
             if not game.current_round:
@@ -314,7 +321,7 @@ class GameLogic:
             print("task cancelled")
 
     async def end_round(self, room_id: str):  # todo: change name to FINALIZE_ROUND
-        async with self.game_manager.get_room_lock(room_id):
+        async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
             if game.state != GameState.ACTIVE:
@@ -354,15 +361,12 @@ class GameLogic:
     #     await asyncio.sleep(delay_seconds)
     #     await self.cleanup_room(room_id)
 
-    def get_game_state(self, room_id: str) -> Optional[Game]:
-        with self.game_manager.get_room_lock(room_id):
+    async def get_game_state(self, room_id: str) -> Optional[Game]:
+        async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
         return game
 
-    def get_room_state(self, room_id: str) -> Optional[Room]:
-        with self.game_manager.get_room_lock(room_id):
-            room = self.game_manager.get_room(room_id)
+    async def get_room_state(self, room_id: str) -> Optional[Room]:
+        async with self.room_service.get_room_lock(room_id):
+            room = self.room_service.get_room(room_id)
         return room
-
-
-game_logic = GameLogic()
