@@ -33,7 +33,7 @@ class TestGameManager:
         room = await room_service.create_room(owner=test_player)
 
         assert room.id in room_service.active_rooms
-        assert room.name.startswith("room")
+        assert room.name
 
     async def test_join_room(self, test_room, room_service):
 

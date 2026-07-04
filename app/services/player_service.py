@@ -1,7 +1,10 @@
+import asyncio
+
 from app.exceptions import PlayerNotFoundException
 from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
 from app.game.enums import WebsocketEvents
+from app.game.game_manager import RECONNECT_TIMEOUT
 from app.models import MemeCard
 from app.schemas.players import PlayerProfileUpdateSchema
 from app.services.room_service import RoomService
@@ -13,6 +16,27 @@ class PlayerService:
     def __init__(self, connection_manager: ConnectionManager, room_service: RoomService):
         self.connection_manager = connection_manager
         self.room_service = room_service
+
+    async def players_cleanup(self, player_id: str, connection_manager):
+        await asyncio.sleep(RECONNECT_TIMEOUT)
+
+        try:
+            player = self.get_player(player_id)
+
+            if player.is_connected:
+                return
+
+            if player.room_id:
+                await self.room_service.leave_room(player, player.room_id)
+
+            self.players.pop(player_id, None)
+
+            # Clean up any reconnect tokens for this player
+            # to prevent memory leak and invalid token consumption
+            await self._cleanup_player_tokens(player_id)  # type: ignore  # todo: подумать че с этим делать......
+
+        except PlayerNotFoundException:
+            return
 
     def create_player(self, username: str | None = None) -> Player:
         player = Player(username=username)

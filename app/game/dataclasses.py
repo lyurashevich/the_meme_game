@@ -15,7 +15,7 @@ AVATAR_COUNT = 4
 @dataclass
 class ReconnectToken:
     player_id: str
-    expires_at: datetime | None = None
+    expires_at: datetime
 
 
 @dataclass
@@ -63,7 +63,7 @@ class Room:
 
     def __post_init__(self) -> None:
         if self.name is None:
-            self.name = f"room{self.id[:8]}"
+            self.name = Faker().city()
 
         if self.owner and self.owner not in self.players:
             self.players.append(self.owner)

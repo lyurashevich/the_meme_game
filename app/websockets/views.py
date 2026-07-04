@@ -9,6 +9,7 @@ from app.dependencies import (
     get_connection_manager,
     get_game_manager,
     get_player_service,
+    get_reconnect_service,
     get_room_service,
 )
 from app.exceptions import (
@@ -21,6 +22,7 @@ from app.game.dataclasses import Player
 from app.game.enums import WebsocketEvents
 from app.game.game_manager import GameManager
 from app.services.player_service import PlayerService
+from app.services.reconnect_service import ReconnectService
 from app.services.room_service import RoomService
 
 router = APIRouter(prefix="/ws")
@@ -33,6 +35,8 @@ async def websocket_endpoint(
     manager: GameManager = Depends(get_game_manager),
     connection_manager: ConnectionManager = Depends(get_connection_manager),
     player_service: PlayerService = Depends(get_player_service),
+    reconnect_service: ReconnectService = Depends(get_reconnect_service),
+    room_service: RoomService = Depends(get_room_service),
 ):
     await websocket.accept()
 
@@ -41,10 +45,10 @@ async def websocket_endpoint(
 
     if reconnect_token:
         try:
-            player = await manager.handle_reconnect(reconnect_token, now)
+            player = await reconnect_service.handle_reconnect(reconnect_token, now)
             connection_manager.add_connection(player.id, websocket)
 
-            token = await manager.create_reconnect_token(player.id)
+            token = await reconnect_service.create_reconnect_token(player.id)
 
             if not player.room_id:
                 payload = (
@@ -66,7 +70,7 @@ async def websocket_endpoint(
         player = player_service.create_player()
         connection_manager.add_connection(player.id, websocket)
 
-        token = await manager.create_reconnect_token(player.id)
+        token = await reconnect_service.create_reconnect_token(player.id)
 
         await connection_manager.send_personal_json(
             player.id,
@@ -87,12 +91,12 @@ async def websocket_endpoint(
             message_data = json.loads(data)
 
             if message_data.get("event") == "chat_message":
-                await manager.send_chat_message(
+                payload, recipients = await room_service.send_chat_message(  # type: ignore
                     room_id=message_data["room_id"],
-                    player_id=player.id,
+                    player=player,
                     message=message_data["message"],
-                    connection_manager=connection_manager,
                 )
+                await connection_manager.broadcast_to_players(recipients, payload)  # type: ignore
             else:
                 await websocket.send_text(f"echo: {data}")
 
@@ -108,7 +112,7 @@ async def websocket_endpoint(
         if player:
             try:
                 connection_manager.remove_connection(player.id)
-                await manager.disconnect(player.id, connection_manager)
+                await reconnect_service.disconnect(player.id)
             except Exception:  # nosec B110
                 # todo: add logging
                 # swallow to avoid raising from websocket endpoint

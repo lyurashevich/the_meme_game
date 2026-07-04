@@ -8,11 +8,12 @@ from starlette.testclient import TestClient
 from app.db import TEST_DATABASE_URL, Base, get_db
 from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Game, Player
-from app.game.game import GameService
 from app.game.game_manager import GameManager
 from app.main import app
 from app.models import MemeCard, SituationCard
+from app.services.game_service import GameService
 from app.services.player_service import PlayerService
+from app.services.reconnect_service import ReconnectService
 from app.services.room_service import RoomService
 
 # Configure pytest-asyncio
@@ -46,6 +47,11 @@ def player_service(connection_manager, room_service):
 @pytest.fixture
 def game_service(room_service, game_manager, connection_manager):
     return GameService(room_service, game_manager, connection_manager)
+
+
+@pytest.fixture
+def reconnect_service(room_service, player_service):
+    return ReconnectService(room_service, player_service)
 
 
 @pytest.fixture
@@ -111,8 +117,8 @@ async def test_room_with_players(test_player, test_players, room_service, player
 @pytest.fixture
 async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_cards, game_service):
     """non-started game yet"""
-    with patch("app.game.game.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
-        "app.game.game.SituationService.get_situation_cards", return_value=mock_situation_cards
+    with patch("app.services.game_service.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
+        "app.services.game_service.SituationService.get_situation_cards", return_value=mock_situation_cards
     ):
         game = await game_service.prepare_game(room_id=test_room_with_players.id)
 

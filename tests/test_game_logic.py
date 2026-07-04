@@ -15,7 +15,7 @@ from app.exceptions import (
     RoundNotFoundException,
 )
 from app.game.enums import GameState, RoundState
-from app.game.game import CARDS_PER_PLAYER
+from app.services.game_service import CARDS_PER_PLAYER
 
 
 class TestGameLogic:
@@ -35,8 +35,8 @@ class TestGameLogic:
         self, test_room_with_players, mock_situation_cards, mock_meme_cards, game_service, game_manager
     ):
 
-        with patch("app.game.game.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
-            "app.game.game.SituationService.get_situation_cards", return_value=mock_situation_cards
+        with patch("app.services.game_service.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
+            "app.services.game_service.SituationService.get_situation_cards", return_value=mock_situation_cards
         ):
 
             game = await game_service.prepare_game(test_room_with_players.id)

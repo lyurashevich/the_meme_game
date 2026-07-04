@@ -1,7 +1,9 @@
 from asyncio import Lock
+from datetime import datetime
 
 from app.exceptions import RoomNotFoundException
 from app.game.dataclasses import Player, Room
+from app.schemas.messages import ChatMessageResponse
 
 
 class RoomService:
@@ -77,3 +79,29 @@ class RoomService:
 
     async def update_room(self):
         pass
+
+    async def send_chat_message(self, room_id: str, player: Player, message: str) -> tuple[dict, list[str]]:
+
+        chat_message = {
+            "player_id": player.id,
+            "player_name": player.username,
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+            "room_id": room_id,
+        }
+
+        response_message = ChatMessageResponse(
+            player_id=player.id,
+            player_name=player.username,
+            message=message,
+            timestamp=chat_message["timestamp"],
+            room_id=room_id,
+        )
+
+        async with self.get_room_lock(room_id):
+            room = self.get_room(room_id=room_id)
+            room.messages.append(chat_message)
+
+            sockets = [p.id for p in room.players]
+
+        return response_message.model_dump(), sockets

@@ -26,7 +26,6 @@ class TestRoom:
     async def test_create_room(self, test_player):
         room = Room(owner=test_player)
         assert isinstance(room.id, str)
-        assert room.name.startswith("room")
         assert room.max_players == 10
         assert room.owner == test_player
         assert not room.is_private
