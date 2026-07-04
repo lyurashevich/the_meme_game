@@ -43,24 +43,33 @@
 //          ===============PLAYER EVENTS==============
 
           if (data.event === 'player_joined_room') {
-            currentRoomId = data.payload.room_id;
-            localStorage.setItem("currentRoomId", currentRoomId);
-
-            document.getElementById("createRoomBtn").classList.add("hidden");
-
             displaySystemMessage({
               message: `${data.payload.username} has joined the room`,
               timestamp: new Date().toISOString()
             });
           }
 
+          if (data.event === 'you_joined_the_room') {
+            currentRoomId = data.payload.room_id;
+            currentRoomName = data.payload.room_name;
+            localStorage.setItem("currentRoomId", currentRoomId);
+
+            document.getElementById("createRoomBtn").classList.add("hidden");
+
+            await showRoomInterface(currentRoomId, currentRoomName);
+            await loadChatHistory(currentRoomId);
+          }
+
           if (data.event === "player_left_room") {
-            document.getElementById("createRoomBtn").classList.remove("hidden");
-            console.log(data);
             displaySystemMessage({
               message: `${data.payload.username} has left the room.`,
               timestamp: new Date().toISOString()
             });
+          }
+
+          if (data.event === 'you_left_the_room') {
+            document.getElementById("createRoomBtn").classList.remove("hidden");
+            currentRoomId = null;
           }
 
           if (data.event === "player_reconnected") {

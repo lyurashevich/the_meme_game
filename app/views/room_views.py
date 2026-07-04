@@ -83,12 +83,23 @@ async def join_room(
 ):
     player = player_service.get_player(request.player_id)
 
-    room = room_service.get_room(room_id)
-
     await room_service.join_room(room_id, player)
+    room = room_service.get_room(room_id)
 
     game_manager.add_player_to_player_connections(player.id, room.id)
     player_service.add_player(player.id)
+
+    await connection_manager.send_personal_json(
+        player.id,
+        {
+            "event": WebsocketEvents.YOU_JOINED_THE_ROOM.value,
+            "payload": {
+                "room_id": room.id,
+                "room_name": room.name,
+                "players": [{"id": p.id, "username": p.username} for p in room.players],
+            },
+        },
+    )
 
     await connection_manager.broadcast_to_players(
         [player.id for player in room.players],
@@ -109,19 +120,22 @@ async def leave_room(
     game_manager: GameManager = Depends(get_game_manager),
 ):
     player = player_service.get_player(request.player_id)
-    room = room_service.get_room(request.room_id)
     await room_service.leave_room(player, request.room_id)
+    room = room_service.get_room(request.room_id)
     game_manager.delete_player_from_player_connections(player.id)
-    for player_ in room.players:
-        print(player_)
+
+    await connection_manager.send_personal_json(player.id, {"event": WebsocketEvents.YOU_LEFT_THE_ROOM.value})
 
     await connection_manager.broadcast_to_players(
         [player.id for player in room.players],
         {
             "event": WebsocketEvents.PLAYER_LEFT_ROOM.value,
-            "payload": {"player_id": player.id, "username": player.username},
+            "payload": {
+                "player_id": player.id,
+                "player_username": player.username,
+                "room_id": room.id,
+            },
         },
-        exclude_id=player.id,
     )
 
 

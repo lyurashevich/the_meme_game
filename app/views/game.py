@@ -8,7 +8,6 @@ from app.dependencies import (
 )
 from app.game.connection_manager import ConnectionManager
 from app.game.enums import WebsocketEvents
-from app.game.game import GameService
 from app.game.game_manager import GameManager
 from app.schemas.game import (
     GameResponse,
@@ -17,6 +16,7 @@ from app.schemas.game import (
     SelectWinnerRequest,
     StartGameRequest,
 )
+from app.services.game_service import GameService
 from app.services.room_service import RoomService
 
 router = APIRouter(prefix="/game", tags=["game"])

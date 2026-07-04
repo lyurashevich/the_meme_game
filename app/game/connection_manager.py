@@ -27,14 +27,14 @@ class ConnectionManager:
         """Get websocket connection for a player (safe, returns None if not found)."""
         return self.player_sockets.get(player_id)
 
-    async def send_personal_message(self, player_id: str, message: str) -> None:
-        """Send a message to a specific player (safe)."""
-        websocket = self.get_connection(player_id)
-        if websocket:
-            try:
-                await websocket.send_text(message)
-            except Exception:  # nosec B110
-                pass  # todo: add logging
+    # async def send_personal_message(self, player_id: str, message: str) -> None:
+    #     """Send a message to a specific player (safe)."""
+    #     websocket = self.get_connection(player_id)
+    #     if websocket:
+    #         try:
+    #             await websocket.send_text(message)
+    #         except Exception:  # nosec B110
+    #             pass  # todo: add logging
 
     async def send_personal_json(self, player_id: str, data: dict) -> None:
         """Send a JSON message to a specific player (safe)."""

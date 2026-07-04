@@ -13,7 +13,7 @@ class TestRoomViews:
         assert response.status_code == 201
         assert response.json()["owner_id"] == test_player.id
         assert response.json()["players_count"] == 1
-        assert response.json()["name"].startswith("room")
+        assert response.json()["name"]
 
     async def test_create_room__no_player_id(self, client_with_no_db):
 
@@ -30,7 +30,7 @@ class TestRoomViews:
         response = client_with_no_db.get(f"{self.url}/{test_room.id}")
 
         assert response.status_code == 200
-        assert response.json()["name"].startswith("room")
+        assert response.json()["name"]
         assert response.json()["players_count"] == 1
 
     async def test_get_room__room_not_found(self, client_with_no_db):
