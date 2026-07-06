@@ -1,5 +1,7 @@
 let leaderChoosingPhaseInitialized = false;
 let selectedWinnerCardId = null;
+let cardsReceived = 0;
+let phaseTimeout = null;
 
 function enterLeaderChoosingPhase () {
   if (leaderChoosingPhaseInitialized) {
@@ -8,16 +10,20 @@ function enterLeaderChoosingPhase () {
 
   leaderChoosingPhaseInitialized = true;
 
-  const playedCards = document.querySelectorAll('.played-card');
-  playedCards.forEach((card, index) => {
-    card.classList.add('revealed');
-  });
+  setTimeout(() => {
+    const playedCards = document.querySelectorAll('.played-card');
 
-  if (isLeader) {
-    attachWinnerSelectionHandler();
-    document.getElementById('confirmWinner').classList.remove('hidden');
-  }
+    playedCards.forEach((card) => {
+      card.classList.add("revealed");
+    });
+
+    if (isLeader) {
+      attachWinnerSelectionHandler();
+      document.getElementById("confirmWinner").classList.remove("hidden");
+    }
+  }, 0);
 }
+
 
 function attachWinnerSelectionHandler () {
   const playedCards = document.querySelectorAll('.played-card');
@@ -106,10 +112,28 @@ async function animateCardToCenter(cardElement) {
 
 function renderCardBack(data) {
   const table = document.getElementById('tableArea');
+  const card = document.createElement("div");
+  card.classList.add("played-card");
 
-  table.innerHTML += `
-    <div class="played-card" data-card-id="${data.card_id}">
-      <img src="${data.image_url}" alt="Card">
-    </div>
+  card.innerHTML = `
+    <img src="${data.image_url}">
   `;
+
+  table.appendChild(card);
+
+  card.addEventListener("animationend", () => {
+    cardsReceived++;
+    tryApplyPhase();
+  })
+}
+
+function tryApplyPhase() {
+  if (!pendingPhase) return;
+
+  clearTimeout(phaseTimeout);
+
+  phaseTimeout = setTimeout(() => {
+    enterLeaderChoosingPhase();
+    pendingPhase = null;
+  }, 50);
 }

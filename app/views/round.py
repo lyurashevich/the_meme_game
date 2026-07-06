@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from app.dependencies import get_game_manager, get_game_service, get_room_service
+from app.dependencies import get_game_manager, get_room_service
 from app.game.game_manager import GameManager
 from app.schemas.round import GameRoundInfoSchema
-from app.services.game_service import GameService
 from app.services.room_service import RoomService
 
 router = APIRouter(prefix="/round", tags=["rounds"])
@@ -24,11 +23,11 @@ async def get_game_round_info(
         return game_round
 
 
-@router.patch("/{room_id}/{round_number}/end")
-async def end_round(room_id: str, game_service: GameService = Depends(get_game_service)):
-    await game_service.end_round(room_id)
-
-
-@router.post("/{room_id}/{round_number}/start")
-async def start_new_round(room_id: str, game_service: GameService = Depends(get_game_service)):
-    await game_service.start_new_round(room_id)
+# @router.patch("/{room_id}/{round_number}/end")
+# async def end_round(room_id: str, game_service: GameService = Depends(get_game_service)):
+#     await game_service._finalize_round(room_id)
+#
+#
+# @router.post("/{room_id}/{round_number}/start")
+# async def start_new_round(room_id: str, game_service: GameService = Depends(get_game_service)):
+#     await game_service._start_new_round(room_id)

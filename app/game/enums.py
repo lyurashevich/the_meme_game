@@ -14,16 +14,24 @@ class RoundState(Enum):
 
 
 class WebsocketEvents(Enum):
-    ROUND_STARTED = "round_started"
-    PLAYER_CARDS_UPDATED = "player_cards_updated"
-    ROUND_STATE_CHANGED = "round_state_changed"
-    PLAYER_RECONNECTED = "player_reconnected"
     PLAYER_CREATED = "player_created"
-    PLAYER_SELECTED_CARD = "player_selected_card"
+    PLAYER_RECONNECTED = "player_reconnected"
     PLAYER_PROFILE_UPDATED = "player_profile_updated"
+
+    ROOM_CREATED = "room_created"
     PLAYER_JOINED_ROOM = "player_joined_room"
     PLAYER_LEFT_ROOM = "player_left_room"
-    GAME_STARTED = "game_started"
-    ROOM_CREATED = "room_created"
+
     YOU_JOINED_THE_ROOM = "you_joined_the_room"
     YOU_LEFT_THE_ROOM = "you_left_the_room"
+
+    GAME_STARTED = "game_started"
+    GAME_ENDED = "game_ended"
+
+    ROUND_STARTED = "round_started"
+    PLAYER_SELECTED_CARD = "player_selected_card"
+    ROUND_STATE_CHANGED = "round_state_changed"
+    LEADER_HAS_CHOSEN_WINNER = "leader_has_chosen_winner"
+    ROUND_ENDED = "round_ended"
+
+    PLAYER_CARDS_UPDATED = "player_cards_updated"

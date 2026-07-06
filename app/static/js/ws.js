@@ -1,6 +1,8 @@
     let ws;
     playerId = localStorage.getItem("playerId");
     let reconnectToken = localStorage.getItem("reconnectToken");
+    let pendingPhase = null;
+    let isAnimating = false;
 
     document.getElementById("connectBtn").addEventListener("click", () => {
 
@@ -130,11 +132,14 @@
           }
 
           if (data.event === 'round_state_changed') {
+            console.log(data);
             const state = data.payload.state;
 
             if (state === 'leader_choosing') {
-              enterLeaderChoosingPhase();
+              pendingPhase = state;
               confirmChoiceBtn.classList.add("hidden");
+
+              tryApplyPhase();
             };
 
             if (state === 'round_ended') {
