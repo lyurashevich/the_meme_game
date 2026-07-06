@@ -227,6 +227,7 @@ class TestGameLogic:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
         winner_id = prepared_game.room.players[2].id
+        prepared_game.current_round.state = RoundState.ROUND_ENDED
 
         with pytest.raises(InvalidRoundStateException) as e:
             await game_service.leader_choose_winner(
@@ -280,14 +281,14 @@ class TestGameLogic:
     async def test_end_round__round_not_found(self, prepared_game, game_service):
         prepared_game.state = GameState.ACTIVE
         with pytest.raises(RoundNotFoundException) as e:
-            await game_service.end_round(prepared_game.room_id)
+            await game_service._finalize_round(prepared_game)
 
         assert str(e.value.message) == RoundNotFoundException.message
 
     async def test_end_round__game_not_active(self, prepared_game, game_service):
         prepared_game.state = GameState.FINISHED
         with pytest.raises(InvalidGameStateException) as e:
-            await game_service.end_round(prepared_game.room_id)
+            await game_service._finalize_round(prepared_game)
 
         assert (
             str(e.value.message)
