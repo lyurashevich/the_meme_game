@@ -53,6 +53,28 @@ class GameService:
             [player.id for player in self.room_service.get_room(room_id).players],
             {"event": WebsocketEvents.ROUND_STATE_CHANGED.value, "payload": {"state": RoundState.ROUND_ENDED.value}},
         )
+
+        for player in self.room_service.get_room(room_id).players:
+            await self.connection_manager.send_personal_json(
+                player.id,
+                {
+                    "event": WebsocketEvents.ROUND_STARTED.value,
+                    "payload": {
+                        "room_id": game.room.id,
+                        "leader_id": (game.current_round.leader_id if game and game.current_round else None),
+                        "current_round_number": (
+                            game.current_round.round_number if game and game.current_round else None
+                        ),
+                        "current_situation_card": (
+                            game.current_round.situation_card.to_dict() if game and game.current_round else None
+                        ),
+                        "score": {player.id: player.score for player in game.room.players},
+                        "players": [player.username for player in game.room.players],
+                        "player_cards": [card.to_dict() for card in player.handed_cards],
+                    },
+                },
+            )
+
         await self.connection_manager.broadcast_to_players(
             [player.id for player in self.room_service.get_room(room_id).players],
             {"event": WebsocketEvents.ROUND_STATE_CHANGED.value, "payload": {"state": RoundState.CHOOSING_CARDS.value}},
@@ -65,7 +87,6 @@ class GameService:
             return False
 
         current_round.state = new_state
-        print(f"round phase has changed to {new_state.value.upper()}")
         return True
 
     async def phase_timer(self, room_id: str):
@@ -184,7 +205,9 @@ class GameService:
         )
         game.current_round = new_round
 
-    # todo: send a websocket event
+        task = asyncio.create_task(self.phase_timer(game.room_id))
+
+        await self.add_timer(game.room_id, "phase_timer", task)
 
     @staticmethod
     async def _initialize_decks(game: Game) -> None:

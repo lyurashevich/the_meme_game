@@ -11,7 +11,6 @@ async function joinRoom(roomId, roomName) {
 
     if (response.ok) {
       currentRoomId = roomId;
-      console.log('API.JS LINE 13 currentRoomId = ', currentRoomId);
       document.getElementById('chatContainer').classList.remove('hidden');
       await showRoomInterface(roomId, roomName);
       await loadChatHistory(roomId);
@@ -108,17 +107,13 @@ document.querySelector("#closeSettingsBtn").addEventListener("click", () => {
 });
 
 async function getGameScore(roomId) {
-  console.log("API.JS LINE 109 roomId = ", roomId);
-  console.log("API.JS LINE 110 currentRoomId = ", currentRoomId);
   const response = await fetch(`/game/${roomId}/score`);
-  console.log("ALI.JS LINE 112 response = ", response);
 
   if (!response.ok) {
     console.log("Failed to get score");
   }
 
   result = await response.json();
-  console.log('API.JS LINE 119 RESULT = ', result)
 
   return result;
 }

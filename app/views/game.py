@@ -36,11 +36,17 @@ async def start_game(
     if game is None:
         return
 
+    await connection_manager.broadcast_to_players(
+        [player.id for player in room.players],
+        {"event": WebsocketEvents.GAME_STARTED.value, "payload": {"room_id": room.id}},
+    )
+
     for player in room.players:
         await connection_manager.send_personal_json(
             player.id,
             {
-                "event": WebsocketEvents.GAME_STARTED.value,
+                "event": WebsocketEvents.ROUND_STARTED.value,
+                # "event": WebsocketEvents.GAME_STARTED.value,
                 "payload": {
                     "room_id": game.room.id,
                     "leader_id": (game.current_round.leader_id if game and game.current_round else None),

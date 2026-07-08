@@ -5,7 +5,6 @@ const closeScoreBtn = document.querySelector("#closeScoreBtn")
 
 scoreBtn.addEventListener("click", async () => {
   const players = await getGameScore(currentRoomId);
-  console.log("SCORE.JS LINE 8 PLAYERS = ", players)
   renderScore(players);
   scoreModal.classList.remove("hidden");
 });

@@ -21,13 +21,3 @@ async def get_game_round_info(
             raise Exception("Round not found")
 
         return game_round
-
-
-# @router.patch("/{room_id}/{round_number}/end")
-# async def end_round(room_id: str, game_service: GameService = Depends(get_game_service)):
-#     await game_service._finalize_round(room_id)
-#
-#
-# @router.post("/{room_id}/{round_number}/start")
-# async def start_new_round(room_id: str, game_service: GameService = Depends(get_game_service)):
-#     await game_service._start_new_round(room_id)

@@ -22,7 +22,6 @@
       ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log(data.event);
 
 //          ==============ROOM EVENTS==============
 
@@ -78,7 +77,6 @@
             const roomId = data.payload.room_id;
             const roomName = data.payload.room_name;
             avatar = data.payload.avatar;
-            console.log('AVATART AFTER RECONNECT: ', avatar);
 
             reconnectToken = data.payload.reconnect_token;
 
@@ -112,27 +110,30 @@
             }
           }
 
-          if (data.event === 'round_started') {
-            renderRound(data.round_data);
+          if (data.event === "round_started") {
+            console.log('WS.JS LINE 114 DATA = ', data);
+            renderRound(data.payload);
+            renderPlayerCards(data.payload.player_cards);
 
-            const cardResponse = await fetch(`/player/${playerId}/cards`);
-            const playerCards = await cardResponse.json();
-            renderPlayerCards(playerCards);
-            document.getElementById('playerCards').classList.remove('hidden');
+            if (!isLeader) {
+              confirmChoiceBtn.classList.remove("hidden");
+            }
           }
 
-          if (data.event === "game_started") {
-            currentRoomId = data.payload.room_id;
-            scoreBtn.classList.remove("hidden");
-            console.log(data);
-          }
+//          if (data.event === 'round_started') {
+//            renderRound(data.round_data);
+//
+//            const cardResponse = await fetch(`/player/${playerId}/cards`);
+//            const playerCards = await cardResponse.json();
+//            renderPlayerCards(playerCards);
+//            document.getElementById('playerCards').classList.remove('hidden');
+//          }
 
           if (data.event === 'player_selected_card') {
             renderCardBack(data); // data.event, data.card_id, data.image_url
           }
 
           if (data.event === 'round_state_changed') {
-            console.log(data);
             const state = data.payload.state;
 
             if (state === 'leader_choosing') {
@@ -144,20 +145,25 @@
 
             if (state === 'round_ended') {
               exitLeaderChoosingPhase();
+              clearTable();
             };
           }
 
           if (data.event === 'game_started') {
 
+            currentRoomId = data.payload.room_id;
+            scoreBtn.classList.remove("hidden");
+
+            document.getElementById("startGameBtn").classList.add("hidden");
             document.getElementById("playerCards").classList.remove("hidden");
             document.getElementById("tableArea").classList.remove("hidden");
 
-            renderRound(data.payload);
-            renderPlayerCards(data.payload.player_cards);
-
-            if (!isLeader) {
-              confirmChoiceBtn.classList.remove("hidden");
-            }
+//            renderRound(data.payload);
+//            renderPlayerCards(data.payload.player_cards);
+//
+//            if (!isLeader) {
+//              confirmChoiceBtn.classList.remove("hidden");
+//            }
           }
 
           if (data.event === 'player_profile_updated') {
@@ -167,7 +173,6 @@
           if (data.event === "player_created") {
             avatar = data.payload.avatar;
             playerId = data.payload.player_id;
-            console.log(playerId);
             reconnectToken = data.payload.reconnect_token;
 
             localStorage.setItem("playerId", playerId);
