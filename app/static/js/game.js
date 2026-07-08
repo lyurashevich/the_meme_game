@@ -7,6 +7,7 @@ function enterLeaderChoosingPhase () {
   if (leaderChoosingPhaseInitialized) {
     return;
   }
+  console.log(isLeader);
 
   leaderChoosingPhaseInitialized = true;
 
@@ -56,6 +57,7 @@ function exitLeaderChoosingPhase() {
 
 
 function renderRound(payload) {
+  console.log('GAME.JS LINE 59 PAYLOAD = ', payload);
   const container = document.getElementById('roundInfo');
   container.innerHTML = `
     <h2>Round #${payload.current_round_number}</h2>
@@ -64,7 +66,6 @@ function renderRound(payload) {
   `;
 
   updateLeaderStatus(payload.leader_id);
-  console.log('GAME.JS LINE 91: IS_LEADER = ', isLeader);
 }
 
 async function renderPlayerCards(cards) {
@@ -114,10 +115,13 @@ function renderCardBack(data) {
   const table = document.getElementById('tableArea');
   const card = document.createElement("div");
   card.classList.add("played-card");
+  card.dataset.cardId = data.card_id;
 
   card.innerHTML = `
     <img src="${data.image_url}">
   `;
+
+  card.addEventListener("click", handlePlayedCardClick);
 
   table.appendChild(card);
 
@@ -136,4 +140,18 @@ function tryApplyPhase() {
     enterLeaderChoosingPhase();
     pendingPhase = null;
   }, 50);
+}
+
+function clearTable() {
+  const cards = document.querySelectorAll(".played-card");
+
+  cards.forEach(card => {
+    card.classList.add("fade-out");
+
+    card.addEventListener("animationend", () => {
+      card.remove();
+    }, { once: true });
+  });
+
+  cardsReceived = 0;
 }
