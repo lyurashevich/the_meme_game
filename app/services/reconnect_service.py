@@ -26,7 +26,8 @@ class ReconnectService:
                 self.reconnect_tokens.pop(old, None)
 
             token = secrets.token_hex(16)
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=RECONNECT_TOKEN_TTL_SECONDS)
+            expires_at = None
+            # expires_at = datetime.now(timezone.utc) + timedelta(seconds=RECONNECT_TOKEN_TTL_SECONDS)
 
             self.player_tokens[player_id] = token
             self.reconnect_tokens[token] = ReconnectToken(player_id=player_id, expires_at=expires_at)
@@ -40,18 +41,24 @@ class ReconnectService:
             if not entry:
                 raise InvalidReconnectToken()
 
-            if entry.expires_at < now:
+            if entry.expires_at and entry.expires_at < now:
                 self.player_tokens.pop(entry.player_id, None)
                 raise InvalidReconnectToken()
 
             self.player_tokens.pop(entry.player_id, None)
             return entry.player_id
 
-    async def disconnect(self, player_id) -> str:
-        player = self.player_service.get_player(player_id)
-        player.is_connected = False
+    async def disconnect(self, player_id) -> None:
+        async with self.reconnect_lock:
+            player = self.player_service.get_player(player_id)
+            player.is_connected = False
+            token = self.player_tokens.get(player_id, None)
+            if not token:
+                raise InvalidReconnectToken()
 
-        return await self.create_reconnect_token(player_id)
+            self.reconnect_tokens[token].expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=RECONNECT_TOKEN_TTL_SECONDS
+            )
 
     async def handle_reconnect(self, reconnection_token: str, now: datetime) -> Player:
         player_id = await self._consume_reconnect_token(reconnection_token, now)

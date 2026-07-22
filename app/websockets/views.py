@@ -60,7 +60,7 @@ async def websocket_endpoint(
                 )
                 await connection_manager.send_personal_json(*payload)
             else:
-                payload = await build_reconnect_payload(manager, player, token)
+                payload = await build_reconnect_payload(manager, player, token, room_service)
                 await connection_manager.send_personal_json(*payload)
 
         except (PlayerNotFoundException, InvalidReconnectToken):
@@ -149,6 +149,10 @@ async def build_reconnect_payload(
         if game:
             payload_data.update(
                 {
+                    "players_choice": [
+                        {"player_id": player_id, "card": card.to_dict()}
+                        for player_id, card in game.current_round.player_choices.items()  # type: ignore[union-attr]
+                    ],
                     "handed_cards": [card.to_dict() for card in player.handed_cards],
                     "score": player.score,
                     "is_host": player.is_host,
@@ -175,4 +179,7 @@ async def build_reconnect_payload(
                 }
             )
 
-        return player.id, WebsocketEvents.PLAYER_RECONNECTED.value, payload_data
+        data = {"event": WebsocketEvents.PLAYER_RECONNECTED.value, "payload": {}}
+        data["payload"].update(payload_data)  # type: ignore[attr-defined]
+
+        return player.id, data

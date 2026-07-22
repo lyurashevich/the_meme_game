@@ -155,3 +155,18 @@ function clearTable() {
 
   cardsReceived = 0;
 }
+
+function renderPlayedCards(playersChoice) {
+  const table = document.getElementById("tableArea");
+
+  table.innerHTML = "";
+
+  cardsReceived = 0;
+
+  for (const choice of playersChoice) {
+    renderCardBack({
+      card_id: choice.card.id,
+      image_url: choice.card.image_url,
+    });
+  }
+}

@@ -15,7 +15,7 @@ AVATAR_COUNT = 4
 @dataclass
 class ReconnectToken:
     player_id: str
-    expires_at: datetime
+    expires_at: datetime | None
 
 
 @dataclass

@@ -103,6 +103,7 @@
 
               renderRound(data.payload);
               renderPlayerCards(data.payload.handed_cards);
+              renderPlayedCards(data.payload.players_choice);
             }
 
             if (!roomId) {
