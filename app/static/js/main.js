@@ -87,6 +87,7 @@ document.getElementById('chatMessage').addEventListener('keypress', (e) => {
 
 
 document.getElementById("createRoomBtn").addEventListener("click", async () => {
+console.log(playerId);
   if (!playerId) {
     log("Сначала подключитесь!");
     return;
@@ -109,6 +110,30 @@ document.getElementById("createRoomBtn").addEventListener("click", async () => {
 }
 });
 
+async function performLeave(confirm) {
+  const response = await fetch(`/room/${currentRoomId}/leave`, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ player_id: playerId, room_id: currentRoomId, confirm })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    log("an error occured during leaving the room: " + (error.detail || response.status));
+    return null;
+  }
+
+  return await response.json().catch(() => ({}));
+}
+
+async function finishLeave() {
+  log("you have left the room: " + currentRoomId);
+  currentRoomId = null;
+  localStorage.removeItem("currentRoomId");
+  hiddenRoomInterface();
+  await loadRooms();
+}
+
 document.getElementById("leaveRoomBtn").addEventListener("click", async () => {
   if (!playerId || !currentRoomId) {
     log("you are not in the room");
@@ -116,30 +141,34 @@ document.getElementById("leaveRoomBtn").addEventListener("click", async () => {
   }
 
   try {
-    const response = await fetch(`/room/${currentRoomId}/leave`, {
-      method: "PATCH",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ player_id: playerId, room_id: currentRoomId })
-    });
+    const result = await performLeave(false);
+    if (!result) return;
 
-    if (response.ok) {
-      currentRoomId = null;
-      localStorage.removeItem("currentRoomId");
-    }
-
-    if (!response.ok) {
-      const error = await response.json();
-      log("an error occured during leavin the room: " + error.detail);
+    if (result.requires_confirmation) {
+      document.getElementById("leaveConfirmModal").classList.remove("hidden");
       return;
     }
 
-    log("you have left the room: " + currentRoomId);
-
-    hiddenRoomInterface();
-    await loadRooms();
+    await finishLeave();
   } catch (error) {
-    log("an error occured during leaving the room: " + error)
+    log("an error occured during leaving the room: " + error);
   }
+});
+
+document.getElementById("confirmLeaveBtn").addEventListener("click", async () => {
+  document.getElementById("leaveConfirmModal").classList.add("hidden");
+
+  try {
+    const result = await performLeave(true);
+    if (!result) return;
+    await finishLeave();
+  } catch (error) {
+    log("an error occured during leaving the room: " + error);
+  }
+});
+
+document.getElementById("cancelLeaveBtn").addEventListener("click", () => {
+  document.getElementById("leaveConfirmModal").classList.add("hidden");
 });
 
 document.getElementById("startGameBtn").addEventListener("click", async () => {

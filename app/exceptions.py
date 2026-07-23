@@ -86,3 +86,9 @@ class AlreadyInARoomException(CustomException):
     code: str = "already_in_a_room"
     status_code = 400
     message: str = "You have already joined another room"
+
+
+class PlayerNotInRoomException(CustomException):
+    code: str = "player_not_in_room"
+    status_code: int = 409
+    message: str = "Player is not in the room"

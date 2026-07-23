@@ -1,5 +1,6 @@
 import pytest
 
+from app.exceptions import PlayerNotInRoomException
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import GameState
 
@@ -65,10 +66,10 @@ class TestRoom:
     async def test_remove_player__not_found(self, test_room):
         player = Player(id="2")
 
-        with pytest.raises(Exception) as e:
+        with pytest.raises(PlayerNotInRoomException) as e:
             test_room.remove_player(player)
 
-        assert str(e.value) == "User not found"
+        assert str(e.value.message) == PlayerNotInRoomException.message
 
     async def test_remove_player(self, test_room):
         player = Player(id="2")

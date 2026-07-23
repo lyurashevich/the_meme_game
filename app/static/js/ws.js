@@ -134,6 +134,15 @@
             renderCardBack(data); // data.event, data.card_id, data.image_url
           }
 
+          if (data.event === 'player_card_removed') {
+            const cardId = data.payload && data.payload.card_id;
+            const card = document.querySelector(`.played-card[data-card-id="${cardId}"]`);
+            if (card) {
+              card.remove();
+              if (cardsReceived > 0) cardsReceived--;
+            }
+          }
+
           if (data.event === 'round_state_changed') {
             const state = data.payload.state;
 
@@ -165,6 +174,16 @@
 //            if (!isLeader) {
 //              confirmChoiceBtn.classList.remove("hidden");
 //            }
+          }
+
+          if (data.event === 'game_ended') {
+            displaySystemMessage({
+              message: data.payload && data.payload.message ? data.payload.message : "Игра завершена.",
+              timestamp: new Date().toISOString()
+            });
+
+            resetGameUI();
+            document.getElementById("startGameBtn").classList.remove("hidden");
           }
 
           if (data.event === 'player_profile_updated') {

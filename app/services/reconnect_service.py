@@ -73,6 +73,6 @@ class ReconnectService:
 
         async with self.reconnect_lock:
             for token, entry in list(self.reconnect_tokens.items()):
-                if entry.expires_at < now:
+                if entry.expires_at and entry.expires_at < now:
                     self.reconnect_tokens.pop(token, None)
                     self.player_tokens.pop(entry.player_id, None)

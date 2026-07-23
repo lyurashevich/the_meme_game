@@ -4,6 +4,7 @@ from fastapi.params import Depends
 from app.dependencies import (
     get_connection_manager,
     get_game_manager,
+    get_game_service,
     get_player_service,
     get_room_service,
 )
@@ -12,10 +13,13 @@ from app.game.enums import WebsocketEvents
 from app.game.game_manager import GameManager
 from app.schemas.room import (
     JoinRoomSchema,
+    LeaveRoomResponseSchema,
+    LeaveRoomSchema,
     RoomCreateSchema,
     RoomResponseSchema,
     RoomStateSchema,
 )
+from app.services.game_service import GameService
 from app.services.player_service import PlayerService
 from app.services.room_service import RoomService
 
@@ -111,32 +115,16 @@ async def join_room(
     )
 
 
-@router.patch("/{room_id}/leave")
+@router.patch("/{room_id}/leave", response_model=LeaveRoomResponseSchema)
 async def leave_room(
-    request: JoinRoomSchema,
+    room_id: str,
+    request: LeaveRoomSchema,
     player_service: PlayerService = Depends(get_player_service),
-    connection_manager: ConnectionManager = Depends(get_connection_manager),
-    room_service: RoomService = Depends(get_room_service),
-    game_manager: GameManager = Depends(get_game_manager),
+    game_service: GameService = Depends(get_game_service),
 ):
     player = player_service.get_player(request.player_id)
-    await room_service.leave_room(player, request.room_id)
-    room = room_service.get_room(request.room_id)
-    game_manager.delete_player_from_player_connections(player.id)
 
-    await connection_manager.send_personal_json(player.id, {"event": WebsocketEvents.YOU_LEFT_THE_ROOM.value})
-
-    await connection_manager.broadcast_to_players(
-        [player.id for player in room.players],
-        {
-            "event": WebsocketEvents.PLAYER_LEFT_ROOM.value,
-            "payload": {
-                "player_id": player.id,
-                "player_username": player.username,
-                "room_id": room.id,
-            },
-        },
-    )
+    return await game_service.process_leave(player, room_id, request.confirm)
 
 
 @router.get("/{room_id}/messages")
