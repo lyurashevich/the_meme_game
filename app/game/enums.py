@@ -30,6 +30,7 @@ class WebsocketEvents(Enum):
 
     ROUND_STARTED = "round_started"
     PLAYER_SELECTED_CARD = "player_selected_card"
+    PLAYER_CARD_REMOVED = "player_card_removed"
     ROUND_STATE_CHANGED = "round_state_changed"
     LEADER_HAS_CHOSEN_WINNER = "leader_has_chosen_winner"
     ROUND_ENDED = "round_ended"

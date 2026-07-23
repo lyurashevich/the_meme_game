@@ -179,7 +179,6 @@ async def build_reconnect_payload(
                 }
             )
 
-        data = {"event": WebsocketEvents.PLAYER_RECONNECTED.value, "payload": {}}
-        data["payload"].update(payload_data)  # type: ignore[attr-defined]
+        data = {"event": WebsocketEvents.PLAYER_RECONNECTED.value, "payload": payload_data}
 
         return player.id, data

@@ -32,3 +32,13 @@ class RoomStateSchema(BaseModel):
 class JoinRoomSchema(BaseModel):
     player_id: str
     room_id: str
+    confirm: bool = False
+
+
+class LeaveRoomSchema(BaseModel):
+    player_id: str
+    confirm: bool = False
+
+
+class LeaveRoomResponseSchema(BaseModel):
+    requires_confirmation: bool

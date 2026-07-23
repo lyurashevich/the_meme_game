@@ -1,7 +1,7 @@
 from asyncio import Lock
 from datetime import datetime
 
-from app.exceptions import RoomNotFoundException
+from app.exceptions import PlayerNotInRoomException, RoomNotFoundException
 from app.game.dataclasses import Player, Room
 from app.schemas.messages import ChatMessageResponse
 
@@ -9,6 +9,16 @@ from app.schemas.messages import ChatMessageResponse
 class RoomService:
     active_rooms: dict[str, Room] = {}  # room_id -> Room
     room_locks: dict[str, Lock] = {}  # room_id -> Lock
+
+    async def get_player(self, player_id: str, room_id: str) -> Player:
+        async with self.get_room_lock(room_id):
+            room = self.get_room(room_id)
+            player = next((player for player in room.players if player.id == player_id), None)
+
+            if not player:
+                raise PlayerNotInRoomException()
+
+            return player
 
     def get_rooms_list(self) -> list[Room]:
         return list(self.active_rooms.values())

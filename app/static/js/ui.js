@@ -22,9 +22,46 @@ function showRoomInterface(roomId, roomName) {
   document.getElementById('startGameBtn').classList.remove('hidden');
 }
 
+// Clears all in-game UI + client state. Used both when the current player
+// leaves a room and when the game is ended for the players who stay.
+function resetGameUI() {
+  const cardsContainer = document.getElementById('cardsContainer');
+  if (cardsContainer) cardsContainer.innerHTML = '';
+
+  if (typeof clearTable === 'function') {
+    clearTable();
+  } else {
+    const table = document.getElementById('tableArea');
+    if (table) table.innerHTML = '';
+  }
+
+  const roundInfo = document.getElementById('roundInfo');
+  if (roundInfo) roundInfo.innerHTML = '';
+
+  ['playerCards', 'tableArea', 'confirmChoice', 'confirmWinner', 'score'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+
+  // Reset shared game globals (declared across main.js / game.js / ws.js).
+  isLeader = false;
+  selectedCardId = null;
+  selectedWinnerCardId = null;
+  cardsReceived = 0;
+  leaderChoosingPhaseInitialized = false;
+  pendingPhase = null;
+
+  if (typeof phaseTimeout !== 'undefined' && phaseTimeout) {
+    clearTimeout(phaseTimeout);
+    phaseTimeout = null;
+  }
+}
+
 function hiddenRoomInterface() {
   currentRoomId = null;
   currentRoomName = null;
+
+  resetGameUI();
 
   document.getElementById('roomInfo').classList.add('hidden');
   document.getElementById('chatContainer').classList.add('hidden');

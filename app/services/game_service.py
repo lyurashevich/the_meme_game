@@ -12,15 +12,17 @@ from app.exceptions import (
     NotEnoughCardsException,
     NotEnoughPlayersException,
     PlayerNotFoundException,
+    PlayerNotInRoomException,
     RoundNotFoundException,
 )
 from app.game.connection_manager import ConnectionManager
-from app.game.dataclasses import Game, GameRound, Room
+from app.game.dataclasses import Game, GameRound, Player, Room
 from app.game.enums import GameState, RoundState, WebsocketEvents
 from app.game.game_manager import GameManager
 from app.game.game_settings import GameSettings
 from app.models import SituationCard
 from app.schemas.game import GameScore
+from app.schemas.room import LeaveRoomResponseSchema
 from app.services.memes_services import CardService as MemeService
 from app.services.room_service import RoomService
 from app.services.situations_services import CardService as SituationService
@@ -28,6 +30,7 @@ from app.services.situations_services import CardService as SituationService
 MEME_CARDS_COOLDOWN = 20
 SITUATION_CARDS_COOLDOWN = 30
 CARDS_PER_PLAYER = 6
+MIN_PLAYERS = 3
 
 
 class GameService:
@@ -139,7 +142,7 @@ class GameService:
 
     @staticmethod
     def _validate_room_can_start_game(room: Room) -> None:
-        if len(room.players) < 3:
+        if len(room.players) < MIN_PLAYERS:
             raise NotEnoughPlayersException()
 
     async def prepare_game(self, room_id: str) -> Game | None:
@@ -406,18 +409,263 @@ class GameService:
         await self._process_meme_deck(game)
         await self._process_situation_deck(game)
 
-    # async def end_game(self, game: Game):
-    #     """End the game and clean up"""
-    #     game.state = GameState.FINISHED
-    #     game.ended_at = datetime.now()
-    #
-    #     # Clean up after a delay to allow players to see final scores
-    #     asyncio.create_task(self.delayed_cleanup(game.room.id, delay_seconds=30))
+    async def end_game(self, room_id: str) -> None:
+        """Finish the active game for a room and notify the remaining players.
 
-    # async def delayed_cleanup(self, room_id: str, delay_seconds: int = 30):
-    #     """Clean up room and game after delay"""
-    #     await asyncio.sleep(delay_seconds)
-    #     await self.cleanup_room(room_id)
+        Thin wrapper: acquires the room lock, runs the lock-free core and
+        broadcasts the messages it returns (network I/O is kept out of the lock).
+        """
+        async with self.room_service.get_room_lock(room_id):
+            messages = self._end_game_locked(room_id)
+
+        await self._send_messages(messages)
+
+    def _end_game_locked(self, room_id: str) -> list[tuple[list[str], dict]]:
+        """Finish the active game. Assumes the room lock is already held.
+
+        Cancels timers, drops the game from the registry and resets the
+        remaining players (cards + score) so a fresh game can be started.
+        Mutates in-memory state only and RETURNS the outgoing messages
+        ``(recipient_ids, payload)`` instead of sending them. Safe to call even
+        if the room was already cleaned up (last player left).
+        """
+        self._cancel_room_task(room_id, "phase_timer")
+        self.game_manager.room_tasks.pop(room_id, None)
+
+        game = self.game_manager.active_games.pop(room_id, None)
+        if game:
+            game.state = GameState.FINISHED
+            game.current_round = None
+
+        room = self.room_service.active_rooms.get(room_id)
+        if not room:
+            return []
+
+        for player in room.players:
+            player.handed_cards.clear()
+            player.score = 0
+        players_ids = [player.id for player in room.players]
+
+        if not players_ids:
+            return []
+
+        return [
+            (
+                players_ids,
+                {
+                    "event": WebsocketEvents.GAME_ENDED.value,
+                    "payload": {
+                        "room_id": room_id,
+                        "message": "Игра завершена: в комнате осталось меньше игроков, чем нужно для продолжения.",
+                    },
+                },
+            )
+        ]
+
+    @staticmethod
+    def _deal_up_to_full_hand(game: Game, leader: Player) -> None:
+        for player in game.room.players:
+            if player.id == leader.id:
+                continue
+            while len(player.handed_cards) < CARDS_PER_PLAYER and game.meme_deck:
+                player.handed_cards.append(game.meme_deck.pop(0))
+
+    async def _handle_player_left_locked(self, room_id: str, leaver_id: str) -> list[tuple[list[str], dict]]:
+        """Keep an active game consistent after a player leaves mid-game.
+
+        Assumes the room lock is held and the leaver is already removed from
+        ``room.players`` (and that at least ``MIN_PLAYERS`` players remain,
+        otherwise the game is ended instead). Prunes the leaver's submitted
+        choice, fixes leader rotation and, if the leaver was the current leader,
+        aborts the round and starts a fresh one. Mutates state only and RETURNS
+        the outgoing messages ``(recipient_ids, payload)`` in send order.
+        """
+        game = self.game_manager.active_games.get(room_id)
+        if not game or not game.current_round:
+            return []
+
+        current_round = game.current_round
+        players = game.room.players
+        players_ids = [player.id for player in players]
+
+        removed_card = current_round.player_choices.pop(leaver_id, None)
+
+        messages: list[tuple[list[str], dict]] = []
+
+        if current_round.leader.id != leaver_id:
+            # Leader stays; keep the index pointing at the same player.
+            game.leader_index = players.index(current_round.leader)
+
+            # The leaver's card is still on everyone's table (it was broadcast when
+            # they submitted it). Tell the clients to drop it so the leader can't
+            # pick a card that no longer belongs to anyone in the round.
+            if removed_card is not None:
+                messages.append(
+                    (
+                        players_ids,
+                        {
+                            "event": WebsocketEvents.PLAYER_CARD_REMOVED.value,
+                            "payload": {"card_id": removed_card.id},
+                        },
+                    )
+                )
+
+            if current_round.state == RoundState.CHOOSING_CARDS and (
+                self._validate_if_all_the_players_confirmed_their_choices(game)
+            ):
+                if self._change_round_state(current_round, RoundState.LEADER_CHOOSING):
+                    self._cancel_room_task(room_id, "phase_timer")
+                    messages.append(
+                        (
+                            players_ids,
+                            {
+                                "event": WebsocketEvents.ROUND_STATE_CHANGED.value,
+                                "payload": {
+                                    "state": RoundState.LEADER_CHOOSING.value,
+                                    "expected_cards": len(players) - 1,
+                                },
+                            },
+                        )
+                    )
+        else:
+            # The leader left: abort the current round and start a new one.
+            self._cancel_room_task(room_id, "phase_timer")
+
+            for card in current_round.player_choices.values():
+                game.meme_discard_pile.setdefault(current_round.round_number, []).append(card)
+            if current_round.situation_card:
+                game.situation_discard_pile.setdefault(current_round.round_number, []).append(
+                    current_round.situation_card
+                )
+
+            game.leader_index = game.leader_index % len(players)
+            new_leader = players[game.leader_index]
+
+            try:
+                situation_card = await self._get_situation_card(game)
+            except NotEnoughCardsException:
+                # No situation card left to start a fresh round: end the game
+                # gracefully instead of leaving the leave half-applied (500).
+                return self._end_game_locked(room_id)
+            self._deal_up_to_full_hand(game, new_leader)
+
+            new_round = GameRound(
+                round_number=current_round.round_number + 1,
+                leader=new_leader,
+                situation_card=situation_card,
+                game=game,
+            )
+            game.current_round = new_round
+
+            task = asyncio.create_task(self.phase_timer(room_id))
+            await self.add_timer(room_id, "phase_timer", task)
+
+            messages.append(
+                (
+                    players_ids,
+                    {
+                        "event": WebsocketEvents.ROUND_STATE_CHANGED.value,
+                        "payload": {"state": RoundState.ROUND_ENDED.value},
+                    },
+                )
+            )
+            for player in players:
+                messages.append(
+                    (
+                        [player.id],
+                        {
+                            "event": WebsocketEvents.ROUND_STARTED.value,
+                            "payload": {
+                                "room_id": game.room.id,
+                                "leader_id": new_round.leader_id,
+                                "current_round_number": new_round.round_number,
+                                "current_situation_card": new_round.situation_card.to_dict(),
+                                "score": {p.id: p.score for p in players},
+                                "players": [p.username for p in players],
+                                "player_cards": [card.to_dict() for card in player.handed_cards],
+                            },
+                        },
+                    )
+                )
+            messages.append(
+                (
+                    players_ids,
+                    {
+                        "event": WebsocketEvents.ROUND_STATE_CHANGED.value,
+                        "payload": {"state": RoundState.CHOOSING_CARDS.value},
+                    },
+                )
+            )
+
+        return messages
+
+    async def _send_messages(self, messages: list[tuple[list[str], dict]]) -> None:
+        """Broadcast a list of ``(recipient_ids, payload)`` messages in order."""
+        for recipients, payload in messages:
+            await self.connection_manager.broadcast_to_players(recipients, payload)
+
+    async def process_leave(self, player: Player, room_id: str, confirm: bool) -> LeaveRoomResponseSchema:
+        """Remove ``player`` from ``room_id`` atomically and keep the game consistent.
+
+        The decision (is the game active? will too few players remain?) and the
+        mutation happen under a single ``room_lock`` acquisition, so concurrent
+        leaves cannot race into an inconsistent state. If leaving mid-game would
+        drop the room below ``MIN_PLAYERS`` and ``confirm`` is not set, nothing is
+        mutated and ``requires_confirmation=True`` is returned so the caller can
+        ask the user to confirm. All network I/O happens after the lock releases.
+        """
+        messages: list[tuple[list[str], dict]] = []
+        room_empty = False
+
+        async with self.room_service.get_room_lock(room_id):
+            room = self.room_service.get_room(room_id)  # raises RoomNotFoundException -> 404
+
+            if player not in room.players:
+                raise PlayerNotInRoomException()  # -> 409 instead of a raw 500 from remove_player
+
+            game = self.game_manager.active_games.get(room_id)
+
+            game_active = bool(game) and game.state == GameState.ACTIVE if game and game.current_round else None
+            remaining_after = len(room.players) - 1
+
+            # Leaving mid-game would drop the room below the minimum: ask the
+            # leaver to confirm before ending the game for everyone.
+            if game_active and remaining_after < MIN_PLAYERS and not confirm:
+                return LeaveRoomResponseSchema(requires_confirmation=True)
+
+            room.remove_player(player)
+            player.room_id = None
+            player.handed_cards.clear()
+            self.game_manager.delete_player_from_player_connections(player.id)
+
+            if game_active and remaining_after < MIN_PLAYERS:
+                messages.extend(self._end_game_locked(room_id))
+            elif game_active:
+                messages.extend(await self._handle_player_left_locked(room_id, player.id))
+
+            room_empty = not room.players
+            if not room_empty:
+                messages.append(
+                    (
+                        [p.id for p in room.players],
+                        {
+                            "event": WebsocketEvents.PLAYER_LEFT_ROOM.value,
+                            "payload": {
+                                "player_id": player.id,
+                                "player_username": player.username,
+                                "room_id": room_id,
+                            },
+                        },
+                    )
+                )
+
+        if room_empty:
+            await self.room_service.cleanup_room(room_id)
+
+        await self.connection_manager.send_personal_json(player.id, {"event": WebsocketEvents.YOU_LEFT_THE_ROOM.value})
+        await self._send_messages(messages)
+
+        return LeaveRoomResponseSchema(requires_confirmation=False)
 
     async def get_game_state(self, room_id: str) -> Optional[Game]:
         async with self.room_service.get_room_lock(room_id):

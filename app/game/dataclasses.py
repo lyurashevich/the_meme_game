@@ -5,11 +5,12 @@ from datetime import datetime
 
 from faker.proxy import Faker
 
+from app.exceptions import PlayerNotInRoomException
 from app.game.enums import GameState, RoundState
 from app.models import MemeCard, SituationCard
 from app.schemas.round import PlayerChoiceSchema
 
-AVATAR_COUNT = 4
+AVATAR_COUNT = 5
 
 
 @dataclass
@@ -79,7 +80,7 @@ class Room:
 
     def remove_player(self, player: Player) -> None:
         if player not in self.players:
-            raise Exception("User not found")
+            raise PlayerNotInRoomException()
 
         self.players.remove(player)
 

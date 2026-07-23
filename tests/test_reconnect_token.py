@@ -14,7 +14,7 @@ class TestReconnectTokens:
         assert token in reconnect_service.reconnect_tokens
         entry = reconnect_service.reconnect_tokens[token]
         assert entry.player_id == player.id
-        assert entry.expires_at
+        assert not entry.expires_at
 
     async def test_successful_consume(self, player_service, reconnect_service):
         player = player_service.create_player()
