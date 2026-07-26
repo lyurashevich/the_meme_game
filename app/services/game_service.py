@@ -21,7 +21,7 @@ from app.game.enums import GameState, RoundState, WebsocketEvents
 from app.game.game_manager import GameManager
 from app.game.game_settings import GameSettings
 from app.models import SituationCard
-from app.schemas.game import GameScore
+from app.schemas.game import GameScore, GameSettingsSchema
 from app.schemas.room import LeaveRoomResponseSchema
 from app.services.memes_services import CardService as MemeService
 from app.services.room_service import RoomService
@@ -43,6 +43,13 @@ class GameService:
         self.room_service = room_service
         self.game_manager = game_manager
         self.connection_manager = connection_manager
+
+    async def change_game_settings(self, room_id: str, data: GameSettingsSchema) -> GameSettings:
+        async with self.room_service.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
+            game.settings = GameSettings(**data.model_dump())
+
+            return game.settings
 
     async def finish_round_flow(self, room_id: str) -> None:
         async with self.room_service.get_room_lock(room_id):

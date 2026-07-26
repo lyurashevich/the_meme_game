@@ -10,6 +10,7 @@ from app.game.enums import WebsocketEvents
 from app.schemas.game import (
     GameResponse,
     GameScore,
+    GameSettingsSchema,
     SelectPlayerCardRequest,
     SelectWinnerRequest,
     StartGameRequest,
@@ -88,3 +89,9 @@ async def select_winner(
     game_service: GameService = Depends(get_game_service),
 ):
     await game_service.leader_choose_winner(room_id, card_id=data.card_id)
+
+
+@router.put("/{room_id}/game_settings", response_model=GameSettingsSchema)
+async def game_settings(room_id: str, data: GameSettingsSchema, game_service: GameService = Depends(get_game_service)):
+    settings = await game_service.change_game_settings(room_id, data)
+    return GameSettingsSchema.model_validate(settings)
