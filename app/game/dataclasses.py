@@ -7,6 +7,7 @@ from faker.proxy import Faker
 
 from app.exceptions import PlayerNotInRoomException
 from app.game.enums import GameState, RoundState
+from app.game.game_settings import GameSettings
 from app.models import MemeCard, SituationCard
 from app.schemas.round import PlayerChoiceSchema
 
@@ -125,6 +126,8 @@ class GameRound:
 @dataclass
 class Game:
     room: Room
+    settings: GameSettings = field(default_factory=GameSettings)
+
     current_round: GameRound | None = None
     state: GameState = GameState.STARTING
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

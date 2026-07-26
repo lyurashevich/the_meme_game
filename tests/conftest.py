@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from starlette.testclient import TestClient
 
 from app.db import TEST_DATABASE_URL, Base, get_db
+from app.dependencies import get_game_service
 from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Game, Player
 from app.game.game_manager import GameManager
@@ -22,6 +23,13 @@ pytest_plugins = ("pytest_asyncio",)
 
 test_engine = create_engine(TEST_DATABASE_URL, echo=True)
 test_session_maker = sessionmaker(test_engine, expire_on_commit=False)
+
+
+@pytest.fixture
+def override_game_service(game_service):
+    app.dependency_overrides[get_game_service] = lambda: game_service
+    yield
+    app.dependency_overrides.pop(get_game_service, None)
 
 
 @pytest.fixture
