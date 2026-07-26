@@ -1,11 +1,11 @@
 import asyncio
 import random
-from asyncio import Task
 from typing import Optional
 
 from app.db import session_maker
 from app.exceptions import (
     CardNotFoundException,
+    GameNotFoundException,
     InvalidGameStateException,
     InvalidPlayerActionException,
     InvalidRoundStateException,
@@ -131,15 +131,6 @@ class GameService:
                 GameScore(id=player.id, username=player.username, score=player.score) for player in game.room.players
             ]
 
-    async def add_timer(self, room_id: str, name: str, task: Task) -> None:
-        self.game_manager.room_tasks.setdefault(room_id, {})
-
-        old_task = self.game_manager.room_tasks[room_id].get(name)
-        if old_task and not old_task.done():
-            old_task.cancel()
-
-        self.game_manager.room_tasks[room_id][name] = task
-
     @staticmethod
     def _validate_room_can_start_game(room: Room) -> None:
         if len(room.players) < MIN_PLAYERS:
@@ -165,8 +156,7 @@ class GameService:
         async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
-            if game.state != GameState.STARTING:
-                raise InvalidGameStateException(game_state=GameState.STARTING.value)
+            self._validate_game_state(game, GameState.STARTING)
 
             situation_card = await self._get_situation_card(game)
             await self._hand_out_initial_cards(game)
@@ -181,23 +171,18 @@ class GameService:
 
             task = asyncio.create_task(self.phase_timer(room_id))
 
-            await self.add_timer(room_id, "phase_timer", task)
+            self.game_manager.add_task(room_id, "phase_timer", task)
 
         return game
 
     async def _start_new_round(self, game: Game):
-        prev_round = game.current_round
-
-        if game.state != GameState.ACTIVE:
-            raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
-
-        if prev_round.state != RoundState.ROUND_ENDED:  # type: ignore
-            raise InvalidRoundStateException(round_state=RoundState.ROUND_ENDED.value)
+        prev_round = self._validate_game_round_state(game, RoundState.ROUND_ENDED)
+        self._validate_game_state(game, GameState.ACTIVE)
 
         situation_card = await self._get_situation_card(game)
         await self._hand_out_one_card(game)
 
-        round_number = prev_round.round_number + 1  # type: ignore
+        round_number = prev_round.round_number + 1
         new_leader = await self._choose_leader(game)
 
         new_round = GameRound(
@@ -210,7 +195,22 @@ class GameService:
 
         task = asyncio.create_task(self.phase_timer(game.room_id))
 
-        await self.add_timer(game.room_id, "phase_timer", task)
+        self.game_manager.add_task(game.room_id, "phase_timer", task)
+
+    @staticmethod
+    def _validate_game_state(game: Game, state: GameState) -> None:
+        if game.state != state:
+            raise InvalidGameStateException(game_state=state.value)
+
+    @staticmethod
+    def _validate_game_round_state(game: Game, state: RoundState) -> GameRound:
+        if game.current_round is None:
+            raise RoundNotFoundException()
+
+        if game.current_round.state != state:
+            raise InvalidRoundStateException(round_state=state.value)
+
+        return game.current_round
 
     @staticmethod
     async def _initialize_decks(game: Game) -> None:
@@ -233,17 +233,10 @@ class GameService:
                     card = game.meme_deck.pop(0)
                     player.handed_cards.append(card)
 
-    @staticmethod
-    async def _hand_out_one_card(game: Game):
+    async def _hand_out_one_card(self, game: Game):
 
-        if not game.current_round:
-            raise RoundNotFoundException()
-
-        if game.state != GameState.ACTIVE:
-            raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
-
-        if game.current_round.state != RoundState.ROUND_ENDED:
-            raise InvalidRoundStateException(round_state=RoundState.ROUND_ENDED.value)
+        self._validate_game_state(game, GameState.ACTIVE)
+        self._validate_game_round_state(game, RoundState.ROUND_ENDED)
 
         current_leader = game.room.players[game.leader_index]
 
@@ -290,34 +283,28 @@ class GameService:
             game = self.game_manager.get_game(room_id)
             room = self.room_service.get_room(room_id)
 
-            if not game.current_round:
-                raise RoundNotFoundException()
-
-            if game.current_round.state != RoundState.CHOOSING_CARDS:
-                raise InvalidRoundStateException(round_state=RoundState.CHOOSING_CARDS.value)
-
-            if game.state != GameState.ACTIVE:
-                raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
+            self._validate_game_state(game, GameState.ACTIVE)
+            current_round = self._validate_game_round_state(game, RoundState.CHOOSING_CARDS)
 
             player = next((player for player in game.room.players if player.id == player_id), None)
             if not player:
                 raise PlayerNotFoundException()
-            if player == game.current_round.leader:
+            if player == current_round.leader:
                 raise InvalidPlayerActionException(hint="Leader cannot choose a card")
-            if player_id in game.current_round.player_choices:
+            if player_id in current_round.player_choices:
                 raise InvalidPlayerActionException(hint="Player already selected a card")
 
             selected_card = next((card for card in player.handed_cards if card.id == card_id), None)
             if not selected_card:
                 raise CardNotFoundException()
 
-            game.current_round.player_choices[player_id] = selected_card
+            current_round.player_choices[player_id] = selected_card
             player.handed_cards.remove(selected_card)
 
             if self._validate_if_all_the_players_confirmed_their_choices(game):
-                round_state_changed = self._change_round_state(game.current_round, RoundState.LEADER_CHOOSING)
+                round_state_changed = self._change_round_state(current_round, RoundState.LEADER_CHOOSING)
                 if round_state_changed:
-                    self._cancel_room_task(room_id, "phase_timer")
+                    self.game_manager.cancel_task(room_id, "phase_timer")
 
         if round_state_changed:
             await self.connection_manager.broadcast_to_players(
@@ -327,6 +314,15 @@ class GameService:
                     "payload": {"state": RoundState.LEADER_CHOOSING.value, "expected_cards": len(room.players) - 1},
                 },
             )
+
+        await self.connection_manager.broadcast_to_players(
+            [player.id for player in room.players],
+            {
+                "event": WebsocketEvents.PLAYER_SELECTED_CARD.value,
+                "card_id": selected_card.id,
+                "image_url": selected_card.image_url,
+            },
+        )
 
     @staticmethod
     def _validate_if_all_the_players_confirmed_their_choices(game: Game) -> bool:
@@ -341,17 +337,11 @@ class GameService:
         async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
 
-            if not game.current_round:
-                raise RoundNotFoundException()
-
-            if game.state != GameState.ACTIVE:
-                raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
-
-            if game.current_round.state != RoundState.LEADER_CHOOSING:
-                raise InvalidRoundStateException(round_state=RoundState.LEADER_CHOOSING.value)
+            self._validate_game_state(game, GameState.ACTIVE)
+            current_round = self._validate_game_round_state(game, RoundState.LEADER_CHOOSING)
 
             winner_player_id = next(
-                (player_id for player_id, card in game.current_round.player_choices.items() if card.id == card_id),
+                (player_id for player_id, card in current_round.player_choices.items() if card.id == card_id),
                 None,
             )
 
@@ -359,13 +349,13 @@ class GameService:
             if not winner:
                 raise PlayerNotFoundException()
 
-            if winner == game.current_round.leader:
+            if winner == current_round.leader:
                 raise InvalidPlayerActionException(hint="Leader cannot be a winner")
 
-            if winner_player_id not in game.current_round.player_choices:
+            if winner_player_id not in current_round.player_choices:
                 raise InvalidPlayerActionException(hint="Winner must be selected from the players who submitted cards")
 
-            game.current_round.winner = winner
+            current_round.winner = winner
             winner.score += 1
 
         await self.finish_round_flow(room_id)
@@ -378,33 +368,27 @@ class GameService:
             },
         )
 
-    def _cancel_room_task(self, room_id: str, task_name: str) -> None:
-        tasks = self.game_manager.room_tasks.get(room_id, {})
-        phase_task = tasks.pop(task_name, None)
-        if phase_task:
-            phase_task.cancel()
-            print("task cancelled")
+        await self.connection_manager.broadcast_to_players(
+            [player.id for player in self.room_service.get_room(room_id).players],
+            {
+                "event": WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value,
+                "payload": {"winner_id": winner.id, "card_id": card_id},
+            },
+        )
 
     async def _finalize_round(self, game: Game):
-        if game.state != GameState.ACTIVE:
-            raise InvalidGameStateException(game_state=GameState.ACTIVE.value)
+        self._validate_game_state(game, GameState.ACTIVE)
+        current_round = self._validate_game_round_state(game, RoundState.LEADER_CHOOSING)
 
-        if not game.current_round:
-            raise RoundNotFoundException()
+        self._change_round_state(current_round, RoundState.ROUND_ENDED)
+        for player_id, card in current_round.player_choices.items():  # {int: MemeCard}
+            game.meme_discard_pile.setdefault(current_round.round_number, []).append(card)
 
-        round_data = game.current_round
+        if current_round.situation_card:
+            game.situation_discard_pile.setdefault(current_round.round_number, []).append(current_round.situation_card)
 
-        self._change_round_state(round_data, RoundState.ROUND_ENDED)
-        for player_id, card in round_data.player_choices.items():  # {int: MemeCard}
-            game.meme_discard_pile.setdefault(game.current_round.round_number, []).append(card)
-
-        if round_data.situation_card:
-            game.situation_discard_pile.setdefault(game.current_round.round_number, []).append(
-                round_data.situation_card
-            )
-
-        game.current_round.finalized = True
-        self._cancel_room_task(game.room_id, "phase_timer")
+        current_round.finalized = True
+        self.game_manager.cancel_task(game.room_id, "phase_timer")
 
         await self._process_meme_deck(game)
         await self._process_situation_deck(game)
@@ -429,15 +413,14 @@ class GameService:
         ``(recipient_ids, payload)`` instead of sending them. Safe to call even
         if the room was already cleaned up (last player left).
         """
-        self._cancel_room_task(room_id, "phase_timer")
-        self.game_manager.room_tasks.pop(room_id, None)
+        self.game_manager.clear_room_tasks(room_id)
 
-        game = self.game_manager.active_games.pop(room_id, None)
+        game = self.game_manager.get_game(room_id)
         if game:
             game.state = GameState.FINISHED
             game.current_round = None
 
-        room = self.room_service.active_rooms.get(room_id)
+        room = self.room_service.get_room(room_id)
         if not room:
             return []
 
@@ -480,7 +463,7 @@ class GameService:
         aborts the round and starts a fresh one. Mutates state only and RETURNS
         the outgoing messages ``(recipient_ids, payload)`` in send order.
         """
-        game = self.game_manager.active_games.get(room_id)
+        game = self.game_manager.get_game(room_id)
         if not game or not game.current_round:
             return []
 
@@ -514,7 +497,7 @@ class GameService:
                 self._validate_if_all_the_players_confirmed_their_choices(game)
             ):
                 if self._change_round_state(current_round, RoundState.LEADER_CHOOSING):
-                    self._cancel_room_task(room_id, "phase_timer")
+                    self.game_manager.cancel_task(room_id, "phase_timer")
                     messages.append(
                         (
                             players_ids,
@@ -529,7 +512,7 @@ class GameService:
                     )
         else:
             # The leader left: abort the current round and start a new one.
-            self._cancel_room_task(room_id, "phase_timer")
+            self.game_manager.cancel_task(room_id, "phase_timer")
 
             for card in current_round.player_choices.values():
                 game.meme_discard_pile.setdefault(current_round.round_number, []).append(card)
@@ -558,7 +541,7 @@ class GameService:
             game.current_round = new_round
 
             task = asyncio.create_task(self.phase_timer(room_id))
-            await self.add_timer(room_id, "phase_timer", task)
+            self.game_manager.add_task(room_id, "phase_timer", task)
 
             messages.append(
                 (
@@ -623,7 +606,10 @@ class GameService:
             if player not in room.players:
                 raise PlayerNotInRoomException()  # -> 409 instead of a raw 500 from remove_player
 
-            game = self.game_manager.active_games.get(room_id)
+            try:
+                game = self.game_manager.get_game(room_id)
+            except GameNotFoundException:
+                game = None
 
             game_active = bool(game) and game.state == GameState.ACTIVE if game and game.current_round else None
             remaining_after = len(room.players) - 1
@@ -636,7 +622,7 @@ class GameService:
             room.remove_player(player)
             player.room_id = None
             player.handed_cards.clear()
-            self.game_manager.delete_player_from_player_connections(player.id)
+            self.game_manager.remove_player_connection(player.id)
 
             if game_active and remaining_after < MIN_PLAYERS:
                 messages.extend(self._end_game_locked(room_id))
@@ -676,3 +662,10 @@ class GameService:
         async with self.room_service.get_room_lock(room_id):
             room = self.room_service.get_room(room_id)
         return room
+
+    async def get_current_round(self, room_id: str) -> GameRound:
+        async with self.room_service.get_room_lock(room_id):
+            game = self.game_manager.get_game(room_id)
+            if not game.current_round:
+                raise RoundNotFoundException()
+            return game.current_round
