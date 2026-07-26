@@ -4,10 +4,11 @@ from app.exceptions import PlayerNotFoundException
 from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
 from app.game.enums import WebsocketEvents
-from app.game.game_manager import RECONNECT_TIMEOUT
 from app.models import MemeCard
 from app.schemas.players import PlayerProfileUpdateSchema
 from app.services.room_service import RoomService
+
+RECONNECT_TIMEOUT = 60  # seconds
 
 
 class PlayerService:

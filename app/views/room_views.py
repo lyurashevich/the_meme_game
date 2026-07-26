@@ -61,9 +61,9 @@ async def create_room(
         is_private=data.is_private,
     )
 
-    game_manager.add_player_to_player_connections(data.player_id, room.id)
+    game_manager.add_player_connection(data.player_id, room.id)
 
-    audience = list(set(connection_manager.player_sockets) - set(game_manager.player_connections))
+    audience = list(set(connection_manager.player_sockets) - game_manager.players_in_rooms)
 
     await connection_manager.broadcast_to_players(
         audience,
@@ -90,7 +90,7 @@ async def join_room(
     await room_service.join_room(room_id, player)
     room = room_service.get_room(room_id)
 
-    game_manager.add_player_to_player_connections(player.id, room.id)
+    game_manager.add_player_connection(player.id, room.id)
     player_service.add_player(player.id)
 
     await connection_manager.send_personal_json(

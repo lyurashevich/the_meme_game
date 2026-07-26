@@ -2,13 +2,11 @@ from fastapi import APIRouter, Depends
 
 from app.dependencies import (
     get_connection_manager,
-    get_game_manager,
     get_game_service,
     get_room_service,
 )
 from app.game.connection_manager import ConnectionManager
 from app.game.enums import WebsocketEvents
-from app.game.game_manager import GameManager
 from app.schemas.game import (
     GameResponse,
     GameScore,
@@ -78,55 +76,15 @@ async def end_game():
 async def players_cards(
     room_id: str,
     data: SelectPlayerCardRequest,
-    manager: GameManager = Depends(get_game_manager),
-    connection_manager: ConnectionManager = Depends(get_connection_manager),
-    room_service: RoomService = Depends(get_room_service),
     game_service: GameService = Depends(get_game_service),
 ):
     await game_service.player_select_card(room_id, player_id=data.player_id, card_id=data.card_id)
-    async with room_service.get_room_lock(room_id):
-        room = room_service.get_room(room_id)
-        game = manager.get_game(room_id)
-
-        if not game.current_round:
-            return
-
-        choice = game.current_round.player_choices[data.player_id]
-
-        payload = {
-            "event": WebsocketEvents.PLAYER_SELECTED_CARD.value,
-            "card_id": choice.id,
-            "image_url": choice.image_url,
-        }
-        await connection_manager.broadcast_to_players([player.id for player in room.players], payload)
 
 
 @router.patch("/{room_id}/select_winner")
 async def select_winner(
     room_id: str,
     data: SelectWinnerRequest,
-    game_manager: GameManager = Depends(get_game_manager),
-    room_service: RoomService = Depends(get_room_service),
     game_service: GameService = Depends(get_game_service),
-    connection_manager: ConnectionManager = Depends(get_connection_manager),
 ):
     await game_service.leader_choose_winner(room_id, card_id=data.card_id)
-
-    async with room_service.get_room_lock(room_id):
-        room = room_service.get_room(room_id)
-        game = game_manager.get_game(room_id)
-
-        await connection_manager.broadcast_to_players(
-            [p.id for p in room.players],
-            {
-                "event": WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value,
-                "payload": {
-                    "winner_id": (
-                        game.current_round.winner.id
-                        if game and game.current_round and game.current_round.winner
-                        else None
-                    ),
-                    "card_id": ...,
-                },
-            },
-        )
