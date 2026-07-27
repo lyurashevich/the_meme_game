@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -14,8 +14,31 @@ from app.exceptions import (
     RoomNotFoundException,
     RoundNotFoundException,
 )
-from app.game.enums import GameState, RoundState
+from app.game.enums import GameState, RoundState, WebsocketEvents
+from app.models import MemeCard
+from app.schemas.game import GameSettingsSchema
 from app.services.game_service import CARDS_PER_PLAYER
+
+
+async def _play_round_to_completion(game_service, game):
+    """Test helper: every non-leader player picks a card, the leader picks a winner.
+
+    Drives ``player_select_card`` + ``leader_choose_winner`` for the game's
+    current round, mirroring the sequence already inlined in several tests
+    below. Only pulled into a helper here because the deck-exhaustion test
+    needs to repeat it several times in a loop.
+    """
+    current_round = game.current_round
+    for player in game.room.players:
+        if player is not current_round.leader:
+            await game_service.player_select_card(game.room_id, player.id, player.handed_cards[0].id)
+
+    winner = next(player for player in game.room.players if player is not current_round.leader)
+    winner_card_id = current_round.player_choices[winner.id].id
+    current_round.state = RoundState.LEADER_CHOOSING
+
+    await game_service.leader_choose_winner(game.room_id, winner_card_id)
+    return winner
 
 
 class TestGameLogic:
@@ -320,6 +343,175 @@ class TestGameLogic:
             assert len(player.handed_cards) == CARDS_PER_PLAYER
             assert len(set(player.handed_cards)) == CARDS_PER_PLAYER
 
+    async def test_should_end_game__max_rounds_reached(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        prepared_game.settings.max_rounds = 3
+        prepared_game.current_round.round_number = 3
+
+        assert game_service._should_end_game(prepared_game) is True
+
+    async def test_should_end_game__max_rounds_not_reached(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        prepared_game.settings.max_rounds = 3
+        prepared_game.current_round.round_number = 2
+
+        assert game_service._should_end_game(prepared_game) is False
+
+    async def test_should_end_game__score_to_win_reached(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        prepared_game.settings.score_to_win = 2
+        prepared_game.room.players[1].score = 2
+
+        assert game_service._should_end_game(prepared_game) is True
+
+    async def test_should_end_game__score_to_win_not_reached(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        prepared_game.settings.score_to_win = 2
+        for player in prepared_game.room.players:
+            player.score = 1
+
+        assert game_service._should_end_game(prepared_game) is False
+
+    async def test_should_end_game__unlimited_settings_never_end(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        prepared_game.settings.max_rounds = None
+        prepared_game.settings.score_to_win = None
+        prepared_game.current_round.round_number = 100
+        for player in prepared_game.room.players:
+            player.score = 100
+
+        assert game_service._should_end_game(prepared_game) is False
+
+    async def test_should_end_game__uses_game_settings_not_room_settings(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        prepared_game.settings.score_to_win = None
+        prepared_game.room.players[1].score = 1
+
+        # change_game_settings replaces room.settings with a new object; game.settings
+        # (the snapshot captured once at game start) must stay untouched.
+        await game_service.change_game_settings(
+            room_id=prepared_game.room_id,
+            player_id=prepared_game.room.owner_id,
+            data=GameSettingsSchema(round_time_limit=60, score_to_win=1),
+        )
+
+        assert game_service._should_end_game(prepared_game) is False
+
+    async def test_leader_choose_winner__ends_game_on_score_to_win(self, prepared_game, game_service):
+        prepared_game.settings.score_to_win = 1
+        await game_service.start_first_round(prepared_game.room_id)
+
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+        winner_card_id = prepared_game.current_round.player_choices[winner.id].id
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        await game_service.leader_choose_winner(prepared_game.room_id, winner_card_id)
+
+        assert prepared_game.state == GameState.FINISHED
+        assert prepared_game.current_round is None
+        for player in prepared_game.room.players:
+            assert player.score == 0
+            assert player.handed_cards == []
+
+    async def test_leader_choose_winner__ends_game_on_max_rounds(self, prepared_game, game_service):
+        prepared_game.settings.max_rounds = 1
+        await game_service.start_first_round(prepared_game.room_id)
+
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+        winner_card_id = prepared_game.current_round.player_choices[winner.id].id
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        await game_service.leader_choose_winner(prepared_game.room_id, winner_card_id)
+
+        assert prepared_game.state == GameState.FINISHED
+        assert prepared_game.current_round is None
+
+    async def test_leader_choose_winner__game_ended_sends_game_ended_event(self, prepared_game, game_service):
+        prepared_game.settings.score_to_win = 1
+        await game_service.start_first_round(prepared_game.room_id)
+
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+        winner_card_id = prepared_game.current_round.player_choices[winner.id].id
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        game_service.connection_manager.broadcast_to_players = AsyncMock()
+        game_service.connection_manager.send_personal_json = AsyncMock()
+
+        await game_service.leader_choose_winner(prepared_game.room_id, winner_card_id)
+
+        sent_events = [
+            call.args[1]["event"] for call in game_service.connection_manager.broadcast_to_players.await_args_list
+        ]
+        assert WebsocketEvents.GAME_ENDED.value in sent_events
+        game_service.connection_manager.send_personal_json.assert_not_awaited()
+
+    async def test_leader_choose_winner__max_rounds_ends_before_deck_exhaustion(self, prepared_game, game_service):
+        # Top up the meme deck so this test only exercises the situation-card deck
+        # (5 cards, matching max_rounds below) — the meme deck's own cooldown/
+        # recycling mechanics are unrelated to the behavior under test.
+        prepared_game.meme_deck.extend(
+            MemeCard(id=1000 + i, image_url=f"http://memes.org/extra/{i}") for i in range(50)
+        )
+
+        prepared_game.settings.max_rounds = 5
+        await game_service.start_first_round(prepared_game.room_id)
+
+        for _ in range(4):
+            await _play_round_to_completion(game_service, prepared_game)
+
+        assert prepared_game.current_round.round_number == 5
+        assert prepared_game.situation_deck_count == 0
+
+        await _play_round_to_completion(game_service, prepared_game)
+
+        assert prepared_game.state == GameState.FINISHED
+        assert prepared_game.current_round is None
+
+    async def test_end_game_locked__default_message_preserved(self, prepared_game, game_service):
+        messages = game_service._end_game_locked(prepared_game.room_id)
+
+        assert len(messages) == 1
+        _, payload = messages[0]
+        assert (
+            payload["payload"]["message"]
+            == "Игра завершена: в комнате осталось меньше игроков, чем нужно для продолжения."
+        )
+
+    async def test_end_game_locked__custom_message(self, prepared_game, game_service):
+        messages = game_service._end_game_locked(prepared_game.room_id, message="custom message")
+
+        assert len(messages) == 1
+        _, payload = messages[0]
+        assert payload["payload"]["message"] == "custom message"
+
+    async def test_end_game_locked__includes_final_scores_before_reset(self, prepared_game, game_service):
+        prepared_game.room.players[0].score = 3
+        prepared_game.room.players[1].score = 1
+
+        messages = game_service._end_game_locked(prepared_game.room_id)
+
+        _, payload = messages[0]
+        assert payload["payload"]["final_scores"] == {
+            prepared_game.room.players[0].id: 3,
+            prepared_game.room.players[1].id: 1,
+            prepared_game.room.players[2].id: 0,
+            prepared_game.room.players[3].id: 0,
+        }
+        for player in prepared_game.room.players:
+            assert player.score == 0
+
 
 # class TestCardCooldownSystem:
 #     """Test card cooldown and availability system"""
@@ -357,56 +549,9 @@ class TestGameLogic:
 #         assert available[1].id == 3
 
 
-# class TestGameEndConditions:
-#     """Test various game end conditions"""
-
-#     # @pytest.mark.asyncio
-#     @pytest.mark.parametrize("score_to_win,player_scores,should_end", [
-#         (5, [5, 3, 2], True),
-#         (5, [4, 3, 2], False),
-#         (10, [8, 7, 6], False),
-#         (None, [100, 50, 25], False),  # No score limit
-#     ])
-#     async def test_should_end_game_score_limit(
-#       self, game_logic, game_with_cards, players, score_to_win, player_scores, should_end
-#     ):
-#         """Test game end based on score limit"""
-#         game_logic.settings.score_to_win = score_to_win
-#         game_with_cards.room.players = players[:3]
-
-#         for i, player in enumerate(game_with_cards.room.players):
-#             player.score = player_scores[i]
-
-#         result = await game_logic.should_end_game(game_with_cards)
-#         assert result == should_end
-
-#     # @pytest.mark.asyncio
-#     @pytest.mark.parametrize("max_rounds,current_round,should_end", [
-#         (10, 10, True),
-#         (10, 9, False),
-#         (5, 3, False),
-#         (None, 100, False),  # No round limit
-#     ])
-#     async def test_should_end_game_max_rounds(
-#       self, game_logic, game_with_cards, max_rounds, current_round, should_end
-#     ):
-#         """Test game end based on max rounds"""
-#         game_logic.settings.max_rounds = max_rounds
-#         game_logic.settings.score_to_win = None  # Disable score limit
-#         game_with_cards.round_number = current_round
-
-#         result = await game_logic.should_end_game(game_with_cards)
-#         assert result == should_end
-
-#     # @pytest.mark.asyncio
-#     async def test_should_end_game_no_situation_cards(self, game_logic, game_with_cards):
-#         """Test game end when no situation cards available"""
-#         game_logic.settings.score_to_win = None
-#         game_logic.settings.max_rounds = None
-#         game_with_cards.situation_deck = []  # No situation cards
-
-#         result = await game_logic.should_end_game(game_with_cards)
-#         assert result == True
+# Note: the game-end-condition tests formerly sketched here now live in
+# TestGameLogic above (test_should_end_game__* / test_leader_choose_winner__ends_game_on_*),
+# written against the actual GameService._should_end_game shape rather than this stale skeleton.
 
 
 # class TestEdgeCases:
