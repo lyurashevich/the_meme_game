@@ -14,6 +14,7 @@ from app.schemas.game import (
     SelectPlayerCardRequest,
     SelectWinnerRequest,
     StartGameRequest,
+    UpdateGameSettingsRequest,
 )
 from app.services.game_service import GameService
 from app.services.room_service import RoomService
@@ -92,6 +93,14 @@ async def select_winner(
 
 
 @router.put("/{room_id}/game_settings", response_model=GameSettingsSchema)
-async def game_settings(room_id: str, data: GameSettingsSchema, game_service: GameService = Depends(get_game_service)):
-    settings = await game_service.change_game_settings(room_id, data)
+async def update_game_settings(
+    room_id: str, data: UpdateGameSettingsRequest, game_service: GameService = Depends(get_game_service)
+):
+    settings = await game_service.change_game_settings(room_id=room_id, player_id=data.player_id, data=data.settings)
+    return GameSettingsSchema.model_validate(settings)
+
+
+@router.get("/{room_id}/game_settings", response_model=GameSettingsSchema)
+async def get_game_settings(room_id: str, game_service: GameService = Depends(get_game_service)):
+    settings = await game_service.get_game_settings(room_id)
     return GameSettingsSchema.model_validate(settings)

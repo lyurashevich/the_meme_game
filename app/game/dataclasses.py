@@ -42,6 +42,8 @@ class Player:
 
 @dataclass
 class Room:
+    settings: GameSettings = field(default_factory=GameSettings)
+
     name: str | None = None
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     max_players: int = 10
@@ -126,7 +128,7 @@ class GameRound:
 @dataclass
 class Game:
     room: Room
-    settings: GameSettings = field(default_factory=GameSettings)
+    settings: GameSettings
 
     current_round: GameRound | None = None
     state: GameState = GameState.STARTING

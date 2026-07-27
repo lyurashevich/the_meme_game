@@ -59,3 +59,8 @@ class GameSettingsSchema(BaseModel):
         if value is not None and value <= 0:
             raise ValueError("Value must be positive")
         return value
+
+
+class UpdateGameSettingsRequest(BaseModel):
+    player_id: str
+    settings: GameSettingsSchema

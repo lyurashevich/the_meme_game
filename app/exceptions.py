@@ -92,3 +92,9 @@ class PlayerNotInRoomException(CustomException):
     code: str = "player_not_in_room"
     status_code: int = 409
     message: str = "Player is not in the room"
+
+
+class NotRoomOwnerException(CustomException):
+    code: str = "not_room_owner_exception"
+    status_code: int = 403
+    message: str = "This action is allowed for the room owner"
