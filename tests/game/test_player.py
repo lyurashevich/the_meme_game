@@ -85,7 +85,7 @@ class TestRoom:
 class TestGame:
     def test_game_create(self, test_player):
         room = Room(owner=test_player)
-        game = Game(room=room)
+        game = Game(room=room, settings=room.settings)
 
         assert isinstance(game.id, str)
         assert game.state == GameState.STARTING

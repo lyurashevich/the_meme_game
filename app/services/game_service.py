@@ -11,6 +11,7 @@ from app.exceptions import (
     InvalidRoundStateException,
     NotEnoughCardsException,
     NotEnoughPlayersException,
+    NotRoomOwnerException,
     PlayerNotFoundException,
     PlayerNotInRoomException,
     RoundNotFoundException,
@@ -44,12 +45,20 @@ class GameService:
         self.game_manager = game_manager
         self.connection_manager = connection_manager
 
-    async def change_game_settings(self, room_id: str, data: GameSettingsSchema) -> GameSettings:
+    async def get_game_settings(self, room_id: str) -> GameSettings:
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
-            game.settings = GameSettings(**data.model_dump())
+            return self.room_service.get_room(room_id).settings
 
-            return game.settings
+    async def change_game_settings(self, room_id: str, player_id: str, data: GameSettingsSchema) -> GameSettings:
+        async with self.room_service.get_room_lock(room_id):
+            room = self.room_service.get_room(room_id)
+
+            if room.owner_id != player_id:
+                raise NotRoomOwnerException()
+
+            room.settings = GameSettings(**data.model_dump())
+
+            return room.settings
 
     async def finish_round_flow(self, room_id: str) -> None:
         async with self.room_service.get_room_lock(room_id):
@@ -149,7 +158,7 @@ class GameService:
             room = self.room_service.get_room(room_id)
             self._validate_room_can_start_game(room)
 
-            game = Game(room=room)
+            game = Game(room=room, settings=room.settings)
 
             game.leader_index = 0
             self.game_manager.active_games[room_id] = game

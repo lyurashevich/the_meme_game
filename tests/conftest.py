@@ -135,7 +135,7 @@ async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_
 
 @pytest.fixture
 def test_game(test_room):
-    game = Game(room=test_room)
+    game = Game(room=test_room, settings=test_room.settings)
     return game
 
 

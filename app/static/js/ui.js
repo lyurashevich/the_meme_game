@@ -1,15 +1,25 @@
 let playerId = null;
 let currentRoomId = null;
 let currentRoomName = null;
+let currentRoomOwnerId = null; // id владельца текущей комнаты; нужен, чтобы решить, показывать ли кнопку настроек
 let isLeader = false
 
 function updateLeaderStatus(leaderId) {
   isLeader = (playerId === leaderId);
 }
 
-function showRoomInterface(roomId, roomName) {
+// ownerId — необязательный (третий) аргумент. Если вызывающий его знает (создание/вход из списка),
+// передаёт; если нет (например, переподключение в ws.js) — не передаёт, и мы не затираем то,
+// что уже знали. Значение по умолчанию `null` срабатывает, только когда аргумент вообще опущен.
+function showRoomInterface(roomId, roomName, ownerId = null) {
   currentRoomId = roomId;
   currentRoomName = roomName;
+
+  // `!= null` (нестрогое сравнение) ловит СРАЗУ и null, и undefined — то есть «значение не передали».
+  // Обновляем владельца только если он реально пришёл, иначе оставляем прежний.
+  if (ownerId != null) {
+    currentRoomOwnerId = ownerId;
+  }
 
   document.getElementById('roomInfo').classList.remove('hidden');
   document.getElementById('currentRoomName').textContent = roomName;
@@ -20,6 +30,22 @@ function showRoomInterface(roomId, roomName) {
   document.getElementById('connectBtn').classList.add('hidden');
   document.getElementById('createRoomBtn').classList.add('hidden');
   document.getElementById('startGameBtn').classList.remove('hidden');
+
+  updateGameSettingsButton();
+}
+
+// Кнопку настроек показываем только владельцу комнаты.
+// Это лишь UI-удобство: настоящая проверка прав живёт на бэке (вернёт 403 не-владельцу),
+// поэтому даже если кнопка где-то мелькнёт не тому — сохранить настройки он всё равно не сможет.
+function updateGameSettingsButton() {
+  const btn = document.getElementById('gameSettingsBtn');
+  if (!btn) return; // подстраховка: вдруг элемента нет в разметке
+
+  const isOwner = currentRoomOwnerId != null && playerId === currentRoomOwnerId;
+
+  // classList.toggle(class, force): при force=true класс добавляется, при false — убирается.
+  // Здесь: если НЕ владелец -> добавить 'hidden' (спрятать), если владелец -> убрать.
+  btn.classList.toggle('hidden', !isOwner);
 }
 
 // Clears all in-game UI + client state. Used both when the current player
@@ -60,12 +86,14 @@ function resetGameUI() {
 function hiddenRoomInterface() {
   currentRoomId = null;
   currentRoomName = null;
+  currentRoomOwnerId = null; // вышли из комнаты — забываем владельца
 
   resetGameUI();
 
   document.getElementById('roomInfo').classList.add('hidden');
   document.getElementById('chatContainer').classList.add('hidden');
   document.getElementById('startGameBtn').classList.add('hidden');
+  document.getElementById('gameSettingsBtn').classList.add('hidden'); // прячем кнопку настроек
 
   document.getElementById('rooms').style.display = 'inline-block';
 //  document.getElementById('createRoomBtn').style.display = 'inline-block';

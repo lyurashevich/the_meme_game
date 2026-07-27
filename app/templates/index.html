@@ -56,6 +56,33 @@
     </div>
   </div>
 
+  <!-- Модалка настроек игры. Та же структура .modal/.modal-content, что и у остальных
+       окон, чтобы переиспользовать готовые стили. hidden = скрыта, пока JS её не откроет. -->
+  <div id="gameSettingsModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Game settings</h2>
+
+      <!-- round_time_limit: бэк принимает строго 60/90/120, поэтому select, а не свободный ввод.
+           value у option — это то, что реально уйдёт на сервер. -->
+      <label>Round time limit (sec):</label>
+      <select id="settingRoundTime">
+        <option value="60">60</option>
+        <option value="90">90</option>
+        <option value="120">120</option>
+      </select>
+
+      <!-- max_rounds и score_to_win опциональны: пустое поле = безлимит (null на бэке). -->
+      <label>Max rounds (empty = unlimited):</label>
+      <input id="settingMaxRounds" type="number" min="1" placeholder="unlimited" />
+
+      <label>Score to win (empty = unlimited):</label>
+      <input id="settingScoreToWin" type="number" min="1" placeholder="unlimited" />
+
+      <button id="saveGameSettingsBtn">Save</button>
+      <button id="closeGameSettingsBtn">Close</button>
+    </div>
+  </div>
+
   <button id="connectBtn">Подключиться (создать игрока)</button>
   <button id="createRoomBtn" class="hidden">Создать комнату</button>
 
@@ -65,6 +92,9 @@
     <h3>You are in the room: <span id="currentRoomName"></span></h3>
     <button id="leaveRoomBtn">Leave room</button>
     <button id="startGameBtn">Start game</button>
+    <!-- Кнопка настроек. class="hidden" -> по умолчанию скрыта;
+         JS покажет её только владельцу комнаты (см. updateGameSettingsButton в ui.js). -->
+    <button id="gameSettingsBtn" class="hidden">Game settings</button>
   </div>
 
   <div id="chatContainer" class="chat-container hidden">
