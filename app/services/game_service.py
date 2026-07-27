@@ -61,12 +61,26 @@ class GameService:
             return room.settings
 
     async def finish_round_flow(self, room_id: str) -> None:
+        game_ended = False
+        end_messages: list[tuple[list[str], dict]] = []
+
         async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
             await self._finalize_round(game)
 
-            game = self.game_manager.get_game(room_id)
-            await self._start_new_round(game)
+            if self._should_end_game(game):
+                game_ended = True
+                end_messages = self._end_game_locked(
+                    room_id,
+                    message="Игра завершена: достигнут лимит раундов или необходимое количество очков для победы.",
+                )
+            else:
+                game = self.game_manager.get_game(room_id)
+                await self._start_new_round(game)
+
+        if game_ended:
+            await self._send_messages(end_messages)
+            return
 
         await self.connection_manager.broadcast_to_players(
             [player.id for player in self.room_service.get_room(room_id).players],
@@ -409,6 +423,22 @@ class GameService:
         await self._process_meme_deck(game)
         await self._process_situation_deck(game)
 
+    @staticmethod
+    def _should_end_game(game: Game) -> bool:
+        settings = game.settings
+
+        if (
+            settings.max_rounds is not None
+            and game.current_round is not None
+            and game.current_round.round_number >= settings.max_rounds
+        ):
+            return True
+
+        if settings.score_to_win is not None:
+            return any(player.score >= settings.score_to_win for player in game.room.players)
+
+        return False
+
     async def end_game(self, room_id: str) -> None:
         """Finish the active game for a room and notify the remaining players.
 
@@ -420,7 +450,11 @@ class GameService:
 
         await self._send_messages(messages)
 
-    def _end_game_locked(self, room_id: str) -> list[tuple[list[str], dict]]:
+    def _end_game_locked(
+        self,
+        room_id: str,
+        message: str = "Игра завершена: в комнате осталось меньше игроков, чем нужно для продолжения.",
+    ) -> list[tuple[list[str], dict]]:
         """Finish the active game. Assumes the room lock is already held.
 
         Cancels timers, drops the game from the registry and resets the
@@ -440,6 +474,7 @@ class GameService:
         if not room:
             return []
 
+        final_scores = {player.id: player.score for player in room.players}
         for player in room.players:
             player.handed_cards.clear()
             player.score = 0
@@ -455,7 +490,8 @@ class GameService:
                     "event": WebsocketEvents.GAME_ENDED.value,
                     "payload": {
                         "room_id": room_id,
-                        "message": "Игра завершена: в комнате осталось меньше игроков, чем нужно для продолжения.",
+                        "message": message,
+                        "final_scores": final_scores,
                     },
                 },
             )
