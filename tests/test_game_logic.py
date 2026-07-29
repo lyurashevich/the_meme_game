@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -215,6 +216,8 @@ class TestGameLogic:
             if player is not prepared_game.current_round.leader:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
+
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
@@ -285,11 +288,100 @@ class TestGameLogic:
 
         assert str(e.value.message) == PlayerNotFoundException.message
 
+    async def test_leader_choose_winner__announces_winner_before_next_round_starts(self, prepared_game, game_service):
+        """``leader_has_chosen_winner`` must reach clients before the table is cleared and
+        the next round's data is sent, otherwise the winning card is already gone from the
+        client's DOM by the time it learns which card won (see the frontend animation)."""
+        await game_service.start_first_round(prepared_game.room_id)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        winner = prepared_game.room.players[2]
+        winner_card_id = prepared_game.current_round.player_choices[winner.id].id
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
+
+        sent_messages = []
+
+        async def record_broadcast(player_ids, message):
+            sent_messages.append(message)
+
+        async def record_personal(player_id, message):
+            sent_messages.append(message)
+
+        game_service.connection_manager.broadcast_to_players = AsyncMock(side_effect=record_broadcast)
+        game_service.connection_manager.send_personal_json = AsyncMock(side_effect=record_personal)
+
+        await game_service.leader_choose_winner(prepared_game.room_id, winner_card_id)
+
+        events_in_order = [message["event"] for message in sent_messages]
+        winner_event_index = events_in_order.index(WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value)
+        round_started_index = events_in_order.index(WebsocketEvents.ROUND_STARTED.value)
+
+        assert winner_event_index < round_started_index
+        assert events_in_order.count(WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value) == 1
+
+        winner_message = sent_messages[winner_event_index]
+        assert winner_message["payload"] == {
+            "winner_id": winner.id,
+            "winner_username": winner.username,
+            "card_id": winner_card_id,
+        }
+
+    async def test_leader_choose_winner__leader_leaving_during_delay_is_a_no_op(self, prepared_game, game_service):
+        """While the winning card is on display, the leader may disconnect before the
+        delayed ``finish_round_flow`` runs. ``_handle_player_left_locked`` already aborts
+        the round and starts a fresh one in that case, so the delayed continuation must
+        not blow up (or double-advance the round) when it finally wakes up and finds the
+        round it was waiting on no longer exists."""
+        await game_service.start_first_round(prepared_game.room_id)
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        leader = prepared_game.current_round.leader
+        winner = prepared_game.room.players[2]
+        winner_card_id = prepared_game.current_round.player_choices[winner.id].id
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        resume_after_animation = asyncio.Event()
+        real_sleep = asyncio.sleep  # patching "asyncio.sleep" below replaces this name process-wide
+
+        async def fake_sleep(seconds):
+            if seconds == game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS:
+                await resume_after_animation.wait()
+            else:
+                # Must still actually suspend for any other duration (including the
+                # `asyncio.sleep(0)` below) - otherwise nothing ever yields control back
+                # to the event loop before `process_leave` runs, and the task we just
+                # created never gets a chance to start.
+                await real_sleep(seconds)
+
+        with patch("app.services.game_service.asyncio.sleep", side_effect=fake_sleep):
+            task = asyncio.create_task(game_service.leader_choose_winner(prepared_game.room_id, winner_card_id))
+            await asyncio.sleep(0)  # let leader_choose_winner run up to (and start) its delay
+
+            await game_service.process_leave(leader, prepared_game.room_id, confirm=True)
+
+            resume_after_animation.set()
+            await task  # must not raise, even though the round was replaced while waiting
+
+        assert prepared_game.current_round is not None
+        assert prepared_game.current_round.round_number == 2
+        assert prepared_game.current_round.winner is None
+        assert prepared_game.current_round.leader is not leader
+
+        game_service.game_manager.clear_room_tasks(prepared_game.room_id)
+
     async def test_end_round(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
         winner = prepared_game.room.players[2]
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
@@ -323,6 +415,8 @@ class TestGameLogic:
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
@@ -405,6 +499,8 @@ class TestGameLogic:
             if player is not prepared_game.current_round.leader:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
+
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
@@ -425,6 +521,8 @@ class TestGameLogic:
             if player is not prepared_game.current_round.leader:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
 
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
+
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
@@ -441,6 +539,8 @@ class TestGameLogic:
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
                 await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
@@ -464,6 +564,8 @@ class TestGameLogic:
         prepared_game.meme_deck.extend(
             MemeCard(id=1000 + i, image_url=f"http://memes.org/extra/{i}") for i in range(50)
         )
+
+        game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
         prepared_game.settings.max_rounds = 5
         await game_service.start_first_round(prepared_game.room_id)
