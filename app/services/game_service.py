@@ -35,6 +35,12 @@ MIN_PLAYERS = 3
 
 
 class GameService:
+    # How long the winning card stays enlarged in the center of the screen before the
+    # next round starts. Overridable per-instance (e.g. set to 0 in tests) since it's a
+    # real asyncio.sleep and would otherwise add wall-clock time to every test that calls
+    # leader_choose_winner.
+    WINNER_ANNOUNCEMENT_DELAY_SECONDS = 2.5
+
     def __init__(
         self,
         room_service: RoomService,
@@ -61,57 +67,73 @@ class GameService:
             return room.settings
 
     async def finish_round_flow(self, room_id: str) -> None:
-        game_ended = False
-        end_messages: list[tuple[list[str], dict]] = []
-
         async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
             await self._finalize_round(game)
 
             if self._should_end_game(game):
-                game_ended = True
-                end_messages = self._end_game_locked(
+                messages = self._end_game_locked(
                     room_id,
                     message="Игра завершена: достигнут лимит раундов или необходимое количество очков для победы.",
                 )
             else:
-                game = self.game_manager.get_game(room_id)
                 await self._start_new_round(game)
+                messages = self._round_started_messages_locked(game)
 
-        if game_ended:
-            await self._send_messages(end_messages)
-            return
+        await self._send_messages(messages)
 
-        await self.connection_manager.broadcast_to_players(
-            [player.id for player in self.room_service.get_room(room_id).players],
-            {"event": WebsocketEvents.ROUND_STATE_CHANGED.value, "payload": {"state": RoundState.ROUND_ENDED.value}},
-        )
+    def _round_started_messages_locked(self, game: Game) -> list[tuple[list[str], dict]]:
+        """Build the messages announcing that a new round has started.
 
-        for player in self.room_service.get_room(room_id).players:
-            await self.connection_manager.send_personal_json(
-                player.id,
+        Assumes the room lock is held: reads the player list, current round and
+        hands directly from ``game`` instead of re-fetching room state, so the
+        returned messages reflect one consistent snapshot even though they are
+        sent after the lock is released.
+        """
+        players = game.room.players
+        players_ids = [player.id for player in players]
+        current_round = self._validate_game_round_state(game)
+
+        messages: list[tuple[list[str], dict]] = [
+            (
+                players_ids,
                 {
-                    "event": WebsocketEvents.ROUND_STARTED.value,
-                    "payload": {
-                        "room_id": game.room.id,
-                        "leader_id": (game.current_round.leader_id if game and game.current_round else None),
-                        "current_round_number": (
-                            game.current_round.round_number if game and game.current_round else None
-                        ),
-                        "current_situation_card": (
-                            game.current_round.situation_card.to_dict() if game and game.current_round else None
-                        ),
-                        "score": {player.id: player.score for player in game.room.players},
-                        "players": [player.username for player in game.room.players],
-                        "player_cards": [card.to_dict() for card in player.handed_cards],
-                    },
+                    "event": WebsocketEvents.ROUND_STATE_CHANGED.value,
+                    "payload": {"state": RoundState.ROUND_ENDED.value},
                 },
             )
+        ]
 
-        await self.connection_manager.broadcast_to_players(
-            [player.id for player in self.room_service.get_room(room_id).players],
-            {"event": WebsocketEvents.ROUND_STATE_CHANGED.value, "payload": {"state": RoundState.CHOOSING_CARDS.value}},
+        for player in players:
+            messages.append(
+                (
+                    [player.id],
+                    {
+                        "event": WebsocketEvents.ROUND_STARTED.value,
+                        "payload": {
+                            "room_id": game.room.id,
+                            "leader_id": current_round.leader_id if current_round.leader else None,
+                            "current_round_number": current_round.round_number,
+                            "current_situation_card": current_round.situation_card.to_dict(),
+                            "score": {p.id: p.score for p in players},
+                            "players": [p.username for p in players],
+                            "player_cards": [card.to_dict() for card in player.handed_cards],
+                        },
+                    },
+                )
+            )
+
+        messages.append(
+            (
+                players_ids,
+                {
+                    "event": WebsocketEvents.ROUND_STATE_CHANGED.value,
+                    "payload": {"state": RoundState.CHOOSING_CARDS.value},
+                },
+            )
         )
+
+        return messages
 
     @staticmethod
     def _change_round_state(current_round: GameRound, new_state: RoundState) -> bool:
@@ -233,11 +255,11 @@ class GameService:
             raise InvalidGameStateException(game_state=state.value)
 
     @staticmethod
-    def _validate_game_round_state(game: Game, state: RoundState) -> GameRound:
+    def _validate_game_round_state(game: Game, state: RoundState | None = None) -> GameRound:
         if game.current_round is None:
             raise RoundNotFoundException()
 
-        if game.current_round.state != state:
+        if state and game.current_round.state != state:
             raise InvalidRoundStateException(round_state=state.value)
 
         return game.current_round
@@ -388,23 +410,23 @@ class GameService:
             current_round.winner = winner
             winner.score += 1
 
-        await self.finish_round_flow(room_id)
-
-        await self.connection_manager.broadcast_to_players(
-            [player.id for player in self.room_service.get_room(room_id).players],
-            {
-                "event": WebsocketEvents.ROUND_STATE_CHANGED.value,
-                "payload": {"state": RoundState.ROUND_ENDED.value},
-            },
-        )
-
         await self.connection_manager.broadcast_to_players(
             [player.id for player in self.room_service.get_room(room_id).players],
             {
                 "event": WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value,
-                "payload": {"winner_id": winner.id, "card_id": card_id},
+                "payload": {"winner_id": winner.id, "winner_username": winner.username, "card_id": card_id},
             },
         )
+
+        await asyncio.sleep(self.WINNER_ANNOUNCEMENT_DELAY_SECONDS)
+
+        try:
+            await self.finish_round_flow(room_id)
+        except (GameNotFoundException, InvalidRoundStateException, RoundNotFoundException):
+            # The round was already finalized or aborted through another path while we were
+            # waiting for the winner animation to play out (e.g. the leader disconnected
+            # mid-animation and _handle_player_left_locked already started a new round).
+            pass
 
     async def _finalize_round(self, game: Game):
         self._validate_game_state(game, GameState.ACTIVE)

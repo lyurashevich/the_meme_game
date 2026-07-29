@@ -134,6 +134,10 @@
             renderCardBack(data); // data.event, data.card_id, data.image_url
           }
 
+          if (data.event === 'leader_has_chosen_winner') {
+            animateWinnerCard(data.payload); // { winner_id, winner_username, card_id }
+          }
+
           if (data.event === 'player_card_removed') {
             const cardId = data.payload && data.payload.card_id;
             const card = document.querySelector(`.played-card[data-card-id="${cardId}"]`);

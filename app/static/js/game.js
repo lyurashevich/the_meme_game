@@ -111,6 +111,41 @@ async function animateCardToCenter(cardElement) {
   });
 }
 
+function fadeOutOtherCards(winnerCardId) {
+  document.querySelectorAll('.played-card').forEach(card => {
+    if (card.dataset.cardId === String(winnerCardId)) return;
+
+    card.classList.add("fade-out");
+    card.addEventListener("animationend", () => { card.remove(); }, { once: true });
+  });
+}
+
+function animateWinnerCard(payload) {
+  const card = document.querySelector(`.played-card[data-card-id="${payload.card_id}"]`);
+  if (!card) return;
+
+  exitLeaderChoosingPhase();
+  fadeOutOtherCards(payload.card_id);
+
+  const cardRect = card.getBoundingClientRect();
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+
+  card.classList.add("winner-card");
+  card.style.left = `${cardRect.left}px`;
+  card.style.top = `${cardRect.top}px`;
+
+  card.offsetHeight;
+
+  card.style.left = `${centerX - cardRect.width / 2}px`;
+  card.style.top = `${centerY - cardRect.height / 2}px`;
+
+  const caption = document.createElement("div");
+  caption.className = "winner-caption";
+  caption.textContent = `${payload.winner_username} победил(а)!`;
+  card.appendChild(caption);
+}
+
 function renderCardBack(data) {
   const table = document.getElementById('tableArea');
   const card = document.createElement("div");
