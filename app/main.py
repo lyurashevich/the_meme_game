@@ -7,6 +7,7 @@ from starlette.templating import Jinja2Templates
 
 from app.exceptions import CustomException
 from app.views.game import router as game_router
+from app.views.health import router as health_router
 from app.views.meme_cards_views import router as memes_router
 from app.views.players_views import router as players_router
 from app.views.room_views import router as rooms_router
@@ -29,6 +30,7 @@ static_dir = base_dir / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.mount("/avatars", StaticFiles(directory=base_dir.parent / "avatars"), name="avatars")
 
+app.include_router(health_router)
 app.include_router(memes_router)
 app.include_router(situations_router)
 app.include_router(players_router)
