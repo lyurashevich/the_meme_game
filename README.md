@@ -98,7 +98,7 @@ Deployment: Docker (because containers are cool)
 
 4. **Initialize the database**
    ```bash
-   python app/init_db.py
+   alembic upgrade head
    ```
 
 5. **Start the party**
