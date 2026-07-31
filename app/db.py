@@ -1,8 +1,8 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 load_dotenv()
 
@@ -19,18 +19,18 @@ def is_invalid(value):
 
 
 if any(is_invalid(v) for v in [DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, TEST_DB_NAME]):
-    DATABASE_URL = "sqlite:///./test.db"
-    TEST_DATABASE_URL = "sqlite:///./test.db"
+    DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+    TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 else:
-    DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    TEST_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
+    DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    TEST_DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
 
-engine = create_engine(DATABASE_URL, echo=False)
-session_maker = sessionmaker(engine, expire_on_commit=False)
+engine = create_async_engine(DATABASE_URL, echo=False)
+session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 
-def get_db():
-    with session_maker() as session:
+async def get_db():
+    async with session_maker() as session:
         yield session
 
 

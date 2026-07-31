@@ -1,8 +1,9 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from httpx2 import ASGITransport, AsyncClient
+from sqlalchemy import NullPool
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
 from app.db import TEST_DATABASE_URL, Base, get_db
@@ -21,8 +22,8 @@ from app.services.room_service import RoomService
 pytest_plugins = ("pytest_asyncio",)
 
 
-test_engine = create_engine(TEST_DATABASE_URL, echo=True)
-test_session_maker = sessionmaker(test_engine, expire_on_commit=False)
+test_engine = create_async_engine(TEST_DATABASE_URL, echo=True, poolclass=NullPool)
+test_session_maker = async_sessionmaker(test_engine, expire_on_commit=False)
 
 
 @pytest.fixture
@@ -69,22 +70,28 @@ def client_with_no_db():
 
 
 @pytest.fixture
-def client(db_session):
-    def override_get_db():
+async def client(db_session):
+    async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    return TestClient(app)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as client:
+        yield client
+
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def db_session():
-    Base.metadata.create_all(bind=test_engine)
-    with test_engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
+async def db_session():
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    with test_session_maker(bind=test_engine) as session:
+    async with test_engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+
+    async with test_session_maker() as session:
         yield session
 
 

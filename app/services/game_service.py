@@ -266,9 +266,9 @@ class GameService:
 
     @staticmethod
     async def _initialize_decks(game: Game) -> None:
-        with session_maker() as db:
-            game.meme_deck = list(MemeService(db).get_meme_cards())
-            game.situation_deck = list(SituationService(db).get_situation_cards())
+        async with session_maker() as db:
+            game.meme_deck = list(await MemeService(db).get_meme_cards())
+            game.situation_deck = list(await SituationService(db).get_situation_cards())
 
         random.shuffle(game.meme_deck)
         random.shuffle(game.situation_deck)
