@@ -11,6 +11,7 @@ from app.exceptions import (
     InvalidRoundStateException,
     NotEnoughCardsException,
     NotEnoughPlayersException,
+    NotRoomOwnerException,
     PlayerNotFoundException,
     RoomNotFoundException,
     RoundNotFoundException,
@@ -613,6 +614,80 @@ class TestGameLogic:
         }
         for player in prepared_game.room.players:
             assert player.score == 0
+
+    async def test_end_game__owner_ends_game(self, prepared_game, game_service):
+        owner_id = prepared_game.room.owner_id
+
+        await game_service.end_game(prepared_game.room_id, owner_id)
+
+        assert prepared_game.state == GameState.FINISHED
+        assert prepared_game.current_round is None
+        for player in prepared_game.room.players:
+            assert player.score == 0
+            assert player.handed_cards == []
+
+    async def test_end_game__not_owner_raises(self, prepared_game, game_service):
+        with pytest.raises(NotRoomOwnerException) as e:
+            await game_service.end_game(prepared_game.room_id, "not-the-owner")
+
+        assert str(e.value.message) == NotRoomOwnerException.message
+        assert prepared_game.state == GameState.STARTING
+
+    async def test_end_game__no_active_game_raises(self, test_room_with_players, game_service):
+        with pytest.raises(GameNotFoundException) as e:
+            await game_service.end_game(test_room_with_players.id, test_room_with_players.owner_id)
+
+        assert str(e.value.message) == GameNotFoundException.message
+
+    async def test_end_game__already_finished_raises(self, prepared_game, game_service):
+        prepared_game.state = GameState.FINISHED
+
+        with pytest.raises(InvalidGameStateException) as e:
+            await game_service.end_game(prepared_game.room_id, prepared_game.room.owner_id)
+
+        assert (
+            str(e.value.message) == "Invalid game state. Game state must be STARTING or ACTIVE to perform this action"
+        )
+
+    async def test_process_leave__owner_leaving_lobby_reassigns_ownership(self, test_room_with_players, game_service):
+        owner = test_room_with_players.owner
+        next_owner = test_room_with_players.players[1]  # join order: owner, then test_players[0..2]
+
+        await game_service.process_leave(owner, test_room_with_players.id, confirm=False)
+
+        assert test_room_with_players.owner is next_owner
+        assert next_owner.is_host is True
+        assert owner.is_host is False
+
+    async def test_process_leave__owner_leaving_active_game_reassigns_ownership(self, prepared_game, game_service):
+        await game_service.start_first_round(prepared_game.room_id)
+        owner = prepared_game.room.owner
+        next_owner = prepared_game.room.players[1]
+
+        await game_service.process_leave(owner, prepared_game.room_id, confirm=True)
+
+        assert prepared_game.room.owner is next_owner
+        assert next_owner.is_host is True
+        assert owner.is_host is False
+
+        game_service.game_manager.clear_room_tasks(prepared_game.room_id)
+
+    async def test_process_leave__owner_leaving_broadcasts_new_owner_id(self, test_room_with_players, game_service):
+        owner = test_room_with_players.owner
+        next_owner = test_room_with_players.players[1]
+
+        game_service.connection_manager.broadcast_to_players = AsyncMock()
+        game_service.connection_manager.send_personal_json = AsyncMock()
+
+        await game_service.process_leave(owner, test_room_with_players.id, confirm=False)
+
+        player_left_payloads = [
+            call.args[1]
+            for call in game_service.connection_manager.broadcast_to_players.await_args_list
+            if call.args[1]["event"] == WebsocketEvents.PLAYER_LEFT_ROOM.value
+        ]
+        assert len(player_left_payloads) == 1
+        assert player_left_payloads[0]["payload"]["new_owner_id"] == next_owner.id
 
 
 # class TestCardCooldownSystem:

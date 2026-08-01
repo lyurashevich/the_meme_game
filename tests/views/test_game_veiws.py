@@ -1,3 +1,6 @@
+from app.game.enums import GameState
+
+
 class TestGameViews:
 
     def setup_method(self):
@@ -56,3 +59,39 @@ class TestGameViews:
         )
 
         assert response.status_code == 403
+
+    async def test_end_game(self, client_with_no_db, prepared_game, override_game_service):
+        response = client_with_no_db.patch(
+            f"{self.url}/{prepared_game.room_id}/end",
+            json={"player_id": prepared_game.room.owner.id},
+        )
+
+        assert response.status_code == 200
+        assert prepared_game.state == GameState.FINISHED
+
+    async def test_end_game__forbidden(self, client_with_no_db, prepared_game, override_game_service):
+        response = client_with_no_db.patch(
+            f"{self.url}/{prepared_game.room_id}/end",
+            json={"player_id": "asdf"},
+        )
+
+        assert response.status_code == 403
+        assert prepared_game.state == GameState.STARTING
+
+    async def test_end_game__game_not_found(self, client_with_no_db):
+        response = client_with_no_db.patch(
+            f"{self.url}/12344/end",
+            json={"player_id": "asdf"},
+        )
+
+        assert response.status_code == 404
+
+    async def test_end_game__already_finished(self, client_with_no_db, prepared_game, override_game_service):
+        prepared_game.state = GameState.FINISHED
+
+        response = client_with_no_db.patch(
+            f"{self.url}/{prepared_game.room_id}/end",
+            json={"player_id": prepared_game.room.owner.id},
+        )
+
+        assert response.status_code == 400

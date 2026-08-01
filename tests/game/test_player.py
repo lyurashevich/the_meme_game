@@ -81,6 +81,29 @@ class TestRoom:
         assert test_room.owner in test_room.players
         assert player not in test_room.players
 
+    async def test_reassign_owner__promotes_next_player_by_join_order(self, test_room):
+        old_owner = test_room.owner
+        next_player = Player(id="2")
+        later_player = Player(id="3")
+        test_room.add_player(next_player)
+        test_room.add_player(later_player)
+
+        test_room.remove_player(old_owner)
+        test_room.reassign_owner()
+
+        assert test_room.owner is next_player
+        assert next_player.is_host is True
+        assert old_owner.is_host is False
+        assert later_player.is_host is False
+
+    async def test_reassign_owner__no_players_left_sets_owner_none(self, test_room):
+        owner = test_room.owner
+        test_room.remove_player(owner)
+
+        test_room.reassign_owner()
+
+        assert test_room.owner is None
+
 
 class TestGame:
     def test_game_create(self, test_player):
