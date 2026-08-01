@@ -103,11 +103,8 @@ Deployment: Docker (because containers are cool)
 
 5. **Start the party**
    ```bash
-   # Start the FastAPI server
+   # Start the FastAPI server (HTTP + WebSocket, same app, same port)
    uvicorn app.main:app --reload
-   
-   # In another terminal, start the WebSocket server
-   uvicorn websockets.main:app --reload --port 8001
    ```
 
 6. **Open your browser and prepare for chaos**

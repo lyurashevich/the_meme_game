@@ -28,7 +28,7 @@ async def custom_exception_handler(request: Request, exception: CustomException)
 base_dir = Path(__file__).parent
 static_dir = base_dir / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
-app.mount("/avatars", StaticFiles(directory=base_dir.parent / "avatars"), name="avatars")
+app.mount("/avatars", StaticFiles(directory=base_dir / "avatars"), name="avatars")
 
 app.include_router(health_router)
 app.include_router(memes_router)
@@ -39,7 +39,7 @@ app.include_router(ws_router)
 app.include_router(game_router)
 app.include_router(game_round_router)
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="app/templates")
 
 
 @app.get("/ws", response_class=HTMLResponse)

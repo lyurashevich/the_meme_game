@@ -18,18 +18,21 @@ services:
       timeout: 5s
       retries: 5
 
-  fastapi: &fastapi
+  fastapi:
     build:
-      context: websockets
+      context: .
       dockerfile: Dockerfile
-      target: base
-    # depends_on:
-      # redis:
-        # condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+    # добавить depends_on: redis: condition: service_healthy,
+    # когда появится реальный redis-сервис в этом файле.
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
-    volumes:
-      - ./websockets/src:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -39,81 +42,19 @@ services:
     command:
       - sh
       - -c
-      - uvicorn main:app --reload --host 0.0.0.0 --port 8000
+      - alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-  fastapi-tests:
-    <<: *fastapi
-    build:
-      context: websockets
-      target: tests
-    environment:
-      - REDIS_HOST=redis
+  nginx:
+    build: nginx
     volumes:
-      - ./websockets/src:/app
-    command:
-      - sh
-      - -c
-      - pytest
-
-  pip-compile-fastapi:
-    build:
-      context: websockets
-      target: tests
-    volumes:
-      - ./websockets:/app
-    working_dir: /app
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        uv pip compile pyproject.toml -o requirements.lock &&
-        uv pip compile pyproject.toml --group test -o requirements-tests.lock
-
-  pre-commit:
-    build:
-      context: django_app
-      target: tests
-    volumes:
-      - ./websockets/src:/app/websockets
-      - ./django_app/src:/app/django_app
-      - ./.git:/app/.git
-      - ./.gitignore:/app/.gitignore
-      - ./.pre-commit-config.yaml:/app/.pre-commit-config.yaml
-    entrypoint: ["sh", "-c"]
-    command:
-      - pre-commit run --all-files
-
-  # nginx:
-  #   build: nginx
-  #   volumes:
-  #     - ./ReactUI:/usr/share/nginx/html/
-  #     - static_volume:/app/static
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-  #     - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
-  #   ports:
-  #     - "8080:80"
-  #   environment:
-  #     - SWS_AUTH=${SWS_AUTH:-YWRtaW46YWRtaW4=}
-  #   command: >-
-  #     /bin/sh -c "envsubst '$$SWS_AUTH' < /etc/nginx/nginx.conf.template > \
-  #     /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
-  #   depends_on:
-  #     sws:
-  #       condition: service_started
-  #     django:
-  #       condition: service_healthy
-  #     fastapi:
-  #       condition: service_healthy
-
-  sws:
-    image: joseluisq/static-web-server:2-alpine
+      - ./ReactUI:/usr/share/nginx/html/
+      - static_volume:/app/static
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     ports:
-      - "8787:80"
-    restart: unless-stopped
-    environment:
-      - SERVER_BASIC_AUTH=${SWS_USER}:${SWS_PASSWORD}
-      - SERVER_ROOT=/var/public
-    volumes:
-      - ./sws/static:/var/public
+      - "8080:80"
+    depends_on:
+      fastapi:
+        condition: service_healthy
 
 volumes:
   pgdata:
