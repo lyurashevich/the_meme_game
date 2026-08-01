@@ -689,6 +689,64 @@ class TestGameLogic:
         assert len(player_left_payloads) == 1
         assert player_left_payloads[0]["payload"]["new_owner_id"] == next_owner.id
 
+    async def test_phase_timer__uses_configured_round_time_limit(self, prepared_game, game_service):
+        prepared_game.settings.round_time_limit = 90
+        real_sleep = asyncio.sleep
+        recorded_timeouts = []
+
+        async def fake_sleep(seconds):
+            recorded_timeouts.append(seconds)
+            await real_sleep(0)
+
+        with patch("app.services.game_service.asyncio.sleep", side_effect=fake_sleep):
+            await game_service.start_first_round(prepared_game.room_id)
+            await real_sleep(0)  # let the phase_timer task run up to (and record) its sleep call
+
+        assert recorded_timeouts == [90]
+
+        game_service.game_manager.clear_room_tasks(prepared_game.room_id)
+
+    async def test_phase_timer__settings_change_after_start_does_not_affect_running_round(
+        self, prepared_game, game_service
+    ):
+        await game_service.start_first_round(prepared_game.room_id)
+
+        await game_service.change_game_settings(
+            room_id=prepared_game.room_id,
+            player_id=prepared_game.room.owner_id,
+            data=GameSettingsSchema(round_time_limit=120, max_rounds=None, score_to_win=None),
+        )
+
+        # change_game_settings replaced room.settings with a new object, but
+        # game.settings still points at the object captured in prepare_game.
+        assert prepared_game.room.settings.round_time_limit == 120
+        assert prepared_game.settings.round_time_limit == 60
+
+        for player in prepared_game.room.players:
+            if player is not prepared_game.current_round.leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+
+        winner = next(p for p in prepared_game.room.players if p is not prepared_game.current_round.leader)
+        winner_card_id = prepared_game.current_round.player_choices[winner.id].id
+        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
+
+        real_sleep = asyncio.sleep
+        recorded_timeouts = []
+
+        async def fake_sleep(seconds):
+            recorded_timeouts.append(seconds)
+            await real_sleep(0)
+
+        with patch("app.services.game_service.asyncio.sleep", side_effect=fake_sleep):
+            await game_service.leader_choose_winner(prepared_game.room_id, winner_card_id)
+            await real_sleep(0)  # let round 2's phase_timer task reach its sleep call
+
+        assert prepared_game.current_round.round_number == 2
+        assert 60 in recorded_timeouts
+        assert 120 not in recorded_timeouts
+
+        game_service.game_manager.clear_room_tasks(prepared_game.room_id)
+
 
 # class TestCardCooldownSystem:
 #     """Test card cooldown and availability system"""
