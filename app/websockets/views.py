@@ -16,6 +16,7 @@ from app.exceptions import (
     GameNotFoundException,
     InvalidReconnectToken,
     PlayerNotFoundException,
+    RoomNotFoundException,
 )
 from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
@@ -113,6 +114,22 @@ async def websocket_endpoint(
             try:
                 connection_manager.remove_connection(player.id)
                 await reconnect_service.disconnect(player.id)
+
+                if player.room_id:
+                    try:
+                        room = room_service.get_room(player.room_id)
+                    except RoomNotFoundException:
+                        room = None  # type: ignore
+
+                    if room:
+                        await connection_manager.broadcast_to_players(
+                            [p.id for p in room.players],
+                            {
+                                "event": WebsocketEvents.PLAYER_DISCONNECTED.value,
+                                "payload": {"player_id": player.id, "username": player.username},
+                            },
+                            exclude_id=player.id,
+                        )
             except Exception:  # nosec B110
                 # todo: add logging
                 # swallow to avoid raising from websocket endpoint

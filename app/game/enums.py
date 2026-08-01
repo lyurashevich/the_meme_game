@@ -16,6 +16,7 @@ class RoundState(Enum):
 class WebsocketEvents(Enum):
     PLAYER_CREATED = "player_created"
     PLAYER_RECONNECTED = "player_reconnected"
+    PLAYER_DISCONNECTED = "player_disconnected"
     PLAYER_PROFILE_UPDATED = "player_profile_updated"
 
     ROOM_CREATED = "room_created"
