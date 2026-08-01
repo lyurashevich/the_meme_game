@@ -144,12 +144,12 @@ class GameService:
         current_round.state = new_state
         return True
 
-    async def phase_timer(self, room_id: str):
+    async def phase_timer(self, room_id: str, timeout: float):
         round_state_changed = False
         finish_round = False
         room = None
 
-        await asyncio.sleep(GameSettings.round_time_limit)  # 60 seconds
+        await asyncio.sleep(timeout)
 
         async with self.room_service.get_room_lock(room_id):
             game = self.game_manager.get_game(room_id)
@@ -194,6 +194,12 @@ class GameService:
             room = self.room_service.get_room(room_id)
             self._validate_room_can_start_game(room)
 
+            # Snapshot room.settings at game start: change_game_settings replaces
+            # room.settings with a brand-new object rather than mutating it in
+            # place, so this reference stays frozen at whatever it was when the
+            # game started even if the owner changes room.settings mid-game.
+            # game.settings (not room.settings) is therefore the authoritative
+            # source for a running game - phase_timer's timeout included.
             game = Game(room=room, settings=room.settings)
 
             game.leader_index = 0
@@ -217,11 +223,12 @@ class GameService:
                 leader=game.room.owner,  # type: ignore
                 situation_card=situation_card,
                 game=game,  # state = RoundState.CHOOSING_CARDS
+                time_limit=game.settings.round_time_limit,
             )
             game.current_round = new_round
             game.state = GameState.ACTIVE
 
-            task = asyncio.create_task(self.phase_timer(room_id))
+            task = asyncio.create_task(self.phase_timer(room_id, timeout=game.settings.round_time_limit))
 
             self.game_manager.add_task(room_id, "phase_timer", task)
 
@@ -242,10 +249,11 @@ class GameService:
             leader=new_leader,
             situation_card=situation_card,
             game=game,  # state = RoundState.CHOOSING_CARDS
+            time_limit=game.settings.round_time_limit,
         )
         game.current_round = new_round
 
-        task = asyncio.create_task(self.phase_timer(game.room_id))
+        task = asyncio.create_task(self.phase_timer(game.room_id, timeout=game.settings.round_time_limit))
 
         self.game_manager.add_task(game.room_id, "phase_timer", task)
 
@@ -623,10 +631,11 @@ class GameService:
                 leader=new_leader,
                 situation_card=situation_card,
                 game=game,
+                time_limit=game.settings.round_time_limit,
             )
             game.current_round = new_round
 
-            task = asyncio.create_task(self.phase_timer(room_id))
+            task = asyncio.create_task(self.phase_timer(room_id, timeout=game.settings.round_time_limit))
             self.game_manager.add_task(room_id, "phase_timer", task)
 
             messages.append(
