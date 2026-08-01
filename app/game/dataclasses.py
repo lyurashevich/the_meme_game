@@ -87,6 +87,24 @@ class Room:
 
         self.players.remove(player)
 
+    def reassign_owner(self) -> None:
+        """Promote the next player in join order to owner.
+
+        Callers are expected to have already removed the departing owner
+        from ``self.players``, so ``self.players[0]`` is the longest-standing
+        remaining player. Sets ``owner = None`` if no players are left.
+        """
+        if self.owner is not None:
+            self.owner.is_host = False
+
+        if not self.players:
+            self.owner = None
+            return
+
+        new_owner = self.players[0]
+        new_owner.is_host = True
+        self.owner = new_owner
+
 
 @dataclass
 class GameRound:

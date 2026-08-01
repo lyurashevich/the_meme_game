@@ -64,3 +64,7 @@ class GameSettingsSchema(BaseModel):
 class UpdateGameSettingsRequest(BaseModel):
     player_id: str
     settings: GameSettingsSchema
+
+
+class EndGameRequest(BaseModel):
+    player_id: str

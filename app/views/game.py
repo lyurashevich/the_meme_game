@@ -8,6 +8,7 @@ from app.dependencies import (
 from app.game.connection_manager import ConnectionManager
 from app.game.enums import WebsocketEvents
 from app.schemas.game import (
+    EndGameRequest,
     GameResponse,
     GameScore,
     GameSettingsSchema,
@@ -70,8 +71,12 @@ async def get_game_score(room_id: str, game_service: GameService = Depends(get_g
 
 
 @router.patch("/{room_id}/end")
-async def end_game():
-    pass
+async def end_game(
+    room_id: str,
+    data: EndGameRequest,
+    game_service: GameService = Depends(get_game_service),
+):
+    await game_service.end_game(room_id, data.player_id)
 
 
 @router.patch("/{room_id}/players_choice")

@@ -67,6 +67,10 @@ class RoomService:
 
             room.remove_player(player)
             player.room_id = None
+
+            if room.owner is player and room.players:
+                room.reassign_owner()
+
             if not room.players:
                 need_cleanup = True
 

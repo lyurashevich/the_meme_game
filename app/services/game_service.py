@@ -461,14 +461,26 @@ class GameService:
 
         return False
 
-    async def end_game(self, room_id: str) -> None:
+    async def end_game(self, room_id: str, player_id: str) -> None:
         """Finish the active game for a room and notify the remaining players.
 
-        Thin wrapper: acquires the room lock, runs the lock-free core and
-        broadcasts the messages it returns (network I/O is kept out of the lock).
+        Only the room owner may end the game manually, and only while it
+        hasn't already finished - STARTING and ACTIVE are both allowed, since
+        the owner may want to cancel a game before its first round starts.
+        Acquires the room lock, runs the lock-free core and broadcasts the
+        messages it returns (network I/O is kept out of the lock).
         """
         async with self.room_service.get_room_lock(room_id):
-            messages = self._end_game_locked(room_id)
+            room = self.room_service.get_room(room_id)
+
+            if room.owner_id != player_id:
+                raise NotRoomOwnerException()
+
+            game = self.game_manager.get_game(room_id)
+            if game.state == GameState.FINISHED:
+                raise InvalidGameStateException(game_state="STARTING or ACTIVE")
+
+            messages = self._end_game_locked(room_id, message="Игра завершена владельцем комнаты.")
 
         await self._send_messages(messages)
 
@@ -698,6 +710,15 @@ class GameService:
             player.handed_cards.clear()
             self.game_manager.remove_player_connection(player.id)
 
+            # If the owner just left and players remain, promote the next one
+            # (join order) - otherwise room.owner_id keeps pointing at a player
+            # who is no longer in the room, and nobody can pass the owner check
+            # in change_game_settings/end_game ever again.
+            new_owner_id = None
+            if room.owner is player and room.players:
+                room.reassign_owner()
+                new_owner_id = room.owner_id
+
             if game_active and remaining_after < MIN_PLAYERS:
                 messages.extend(self._end_game_locked(room_id))
             elif game_active:
@@ -714,6 +735,7 @@ class GameService:
                                 "player_id": player.id,
                                 "player_username": player.username,
                                 "room_id": room_id,
+                                "new_owner_id": new_owner_id,
                             },
                         },
                     )
