@@ -29,7 +29,7 @@ from app.services.room_service import RoomService
 router = APIRouter(prefix="/ws")
 
 
-@router.websocket("/")
+@router.websocket("")
 async def websocket_endpoint(
     websocket: WebSocket,
     reconnect_token: str | None = None,
