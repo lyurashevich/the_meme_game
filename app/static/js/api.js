@@ -35,11 +35,12 @@ async function loadRooms() {
 
     rooms.forEach(room => {
       const div = document.createElement("div");
+      div.className = "room-card";
       // Передаём room.owner_id третьим аргументом: так после входа мы сразу знаем владельца
       // и можем правильно показать/скрыть кнопку настроек.
       div.innerHTML = `
-        <p>Room: ${room.name} | Players: ${room.players_count}/${room.max_players}</p>
-        <button onclick="joinRoom('${room.id}', '${room.name}', '${room.owner_id}')">Join room</button>
+        <p class="room-card__name">${room.name} <span class="room-card__count">${room.players_count}/${room.max_players}</span></p>
+        <button class="btn btn-primary btn-pill" onclick="joinRoom('${room.id}', '${room.name}', '${room.owner_id}')">Join room</button>
       `;
       container.appendChild(div);
     });
