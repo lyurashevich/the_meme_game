@@ -95,8 +95,7 @@ function hiddenRoomInterface() {
   document.getElementById('startGameBtn').classList.add('hidden');
   document.getElementById('gameSettingsBtn').classList.add('hidden'); // прячем кнопку настроек
 
-  document.getElementById('rooms').style.display = 'inline-block';
-//  document.getElementById('createRoomBtn').style.display = 'inline-block';
+  document.getElementById('rooms').classList.remove('hidden');
   document.getElementById('createRoomBtn').classList.remove("hidden");
 
   document.getElementById('messages').innerHTML = '';

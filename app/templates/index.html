@@ -1,12 +1,14 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/css/style.css">
-  <title>Игра</title>
+  <title>Meme Game</title>
 </head>
 <body>
-  <h1>Игра: тест WS + REST</h1>
+<div class="page-container">
+  <h1>Meme Game</h1>
 
   <div class="header">
       <img id="avatar" class="avatar" alt="Settings" />
@@ -27,11 +29,11 @@
         <tbody id="scoreList"></tbody>
       </table>
 
-      <button id="closeScoreBtn">Close</button>
+      <button id="closeScoreBtn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 
-  <button id="score" class="hidden">Score</button>
+  <button id="score" class="btn btn-primary hidden">Score</button>
 
   <div id="settingsModal" class="modal hidden">
     <div class="modal-content">
@@ -40,30 +42,30 @@
       <label>Name:</label>
       <input id="settingsUsername" type="text" />
 
-      <button id="saveSettingsBtn">Save</button>
-      <button id="closeSettingsBtn">Close</button>
+      <button id="saveSettingsBtn" class="btn btn-primary">Save</button>
+      <button id="closeSettingsBtn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 
   <div id="leaveConfirmModal" class="modal hidden">
     <div class="modal-content">
-      <h2>Выйти из комнаты?</h2>
-      <p>Идёт игра, и после вашего выхода останется слишком мало игроков.
-         Игра будет завершена для всех. Вы уверены?</p>
+      <h2>Leave the room?</h2>
+      <p>The game is in progress, and if you leave there won't be enough players left.
+         The game will end for everyone. Are you sure?</p>
 
-      <button id="confirmLeaveBtn">Да, выйти</button>
-      <button id="cancelLeaveBtn">Нет, остаться</button>
+      <button id="confirmLeaveBtn" class="btn btn-danger">Yes, leave</button>
+      <button id="cancelLeaveBtn" class="btn btn-secondary">No, stay</button>
     </div>
   </div>
 
-  <!-- Модалка настроек игры. Та же структура .modal/.modal-content, что и у остальных
-       окон, чтобы переиспользовать готовые стили. hidden = скрыта, пока JS её не откроет. -->
+  <!-- Game settings modal. Same .modal/.modal-content structure as the other
+       modals so it reuses existing styles. hidden = hidden until JS opens it. -->
   <div id="gameSettingsModal" class="modal hidden">
     <div class="modal-content">
       <h2>Game settings</h2>
 
-      <!-- round_time_limit: бэк принимает строго 60/90/120, поэтому select, а не свободный ввод.
-           value у option — это то, что реально уйдёт на сервер. -->
+      <!-- round_time_limit: the backend strictly accepts 60/90/120, hence a select,
+           not free input. The option's value is what actually gets sent to the server. -->
       <label>Round time limit (sec):</label>
       <select id="settingRoundTime">
         <option value="60">60</option>
@@ -71,52 +73,61 @@
         <option value="120">120</option>
       </select>
 
-      <!-- max_rounds и score_to_win опциональны: пустое поле = безлимит (null на бэке). -->
+      <!-- max_rounds and score_to_win are optional: an empty field means unlimited (null on the backend). -->
       <label>Max rounds (empty = unlimited):</label>
       <input id="settingMaxRounds" type="number" min="1" placeholder="unlimited" />
 
       <label>Score to win (empty = unlimited):</label>
       <input id="settingScoreToWin" type="number" min="1" placeholder="unlimited" />
 
-      <button id="saveGameSettingsBtn">Save</button>
-      <button id="closeGameSettingsBtn">Close</button>
+      <button id="saveGameSettingsBtn" class="btn btn-primary">Save</button>
+      <button id="closeGameSettingsBtn" class="btn btn-secondary">Close</button>
     </div>
   </div>
 
-  <button id="connectBtn">Подключиться (создать игрока)</button>
-  <button id="createRoomBtn" class="hidden">Создать комнату</button>
+  <div class="toolbar">
+    <button id="connectBtn" class="btn btn-primary btn-pill">Connect (create player)</button>
+    <button id="createRoomBtn" class="btn btn-primary btn-pill hidden">Create room</button>
+  </div>
 
-  <div id="rooms" style="margin-top: 20px"></div>
+  <div id="rooms"></div>
 
   <div id="roomInfo" class="room-info hidden">
     <h3>You are in the room: <span id="currentRoomName"></span></h3>
-    <button id="leaveRoomBtn">Leave room</button>
-    <button id="startGameBtn">Start game</button>
-    <!-- Кнопка настроек. class="hidden" -> по умолчанию скрыта;
-         JS покажет её только владельцу комнаты (см. updateGameSettingsButton в ui.js). -->
-    <button id="gameSettingsBtn" class="hidden">Game settings</button>
+    <button id="leaveRoomBtn" class="btn btn-danger">Leave room</button>
+    <button id="startGameBtn" class="btn btn-primary">Start game</button>
+    <!-- Settings button. class="hidden" -> hidden by default;
+         JS shows it only to the room owner (see updateGameSettingsButton in ui.js). -->
+    <button id="gameSettingsBtn" class="btn btn-secondary hidden">Game settings</button>
   </div>
 
-  <div id="chatContainer" class="chat-container hidden">
-    <h3>Chat room</h3>
-    <div id="messages" class="messages"></div>
-    <div class="chat-input">
-      <input type="text" id="chatMessage" placeholder="Enter your message..." maxlength="500">
-      <button id="sendMessage">Send</button>
+  <div class="game-layout">
+    <div class="game-board">
+      <div id="roundInfo"></div>
+
+      <div id="tableArea" class="table-area hidden"></div>
+
+      <div id="playerCards" class="player-cards hidden">
+        <h3>Your cards</h3>
+        <div id="cardsContainer" class="cards-container"></div>
+      </div>
+
+      <button id="confirmChoice" class="btn btn-primary hidden">Choose</button>
+      <button id="confirmWinner" class="btn btn-primary hidden">Confirm winner</button>
+    </div>
+
+    <div class="side-panel">
+      <div id="chatContainer" class="chat-container hidden">
+        <h3>Chat room</h3>
+        <div id="messages" class="messages"></div>
+        <div class="chat-input">
+          <input type="text" id="chatMessage" placeholder="Enter your message..." maxlength="500">
+          <button id="sendMessage">Send</button>
+        </div>
+      </div>
     </div>
   </div>
-
-  <div id="roundInfo"></div>
-
-  <div id="tableArea" class="table-area hidden"></div>
-
-  <div id="playerCards" class="player-cards hidden">
-    <h3>Your cards</h3>
-    <div id="cardsContainer" class="cards-container"></div>
-  </div>
-
-  <button id="confirmChoice" class="hidden">Choose</button>
-  <button id="confirmWinner" class="hidden">Confirm winner</button>
+</div>
 
   <pre id="log"></pre>
 

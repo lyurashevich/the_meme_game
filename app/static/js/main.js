@@ -89,7 +89,7 @@ document.getElementById('chatMessage').addEventListener('keypress', (e) => {
 document.getElementById("createRoomBtn").addEventListener("click", async () => {
 console.log(playerId);
   if (!playerId) {
-    log("Сначала подключитесь!");
+    log("Connect first!");
     return;
   }
 
@@ -101,14 +101,14 @@ console.log(playerId);
   });
 
   const room = await response.json();
-  log("Создана комната: " + JSON.stringify(room, null, 2));
+  log("Room created: " + JSON.stringify(room, null, 2));
 
   // Тот, кто создал комнату, и есть владелец — передаём room.owner_id, чтобы
   // showRoomInterface сразу показал ему кнопку настроек.
   showRoomInterface(room.id, room.name, room.owner_id);
   await loadChatHistory(room.id);
 } catch (error) {
-  log("ошибка создания комнаты: " + error);
+  log("Error creating room: " + error);
 }
 });
 

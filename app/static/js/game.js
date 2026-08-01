@@ -60,9 +60,11 @@ function renderRound(payload) {
   console.log('GAME.JS LINE 59 PAYLOAD = ', payload);
   const container = document.getElementById('roundInfo');
   container.innerHTML = `
-    <h2>Round #${payload.current_round_number}</h2>
-    <p>Leader: ${payload.leader_id}</p>
-    <p>Situation: ${payload.current_situation_card.text}</p>
+    <div class="round-banner">
+      <span class="round-banner__round">Round #${payload.current_round_number}</span>
+      <p class="round-banner__situation">${payload.current_situation_card.text}</p>
+      <span class="round-banner__leader">Leader: ${payload.leader_id}</span>
+    </div>
   `;
 
   updateLeaderStatus(payload.leader_id);
@@ -142,7 +144,7 @@ function animateWinnerCard(payload) {
 
   const caption = document.createElement("div");
   caption.className = "winner-caption";
-  caption.textContent = `${payload.winner_username} победил(а)!`;
+  caption.textContent = `${payload.winner_username} wins!`;
   card.appendChild(caption);
 }
 

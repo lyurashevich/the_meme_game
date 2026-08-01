@@ -25,7 +25,7 @@
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        log("WS соединение установлено");
+        log("WS connection established");
 
         reconnectAttempts = 0;
         if (reconnectTimer) {
@@ -47,7 +47,7 @@
             currentRoomId = data.payload.room_id;
             currentRoomName = data.payload.room_name;
 
-            addRoomToList(currentRoomId, currentRoomName)
+            addRoomToList(currentRoomId, currentRoomName, data.payload.owner_id)
           }
 
           if (data.event === 'room_deleted') {
@@ -199,7 +199,7 @@
 
           if (data.event === 'game_ended') {
             displaySystemMessage({
-              message: data.payload && data.payload.message ? data.payload.message : "Игра завершена.",
+              message: data.payload && data.payload.message ? data.payload.message : "The game has ended.",
               timestamp: new Date().toISOString()
             });
 
@@ -234,7 +234,7 @@
     };
 
       ws.onclose = () => {
-        log("WS соединение закрыто");
+        log("WS connection closed");
 
         if (playerId) {
           if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
