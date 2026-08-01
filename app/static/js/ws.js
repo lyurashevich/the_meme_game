@@ -4,9 +4,19 @@
     let pendingPhase = null;
     let isAnimating = false;
 
-    document.getElementById("connectBtn").addEventListener("click", () => {
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAY_MS = 2000;
 
-      let wsUrl = "ws://localhost:8000/ws/";
+    function connectWebSocket() {
+
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      let wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+
+      console.log(window.location.href);
+      console.log(window.location.host);
+      console.log(wsUrl);
 
       if (reconnectToken) {
         wsUrl += `?reconnect_token=${reconnectToken}`;
@@ -16,6 +26,13 @@
 
       ws.onopen = () => {
         log("WS соединение установлено");
+
+        reconnectAttempts = 0;
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+
         loadRooms();
       };
 
@@ -216,6 +233,19 @@
       }
     };
 
-      ws.onclose = () => log("WS соединение закрыто");
+      ws.onclose = () => {
+        log("WS соединение закрыто");
+
+        if (playerId) {
+          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            reconnectAttempts++;
+            reconnectTimer = setTimeout(connectWebSocket, RECONNECT_DELAY_MS);
+          } else {
+            document.getElementById('connectBtn').disabled = false;
+          }
+        }
+      };
       ws.onerror = (error) => log("ws error: " + error);
-    });
+    }
+
+    document.getElementById("connectBtn").addEventListener("click", connectWebSocket);
