@@ -63,3 +63,4 @@ uvicorn==0.35.0
 virtualenv==20.36.1
 websockets==15.0.1
 faker==40.23.0
+pydantic-settings==2.14.2
