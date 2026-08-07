@@ -76,6 +76,12 @@ class NotEnoughCardsException(CustomException):
     message: str = "Not enough cards to start game."
 
 
+class RoomHasNoOwnerException(CustomException):
+    code: str = "room_has_no_owner"
+    status_code: int = 400
+    message: str = "Room has no owner and cannot start a game."
+
+
 class InvalidReconnectToken(CustomException):
     code: str = "invalid_reconnect_token"
     status_code: int = 400

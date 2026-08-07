@@ -15,6 +15,7 @@ from app.exceptions import (
     NotRoomOwnerException,
     PlayerNotFoundException,
     PlayerNotInRoomException,
+    RoomHasNoOwnerException,
     RoundNotFoundException,
 )
 from app.game.connection_manager import ConnectionManager
@@ -106,23 +107,7 @@ class GameService:
         ]
 
         for player in players:
-            messages.append(
-                (
-                    [player.id],
-                    {
-                        "event": WebsocketEvents.ROUND_STARTED.value,
-                        "payload": {
-                            "room_id": game.room.id,
-                            "leader_id": current_round.leader_id if current_round.leader else None,
-                            "current_round_number": current_round.round_number,
-                            "current_situation_card": current_round.situation_card.to_dict(),
-                            "score": {p.id: p.score for p in players},
-                            "players": [p.username for p in players],
-                            "player_cards": [card.to_dict() for card in player.handed_cards],
-                        },
-                    },
-                )
-            )
+            messages.append(([player.id], self._build_round_started_payload(game, current_round, player)))
 
         messages.append(
             (
@@ -210,6 +195,33 @@ class GameService:
 
         return game
 
+    @staticmethod
+    def _build_round_started_payload(game: Game, round_: GameRound | None, player: Player) -> dict:
+        return {
+            "event": WebsocketEvents.ROUND_STARTED.value,
+            "payload": {
+                "room_id": game.room.id,
+                "leader_id": round_.leader_id if round_ and round_.leader else None,
+                "current_round_number": round_.round_number if round_ else None,
+                "current_situation_card": round_.situation_card.to_dict() if round_ else None,
+                "score": {p.id: p.score for p in game.room.players},
+                "players": [p.username for p in game.room.players],
+                "player_cards": [card.to_dict() for card in player.handed_cards],
+            },
+        }
+
+    @staticmethod
+    def build_game_started_messages(game: Game) -> list[tuple[list[str], dict]]:
+        players_ids = [player.id for player in game.room.players]
+        messages: list[tuple[list[str], dict]] = [
+            (players_ids, {"event": WebsocketEvents.GAME_STARTED.value, "payload": {"room_id": game.room.id}})
+        ]
+
+        for player in game.room.players:
+            messages.append(([player.id], GameService._build_round_started_payload(game, game.current_round, player)))
+
+        return messages
+
     async def start_first_round(self, room_id: str) -> Game:
 
         async with self.room_service.get_room_lock(room_id):
@@ -217,11 +229,15 @@ class GameService:
 
             self._validate_game_state(game, GameState.STARTING)
 
+            owner = game.room.owner
+            if owner is None:
+                raise RoomHasNoOwnerException()
+
             situation_card = await self._get_situation_card(game)
             await self._hand_out_initial_cards(game)
             new_round = GameRound(
                 round_number=1,
-                leader=game.room.owner,  # type: ignore
+                leader=owner,
                 situation_card=situation_card,
                 game=game,  # state = RoundState.CHOOSING_CARDS
                 time_limit=game.settings.round_time_limit,
@@ -648,23 +664,7 @@ class GameService:
                 )
             )
             for player in players:
-                messages.append(
-                    (
-                        [player.id],
-                        {
-                            "event": WebsocketEvents.ROUND_STARTED.value,
-                            "payload": {
-                                "room_id": game.room.id,
-                                "leader_id": new_round.leader_id,
-                                "current_round_number": new_round.round_number,
-                                "current_situation_card": new_round.situation_card.to_dict(),
-                                "score": {p.id: p.score for p in players},
-                                "players": [p.username for p in players],
-                                "player_cards": [card.to_dict() for card in player.handed_cards],
-                            },
-                        },
-                    )
-                )
+                messages.append(([player.id], self._build_round_started_payload(game, new_round, player)))
             messages.append(
                 (
                     players_ids,

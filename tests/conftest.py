@@ -59,8 +59,8 @@ def game_service(room_service, game_manager, connection_manager):
 
 
 @pytest.fixture
-def reconnect_service(room_service, player_service):
-    return ReconnectService(room_service, player_service)
+def reconnect_service(room_service, player_service, game_manager):
+    return ReconnectService(room_service, player_service, game_manager)
 
 
 @pytest.fixture

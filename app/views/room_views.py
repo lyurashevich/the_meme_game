@@ -9,7 +9,6 @@ from app.dependencies import (
     get_room_service,
 )
 from app.game.connection_manager import ConnectionManager
-from app.game.enums import WebsocketEvents
 from app.game.game_manager import GameManager
 from app.schemas.room import (
     JoinRoomSchema,
@@ -65,13 +64,8 @@ async def create_room(
 
     audience = list(set(connection_manager.player_sockets) - game_manager.players_in_rooms)
 
-    await connection_manager.broadcast_to_players(
-        audience,
-        {
-            "event": WebsocketEvents.ROOM_CREATED.value,
-            "payload": {"room_id": room.id, "room_name": room.name},
-        },
-    )
+    recipients, payload = room_service.build_room_created_message(room, audience)
+    await connection_manager.broadcast_to_players(recipients, payload)
 
     return room
 
@@ -93,26 +87,8 @@ async def join_room(
     game_manager.add_player_connection(player.id, room.id)
     player_service.add_player(player.id)
 
-    await connection_manager.send_personal_json(
-        player.id,
-        {
-            "event": WebsocketEvents.YOU_JOINED_THE_ROOM.value,
-            "payload": {
-                "room_id": room.id,
-                "room_name": room.name,
-                "players": [{"id": p.id, "username": p.username} for p in room.players],
-            },
-        },
-    )
-
-    await connection_manager.broadcast_to_players(
-        [player.id for player in room.players],
-        {
-            "event": WebsocketEvents.PLAYER_JOINED_ROOM.value,
-            "payload": {"player_id": player.id, "username": player.username},
-        },
-        exclude_id=player.id,
-    )
+    for recipients, message in room_service.build_join_room_messages(room, player):
+        await connection_manager.broadcast_to_players(recipients, message)
 
 
 @router.patch("/{room_id}/leave", response_model=LeaveRoomResponseSchema)
