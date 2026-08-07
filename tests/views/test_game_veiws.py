@@ -1,4 +1,5 @@
 from app.game.enums import GameState
+from app.models import MemeCard, SituationCard
 
 
 class TestGameViews:
@@ -6,8 +7,13 @@ class TestGameViews:
     def setup_method(self):
         self.url = "/game"
 
-    async def test_start_game(self, client_with_no_db, test_player, test_room_with_players, game_manager):
-        response = client_with_no_db.post(f"{self.url}/start", json={"room_id": test_room_with_players.id})
+    async def test_start_game(self, client, db_session, test_player, test_room_with_players, game_manager):
+        meme_cards = [MemeCard(image_url=f"http://memes.org/{i}") for i in range(30)]
+        situation_cards = [SituationCard(text=f"situation {i}") for i in range(5)]
+        db_session.add_all(meme_cards + situation_cards)
+        await db_session.commit()
+
+        response = await client.post(f"{self.url}/start", json={"room_id": test_room_with_players.id})
         game_data = response.json()
 
         expected_json = {

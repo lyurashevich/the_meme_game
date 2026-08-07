@@ -130,12 +130,12 @@ async def test_room_with_players(test_player, test_players, room_service, player
 
 
 @pytest.fixture
-async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_cards, game_service):
+async def prepared_game(test_room_with_players, mock_meme_cards, mock_situation_cards, game_service, db_session):
     """non-started game yet"""
     with patch("app.services.game_service.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
         "app.services.game_service.SituationService.get_situation_cards", return_value=mock_situation_cards
     ):
-        game = await game_service.prepare_game(room_id=test_room_with_players.id)
+        game = await game_service.prepare_game(room_id=test_room_with_players.id, db=db_session)
 
     yield game
 
