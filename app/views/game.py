@@ -5,10 +5,8 @@ from app.db import get_db
 from app.dependencies import (
     get_connection_manager,
     get_game_service,
-    get_room_service,
 )
 from app.game.connection_manager import ConnectionManager
-from app.game.enums import WebsocketEvents
 from app.schemas.game import (
     EndGameRequest,
     GameResponse,
@@ -20,7 +18,6 @@ from app.schemas.game import (
     UpdateGameSettingsRequest,
 )
 from app.services.game_service import GameService
-from app.services.room_service import RoomService
 
 router = APIRouter(prefix="/game", tags=["game"])
 
@@ -30,40 +27,16 @@ async def start_game(
     request: StartGameRequest,
     connection_manager: ConnectionManager = Depends(get_connection_manager),
     game_service: GameService = Depends(get_game_service),
-    room_service: RoomService = Depends(get_room_service),
     db: AsyncSession = Depends(get_db),
 ):
     game = await game_service.prepare_game(room_id=request.room_id, db=db)
-    room = room_service.get_room(request.room_id)
     await game_service.start_first_round(room_id=request.room_id)
 
     if game is None:
         return
 
-    await connection_manager.broadcast_to_players(
-        [player.id for player in room.players],
-        {"event": WebsocketEvents.GAME_STARTED.value, "payload": {"room_id": room.id}},
-    )
-
-    for player in room.players:
-        await connection_manager.send_personal_json(
-            player.id,
-            {
-                "event": WebsocketEvents.ROUND_STARTED.value,
-                # "event": WebsocketEvents.GAME_STARTED.value,
-                "payload": {
-                    "room_id": game.room.id,
-                    "leader_id": (game.current_round.leader_id if game and game.current_round else None),
-                    "current_round_number": (game.current_round.round_number if game and game.current_round else None),
-                    "current_situation_card": (
-                        game.current_round.situation_card.to_dict() if game and game.current_round else None
-                    ),
-                    "score": {player.id: player.score for player in game.room.players},
-                    "players": [player.username for player in game.room.players],
-                    "player_cards": [card.to_dict() for card in player.handed_cards],
-                },
-            },
-        )
+    for recipients, payload in game_service.build_game_started_messages(game):
+        await connection_manager.broadcast_to_players(recipients, payload)
 
     return game
 

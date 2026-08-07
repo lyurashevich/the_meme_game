@@ -40,7 +40,7 @@ def get_game_service() -> GameService:
     return game_service
 
 
-reconnect_service = ReconnectService(room_service, player_service)
+reconnect_service = ReconnectService(room_service, player_service, game_manager)
 
 
 def get_reconnect_service() -> ReconnectService:

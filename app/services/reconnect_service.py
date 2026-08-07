@@ -1,9 +1,16 @@
 import secrets
 from asyncio import Lock
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from app.exceptions import InvalidReconnectToken
+from app.exceptions import (
+    GameNotFoundException,
+    InvalidReconnectToken,
+    RoomNotFoundException,
+)
 from app.game.dataclasses import Player, ReconnectToken
+from app.game.enums import WebsocketEvents
+from app.game.game_manager import GameManager
 from app.services.player_service import PlayerService
 from app.services.room_service import RoomService
 
@@ -15,9 +22,10 @@ class ReconnectService:
     player_tokens: dict[str, str] = {}  # player_id -> token
     reconnect_lock: Lock = Lock()
 
-    def __init__(self, room_service: RoomService, player_service: PlayerService):
+    def __init__(self, room_service: RoomService, player_service: PlayerService, game_manager: GameManager):
         self.room_service = room_service
         self.player_service = player_service
+        self.game_manager = game_manager
 
     async def create_reconnect_token(self, player_id: str) -> str:
         async with self.reconnect_lock:
@@ -76,3 +84,64 @@ class ReconnectService:
                 if entry.expires_at and entry.expires_at < now:
                     self.reconnect_tokens.pop(token, None)
                     self.player_tokens.pop(entry.player_id, None)
+
+    async def build_reconnect_payload(self, player: Player, token: str) -> tuple[str, dict]:
+        """Build the PLAYER_RECONNECTED payload. Assumes ``player.room_id`` is set —
+        callers are expected to check this before calling (see websocket_endpoint)."""
+        if not player.room_id:
+            raise RoomNotFoundException()
+
+        async with self.room_service.get_room_lock(room_id=player.room_id):
+            room = self.room_service.get_room(player.room_id)
+            payload_data: dict[str, Any] = {
+                "reconnect_token": token,
+                "room_id": player.room_id,
+                "room_name": room.name,
+                "avatar": player.avatar,
+            }
+
+            try:
+                game = self.game_manager.get_game(player.room_id)
+            except GameNotFoundException:
+                game = None
+
+            if game:
+                payload_data.update(
+                    {
+                        "players_choice": (
+                            [
+                                {"player_id": player_id, "card": card.to_dict()}
+                                for player_id, card in game.current_round.player_choices.items()
+                            ]
+                            if game.current_round
+                            else []
+                        ),
+                        "handed_cards": [card.to_dict() for card in player.handed_cards],
+                        "score": player.score,
+                        "is_host": player.is_host,
+                        "players": (
+                            [
+                                {
+                                    "id": player.id,
+                                    "username": player.username,
+                                    "is_connected": player.is_connected,
+                                    "score": player.score,
+                                }
+                                for player in room.players
+                            ]
+                            if room
+                            else []
+                        ),
+                        "game_state": game.state.value if game else None,
+                        "round_state": (game.current_round.state.value if game and game.current_round else None),
+                        "current_round_number": (game.current_round.round_number if game.current_round else None),
+                        "leader_id": (game.current_round.leader_id if game.current_round else None),
+                        "current_situation_card": (
+                            game.current_round.situation_card.to_dict() if game.current_round else None
+                        ),
+                    }
+                )
+
+            data = {"event": WebsocketEvents.PLAYER_RECONNECTED.value, "payload": payload_data}
+
+            return player.id, data

@@ -3,6 +3,7 @@ from datetime import datetime
 
 from app.exceptions import PlayerNotInRoomException, RoomNotFoundException
 from app.game.dataclasses import Player, Room
+from app.game.enums import WebsocketEvents
 from app.schemas.messages import ChatMessageResponse
 
 
@@ -94,7 +95,37 @@ class RoomService:
     async def update_room(self):
         pass
 
-    async def send_chat_message(self, room_id: str, player: Player, message: str) -> tuple[dict, list[str]]:
+    @staticmethod
+    def build_room_created_message(room: Room, audience: list[str]) -> tuple[list[str], dict]:
+        return audience, {
+            "event": WebsocketEvents.ROOM_CREATED.value,
+            "payload": {"room_id": room.id, "room_name": room.name},
+        }
+
+    @staticmethod
+    def build_join_room_messages(room: Room, player: Player) -> list[tuple[list[str], dict]]:
+        you_joined = (
+            [player.id],
+            {
+                "event": WebsocketEvents.YOU_JOINED_THE_ROOM.value,
+                "payload": {
+                    "room_id": room.id,
+                    "room_name": room.name,
+                    "players": [{"id": p.id, "username": p.username} for p in room.players],
+                },
+            },
+        )
+        other_player_ids = [p.id for p in room.players if p.id != player.id]
+        player_joined = (
+            other_player_ids,
+            {
+                "event": WebsocketEvents.PLAYER_JOINED_ROOM.value,
+                "payload": {"player_id": player.id, "username": player.username},
+            },
+        )
+        return [you_joined, player_joined]
+
+    async def send_chat_message(self, room_id: str, player: Player, message: str) -> tuple[list[str], dict]:
 
         chat_message = {
             "player_id": player.id,
@@ -118,4 +149,4 @@ class RoomService:
 
             sockets = [p.id for p in room.players]
 
-        return response_message.model_dump(), sockets
+        return sockets, response_message.model_dump()

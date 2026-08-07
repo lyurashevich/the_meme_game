@@ -13,6 +13,7 @@ from app.exceptions import (
     NotEnoughPlayersException,
     NotRoomOwnerException,
     PlayerNotFoundException,
+    RoomHasNoOwnerException,
     RoomNotFoundException,
     RoundNotFoundException,
 )
@@ -87,6 +88,25 @@ class TestGameLogic:
 
         assert str(e.value.message) == RoomNotFoundException.message
 
+    async def test_build_game_started_messages(self, prepared_game, game_service):
+        messages = game_service.build_game_started_messages(prepared_game)
+
+        assert len(messages) == 1 + len(prepared_game.room.players)
+
+        game_started_recipients, game_started_payload = messages[0]
+        assert game_started_recipients == [player.id for player in prepared_game.room.players]
+        assert game_started_payload == {
+            "event": WebsocketEvents.GAME_STARTED.value,
+            "payload": {"room_id": prepared_game.room.id},
+        }
+
+        for (recipients, payload), player in zip(messages[1:], prepared_game.room.players):
+            assert recipients == [player.id]
+            assert payload["event"] == WebsocketEvents.ROUND_STARTED.value
+            assert payload["payload"]["room_id"] == prepared_game.room.id
+            assert payload["payload"]["leader_id"] is None
+            assert payload["payload"]["player_cards"] == [card.to_dict() for card in player.handed_cards]
+
     async def test_start_first_round(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
 
@@ -108,6 +128,14 @@ class TestGameLogic:
             str(e.value.message)
             == f"Invalid game state. Game state must be {GameState.STARTING.value} to perform this action"
         )  # todo: подправить
+
+    async def test_start_first_round__room_has_no_owner(self, prepared_game, game_service):
+        prepared_game.room.owner = None
+
+        with pytest.raises(RoomHasNoOwnerException) as e:
+            await game_service.start_first_round(prepared_game.room_id)
+
+        assert str(e.value.message) == RoomHasNoOwnerException.message
 
     async def test_start_first_round__no_situation_cards(self, prepared_game, game_service):
         prepared_game.situation_deck.clear()

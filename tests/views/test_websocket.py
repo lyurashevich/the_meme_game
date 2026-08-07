@@ -64,7 +64,7 @@ class TestWebsocketDisconnect:
     httpx.AsyncClient, which doesn't support websocket_connect at all (see the xfail tests)."""
 
     async def test_websocket_disconnect_notifies_other_players_in_room(
-        self, websocket, game_manager, connection_manager, player_service, reconnect_service, room_service
+        self, websocket, connection_manager, player_service, reconnect_service, room_service
     ):
         leaving_player = player_service.create_player()
         other_player = player_service.create_player()
@@ -78,7 +78,6 @@ class TestWebsocketDisconnect:
             await websocket_endpoint(
                 websocket=websocket,
                 reconnect_token=None,
-                manager=game_manager,
                 connection_manager=connection_manager,
                 player_service=player_service,
                 reconnect_service=reconnect_service,
@@ -98,7 +97,7 @@ class TestWebsocketDisconnect:
         assert leaving_player.is_connected is False
 
     async def test_websocket_disconnect_without_room_is_a_no_op(
-        self, websocket, game_manager, connection_manager, player_service, reconnect_service, room_service
+        self, websocket, connection_manager, player_service, reconnect_service, room_service
     ):
         websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect())
         connection_manager.broadcast_to_players = AsyncMock()
@@ -106,7 +105,6 @@ class TestWebsocketDisconnect:
         await websocket_endpoint(
             websocket=websocket,
             reconnect_token=None,
-            manager=game_manager,
             connection_manager=connection_manager,
             player_service=player_service,
             reconnect_service=reconnect_service,
@@ -116,7 +114,7 @@ class TestWebsocketDisconnect:
         connection_manager.broadcast_to_players.assert_not_awaited()
 
     async def test_websocket_disconnect_after_room_cleanup_is_a_no_op(
-        self, websocket, game_manager, connection_manager, player_service, reconnect_service, room_service
+        self, websocket, connection_manager, player_service, reconnect_service, room_service
     ):
         player = player_service.create_player()
         room = await room_service.create_room(owner=player)
@@ -129,7 +127,6 @@ class TestWebsocketDisconnect:
             await websocket_endpoint(
                 websocket=websocket,
                 reconnect_token=None,
-                manager=game_manager,
                 connection_manager=connection_manager,
                 player_service=player_service,
                 reconnect_service=reconnect_service,
