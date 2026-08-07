@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db import get_db
 from app.dependencies import (
     get_connection_manager,
     get_game_service,
@@ -29,8 +31,9 @@ async def start_game(
     connection_manager: ConnectionManager = Depends(get_connection_manager),
     game_service: GameService = Depends(get_game_service),
     room_service: RoomService = Depends(get_room_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    game = await game_service.prepare_game(room_id=request.room_id)
+    game = await game_service.prepare_game(room_id=request.room_id, db=db)
     room = room_service.get_room(request.room_id)
     await game_service.start_first_round(room_id=request.room_id)
 

@@ -57,14 +57,14 @@ class TestGameLogic:
         assert str(e.value.message) == "Room not found"
 
     async def test_prepare_game(
-        self, test_room_with_players, mock_situation_cards, mock_meme_cards, game_service, game_manager
+        self, test_room_with_players, mock_situation_cards, mock_meme_cards, game_service, game_manager, db_session
     ):
 
         with patch("app.services.game_service.MemeService.get_meme_cards", return_value=mock_meme_cards), patch(
             "app.services.game_service.SituationService.get_situation_cards", return_value=mock_situation_cards
         ):
 
-            game = await game_service.prepare_game(test_room_with_players.id)
+            game = await game_service.prepare_game(test_room_with_players.id, db=db_session)
 
         assert not game.current_round
         assert game.meme_deck_count == len(mock_meme_cards)
@@ -75,15 +75,15 @@ class TestGameLogic:
         assert game.room == test_room_with_players
         assert game_manager.active_games[test_room_with_players.id] == game
 
-    async def test_prepare_game__not_enough_players(self, test_room, game_service):
+    async def test_prepare_game__not_enough_players(self, test_room, game_service, db_session):
         with pytest.raises(NotEnoughPlayersException) as e:
-            await game_service.prepare_game(test_room.id)
+            await game_service.prepare_game(test_room.id, db=db_session)
 
         assert str(e.value.message) == NotEnoughPlayersException.message
 
-    async def test_prepare_game__room_not_found(self, game_service):
+    async def test_prepare_game__room_not_found(self, game_service, db_session):
         with pytest.raises(RoomNotFoundException) as e:
-            await game_service.prepare_game("qwerty")
+            await game_service.prepare_game("qwerty", db=db_session)
 
         assert str(e.value.message) == RoomNotFoundException.message
 

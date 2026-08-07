@@ -2,7 +2,8 @@ import asyncio
 import random
 from typing import Optional
 
-from app.db import session_maker
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.exceptions import (
     CardNotFoundException,
     GameNotFoundException,
@@ -188,7 +189,7 @@ class GameService:
         if len(room.players) < MIN_PLAYERS:
             raise NotEnoughPlayersException()
 
-    async def prepare_game(self, room_id: str) -> Game | None:
+    async def prepare_game(self, room_id: str, db: AsyncSession) -> Game | None:
 
         async with self.room_service.get_room_lock(room_id=room_id):
             room = self.room_service.get_room(room_id)
@@ -205,7 +206,7 @@ class GameService:
             game.leader_index = 0
             self.game_manager.active_games[room_id] = game
 
-            await self._initialize_decks(game)
+            await self._initialize_decks(game, db)
 
         return game
 
@@ -273,10 +274,9 @@ class GameService:
         return game.current_round
 
     @staticmethod
-    async def _initialize_decks(game: Game) -> None:
-        async with session_maker() as db:
-            game.meme_deck = list(await MemeService(db).get_meme_cards())
-            game.situation_deck = list(await SituationService(db).get_situation_cards())
+    async def _initialize_decks(game: Game, db: AsyncSession) -> None:
+        game.meme_deck = list(await MemeService(db).get_meme_cards())
+        game.situation_deck = list(await SituationService(db).get_situation_cards())
 
         random.shuffle(game.meme_deck)
         random.shuffle(game.situation_deck)
