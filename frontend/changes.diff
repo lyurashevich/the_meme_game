@@ -1,0 +1,392 @@
+diff --git a/Dockerfile b/Dockerfile
+index 9934d0f..2b81700 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -3,7 +3,7 @@ FROM python:3.12-slim
+ WORKDIR /app
+ 
+ RUN apt-get update \
+-    && apt-get install -y --no-install-recommends curl=8.14.1-2+deb13u4 \
++    && apt-get install -y --no-install-recommends curl \
+     && rm -rf /var/lib/apt/lists/*
+ 
+ COPY requirements.txt .
+diff --git a/app/main.py b/app/main.py
+index c904a2a..b591731 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -28,7 +28,7 @@ async def custom_exception_handler(request: Request, exception: CustomException)
+ base_dir = Path(__file__).parent
+ static_dir = base_dir / "static"
+ app.mount("/static", StaticFiles(directory=static_dir), name="static")
+-app.mount("/avatars", StaticFiles(directory=base_dir.parent / "avatars"), name="avatars")
++# app.mount("/avatars", StaticFiles(directory=base_dir.parent / "avatars"), name="avatars")
+ 
+ app.include_router(health_router)
+ app.include_router(memes_router)
+@@ -39,7 +39,7 @@ app.include_router(ws_router)
+ app.include_router(game_router)
+ app.include_router(game_round_router)
+ 
+-templates = Jinja2Templates(directory="app/templates")
++templates = Jinja2Templates(directory="templates")
+ 
+ 
+ @app.get("/ws", response_class=HTMLResponse)
+diff --git a/app/schemas/room.py b/app/schemas/room.py
+index 0e86c25..184689d 100644
+--- a/app/schemas/room.py
++++ b/app/schemas/room.py
+@@ -1,4 +1,5 @@
+ from pydantic import BaseModel, ConfigDict
++from pydantic.alias_generators import to_camel
+ 
+ 
+ class RoomCreateSchema(BaseModel):
+@@ -7,6 +8,11 @@ class RoomCreateSchema(BaseModel):
+     max_players: int = 10
+     is_private: bool = False
+ 
++    model_config = ConfigDict(
++        alias_generator=to_camel,
++        populate_by_name=True
++    )
++
+ 
+ class RoomResponseSchema(BaseModel):
+     id: str
+diff --git a/app/views/players_views.py b/app/views/players_views.py
+index 66fa8e6..82e127c 100644
+--- a/app/views/players_views.py
++++ b/app/views/players_views.py
+@@ -10,7 +10,12 @@ from app.schemas.players import (
+ )
+ from app.services.player_service import PlayerService
+ 
+-router = APIRouter(prefix="/player", tags=["players"])
++router = APIRouter(prefix="/api/player", tags=["players"])
++
++@router.get('/all', response_model=list[PlayerSchema])
++async def get_all_players(player_service: PlayerService = Depends(get_player_service)):
++    players = [player for player in player_service.players.values()]
++    return players
+ 
+ 
+ @router.get("/{player_id}/cards", status_code=200, response_model=list[PlayerCardsSchema])
+diff --git a/app/views/room_views.py b/app/views/room_views.py
+index 476444e..ecd3abd 100644
+--- a/app/views/room_views.py
++++ b/app/views/room_views.py
+@@ -1,5 +1,4 @@
+-from fastapi import APIRouter, HTTPException
+-from fastapi.params import Depends
++from fastapi import APIRouter, HTTPException, Depends
+ 
+ from app.dependencies import (
+     get_connection_manager,
+@@ -22,7 +21,7 @@ from app.services.game_service import GameService
+ from app.services.player_service import PlayerService
+ from app.services.room_service import RoomService
+ 
+-router = APIRouter(prefix="/room", tags=["room"])
++router = APIRouter(prefix="/api/room", tags=["room"])
+ 
+ 
+ @router.get("/all", response_model=list[RoomResponseSchema])
+diff --git a/docker-compose.yml b/docker-compose.yml
+index cc57326..3a3f505 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -44,6 +44,19 @@ services:
+       - -c
+       - alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+ 
++  frontend:
++    build: frontend
++    container_name: frontend
++    ports:
++      - "5173:5173"
++    volumes:
++      - ./frontend:/app
++      - /app/node_modules
++    environment:
++      - CHOKIDAR_USEPOLLING=true
++    depends_on:
++      - fastapi
++
+   nginx:
+     build: nginx
+     volumes:
+diff --git a/frontend/Dockerfile b/frontend/Dockerfile
+index 7315df8..78f3804 100644
+--- a/frontend/Dockerfile
++++ b/frontend/Dockerfile
+@@ -1,4 +1,12 @@
+-FROM ubuntu:latest
+-LABEL authors="lizaveta"
++FROM node:20-alpine
+ 
+-ENTRYPOINT ["top", "-b"]
+\ No newline at end of file
++WORKDIR /app
++
++COPY package*.json ./
++RUN npm install
++
++COPY . .
++
++EXPOSE 5173
++
++CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+\ No newline at end of file
+diff --git a/frontend/src/api.ts b/frontend/src/api.ts
+index e69de29..02970b1 100644
+--- a/frontend/src/api.ts
++++ b/frontend/src/api.ts
+@@ -0,0 +1,10 @@
++const BASE = '/api'
++
++export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
++    const res = await fetch(`${BASE}${path}`, {
++        headers: { 'Content-Type': 'application/json' },
++        ...options,
++    })
++    if (!res.ok) throw new Error(`API error: ${res.status}`)
++    return res.json()
++}
+\ No newline at end of file
+diff --git a/frontend/src/components/Avatars.vue b/frontend/src/components/Avatars.vue
+index 34eeb7c..8355394 100644
+--- a/frontend/src/components/Avatars.vue
++++ b/frontend/src/components/Avatars.vue
+@@ -1,7 +1,7 @@
+ <script setup lang="ts">
+ import { computed } from 'vue';
+ import { AVATAR_OPTIONS } from '../avatars';
+-import { AvatarOption } from '../types';
++import type { AvatarOption } from '../types';
+ 
+ 
+ interface Props {
+diff --git a/frontend/src/components/MockupHeader.vue b/frontend/src/components/MockupHeader.vue
+index e209bc6..b6b55a4 100644
+--- a/frontend/src/components/MockupHeader.vue
++++ b/frontend/src/components/MockupHeader.vue
+@@ -66,20 +66,21 @@ const handleNext = () => {
+       <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+         <div class="flex items-center gap-2">
+           <div class="w-8 h-8 rounded-xl border-2 border-[#242426] bg-[#E4D976] shadow-[2px_2px_0px_#242426] flex items-center justify-center font-black text-sm">
+-            М?
++            <!--М?-->C?
+           </div>
+ 
+           <div>
+             <div class="flex items-center gap-1.5">
+               <span class="font-extrabold text-base tracking-tight text-[#242426]">
+-                ЧТО ЗА МЕМ
++                <!--ЧТО ЗА МЕМ-->СИТУАЦИИ
+               </span>
+               <span class="text-[10px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider bg-[#242426] text-[#FAF7F2]">
+-                UI Mockups
++                <!--UI Mockups-->online
+               </span>
+             </div>
+             <p class="text-[11px] text-[#636058] font-medium hidden sm:block">
+-              Мультиплеерная карточная игра • 4 экрана
++              <!--Мультиплеерная карточная игра • 4 экрана-->
++              Мультиплеерная карточная игра
+             </p>
+           </div>
+         </div>
+diff --git a/frontend/src/components/Screen1PlayerCreation.vue b/frontend/src/components/Screen1PlayerCreation.vue
+index e781f40..3796acf 100644
+--- a/frontend/src/components/Screen1PlayerCreation.vue
++++ b/frontend/src/components/Screen1PlayerCreation.vue
+@@ -1,7 +1,7 @@
+ <script setup lang="ts">
+ import { AVATAR_OPTIONS } from '../avatars';
+ import AvatarGraphic from './Avatars.vue';
+-import type { PlayerProfile } from '../types';
++import type { PlayerProfile } from './types';
+ import { ChevronLeft, ChevronRight, Dices, Sparkles, Check, Smile } from 'lucide-vue-next';
+ import { ref } from 'vue';
+ 
+@@ -25,7 +25,6 @@ const FUN_NICKNAMES = [
+ 
+ const props = defineProps<Screen1Props>();
+ 
+-
+ const currentAvatarIndex = Math.max(0, AVATAR_OPTIONS.findIndex((a) => a.id === props.player.avatarId));
+ 
+ const inputNick = ref(props.player.nickname || 'Мемный чел');
+@@ -53,7 +52,7 @@ const handleConfirmClick = (e: Event) => {
+     e.preventDefault();
+     const finalNick = inputNick.value.trim() || 'Анонимный_Мем';
+     props.onUpdatePlayer({ nickname: finalNick });
+-    IsConfirmedAnim.value = true;
++    isConfirmedAnim.value = true;
+     setTimeout(() => {
+       props.onConfirm();
+     }, 300);};
+@@ -83,7 +82,8 @@ const currentAvatar = AVATAR_OPTIONS[currentAvatarIndex] || AVATAR_OPTIONS[0];
+           Карточная веб-игра
+         </div>
+         <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-[#242426] leading-none">
+-          ЧТО ЗА МЕМ?
++          <!--ЧТО ЗА МЕМ?-->
++          СИТУАЦИИ
+         </h1>
+         <p class="mt-2 text-sm text-[#66635C] font-medium">
+           Создай своего персонажа перед входом в комнату
+@@ -188,19 +188,18 @@ const currentAvatar = AVATAR_OPTIONS[currentAvatarIndex] || AVATAR_OPTIONS[0];
+                     ? 'bg-[#C8D7C5] translate-y-1 shadow-[1px_1px_0px_#242426]'
+                     : 'bg-[#E4D976] hover:bg-[#DDD166] active:translate-y-1 active:shadow-[1px_1px_0px_#242426]'
+                 ]"
+-        >
+-
+-        <template v-if="isConfirmedAnim">
+-          <Check class="w-5 h-5" />
+-          <span>ГОТОВО! ПЕРЕХОДИМ...</span>
+-        </template>
+-
+-        <template v-else>
+-          <span>ОК</span>
+-          <span class="text-sm font-semibold opacity-75">-> к комнатам</span>
+-        </template>
+-        </button>
+-          </form>
++          >
++            <template v-if="isConfirmedAnim">
++              <Check class="w-5 h-5" />
++              <span>ГОТОВО! ПЕРЕХОДИМ...</span>
++            </template>
++
++            <template v-else>
++              <span>ОК</span>
++              <span class="text-sm font-semibold opacity-75">-> к комнатам</span>
++            </template>
++          </button>
++        </form>
+ 
+         <!-- Micro-humor footer detail -->
+         <div class="mt-5 pt-3 border-t border-[#242426]/15 w-full flex items-center justify-between text-[11px] text-[#78746B]">
+diff --git a/frontend/src/components/Screen2RoomSelection.vue b/frontend/src/components/Screen2RoomSelection.vue
+index 66666e7..406662d 100644
+--- a/frontend/src/components/Screen2RoomSelection.vue
++++ b/frontend/src/components/Screen2RoomSelection.vue
+@@ -54,15 +54,17 @@ const filteredRooms = computed(() => {
+ const handleCreateSubmit = (e: Event) => {
+   e.preventDefault();
+   const createdRoom: GameRoom = {
+-    id: `room-${Date.now()}`,
++    // id: `room-${Date.now()}`,
+     name: newRoomName.value.trim() || 'Новая комната с мемами',
+-    hostName: props.player.nickname,
+-    playersCount: 1,
++    playerId: props.player.id,
++    isPrivate: false,
++    // hostName: props.player.nickname,
++    // playersCount: 1,
+     maxPlayers: newRoomMaxPlayers.value,
+-    roundsCount: 5,
+-    timeLimit: newRoomTime.value,
+-    tag: newRoomTag.value,
+-    status: 'waiting',
++    // roundsCount: 5,
++    // timeLimit: newRoomTime.value,
++    // tag: newRoomTag.value,
++    // status: 'waiting',
+   };
+   showCreateModal.value = false;
+   props.onCreateRoom(createdRoom);
+@@ -168,6 +170,7 @@ const handleCreateSubmit = (e: Event) => {
+             </button>
+           </div>
+ 
++        <!--
+           <!-- Humorous Tip Card -->
+           <div class="mt-5 pt-4 border-t border-[#242426]/15 text-xs text-[#5D5950] bg-[#F2EEE4] p-3 rounded-2xl border border-[#242426]/20">
+             <p class="font-bold text-[#242426] mb-0.5 flex items-center gap-1">
+@@ -179,6 +182,7 @@ const handleCreateSubmit = (e: Event) => {
+           </div>
+         </div>
+       </div>
++      -->
+ 
+       <!-- Right Column: Room List -->
+       <div class="lg:col-span-8 flex flex-col gap-4">
+diff --git a/frontend/src/stores/game.ts b/frontend/src/stores/game.ts
+index e69de29..ba04116 100644
+--- a/frontend/src/stores/game.ts
++++ b/frontend/src/stores/game.ts
+@@ -0,0 +1,10 @@
++import { defineStore } from "pinia"
++import { ref } from "vue"
++
++export const useGameStore = defineStore("game", () => {
++    const game = ref(null)
++
++    return {
++        game,
++    }
++})
+\ No newline at end of file
+diff --git a/frontend/src/stores/player.ts b/frontend/src/stores/player.ts
+index e69de29..7e62811 100644
+--- a/frontend/src/stores/player.ts
++++ b/frontend/src/stores/player.ts
+@@ -0,0 +1,11 @@
++import { defineStore } from "pinia";
++import { ref } from "vue";
++import type { PlayerProfile } from "../types.ts";
++
++export const usePlayerStore = defineStore("player", () => {
++    const player = ref<PlayerProfile | null>(null)
++
++    return {
++        player,
++    }
++})
+\ No newline at end of file
+diff --git a/frontend/src/stores/room.ts b/frontend/src/stores/room.ts
+index e69de29..558618d 100644
+--- a/frontend/src/stores/room.ts
++++ b/frontend/src/stores/room.ts
+@@ -0,0 +1,10 @@
++import { defineStore } from "pinia"
++import { ref } from "vue"
++
++export const useRoomStore = defineStore("room", () => {
++    const room = ref(null)
++
++    return {
++        room,
++    }
++})
+\ No newline at end of file
+diff --git a/frontend/src/types.ts b/frontend/src/types.ts
+index 31e6c37..c05136f 100644
+--- a/frontend/src/types.ts
++++ b/frontend/src/types.ts
+@@ -21,14 +21,16 @@ export interface PlayerProfile {
+ export interface GameRoom {
+   id: string;
+   name: string;
+-  hostName: string;
++  // hostName: string;
+   playersCount: number;
+   maxPlayers: number;
+-  roundsCount: number;
+-  timeLimit: number;
+-  tag: string;
++  ownerId: str;
++  invitationLink?: string;
++  // roundsCount: number;
++  // timeLimit: number;
++  // tag: string;
+   isPrivate?: boolean;
+-  status: 'waiting' | 'in-progress' | 'full';
++  // status: 'waiting' | 'in-progress' | 'full';
+ }
+ 
+ export interface MemeCardData {

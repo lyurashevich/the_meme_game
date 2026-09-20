@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Custom Scrollbar for Hand Cards and Chat */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #ECE8DE;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C4BEAF;
+  border-radius: 9999px;
+  border: 1px solid #242426;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A190;
+}
+
+/* Base selection & focus aesthetics */
+*:focus-visible {
+  outline: 2px solid #242426;
+  outline-offset: 2px;
+}

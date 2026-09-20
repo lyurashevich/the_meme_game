@@ -10,7 +10,13 @@ from app.schemas.players import (
 )
 from app.services.player_service import PlayerService
 
-router = APIRouter(prefix="/player", tags=["players"])
+router = APIRouter(prefix="/api/player", tags=["players"])
+
+
+@router.get("/all", response_model=list[PlayerSchema])
+async def get_all_players(player_service: PlayerService = Depends(get_player_service)):
+    players = [player for player in player_service.players.values()]
+    return players
 
 
 @router.get("/{player_id}/cards", status_code=200, response_model=list[PlayerCardsSchema])
