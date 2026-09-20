@@ -1,5 +1,4 @@
-from fastapi import APIRouter, HTTPException
-from fastapi.params import Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import (
     get_connection_manager,
@@ -22,7 +21,7 @@ from app.services.game_service import GameService
 from app.services.player_service import PlayerService
 from app.services.room_service import RoomService
 
-router = APIRouter(prefix="/room", tags=["room"])
+router = APIRouter(prefix="/api/room", tags=["room"])
 
 
 @router.get("/all", response_model=list[RoomResponseSchema])

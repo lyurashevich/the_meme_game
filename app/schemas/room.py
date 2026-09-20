@@ -1,4 +1,5 @@
 from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 
 class RoomCreateSchema(BaseModel):
@@ -6,6 +7,8 @@ class RoomCreateSchema(BaseModel):
     name: str | None = None
     max_players: int = 10
     is_private: bool = False
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 class RoomResponseSchema(BaseModel):
