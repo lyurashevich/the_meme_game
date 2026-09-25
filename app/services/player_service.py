@@ -5,7 +5,7 @@ from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
 from app.game.enums import WebsocketEvents
 from app.models import MemeCard
-from app.schemas.players import PlayerProfileUpdateSchema
+from app.schemas.players import BasePlayerProfileSchema
 from app.services.room_service import RoomService
 
 RECONNECT_TIMEOUT = 60  # seconds
@@ -39,7 +39,7 @@ class PlayerService:
         except PlayerNotFoundException:
             return
 
-    def create_player(self, username: str | None = None) -> Player:
+    def create_player(self, username: str = "") -> Player:
         player = Player(username=username)
         self.players[player.id] = player
 
@@ -47,7 +47,7 @@ class PlayerService:
 
     def get_player_cards(self, player_id: str) -> list[MemeCard]:
         player = self.get_player(player_id)
-        return player.handed_cards
+        return player.hand_cards
 
     def add_player(self, player_id: str) -> None:
         player = self.get_player(player_id)
@@ -61,7 +61,7 @@ class PlayerService:
 
         return player
 
-    async def update_player_profile(self, player_id: str, data: PlayerProfileUpdateSchema) -> Player:
+    async def update_player_profile(self, player_id: str, data: BasePlayerProfileSchema) -> Player:
         player = self.get_player(player_id)
 
         if data.username:

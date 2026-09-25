@@ -104,7 +104,7 @@ def test_player(player_service):
 
 @pytest.fixture
 def test_players():
-    people = [Player(id=str(i)) for i in range(3)]
+    people = [Player(id=str(i), username=f"user_{i}") for i in range(3)]
     return people
 
 

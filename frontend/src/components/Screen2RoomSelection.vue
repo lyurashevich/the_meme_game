@@ -63,7 +63,6 @@ const handleCreateSubmit = (e: Event) => {
     maxPlayers: newRoomMaxPlayers.value,
     // roundsCount: 5,
     // timeLimit: newRoomTime.value,
-    // tag: newRoomTag.value,
     // status: 'waiting',
   };
   showCreateModal.value = false;
@@ -242,10 +241,6 @@ const handleCreateSubmit = (e: Event) => {
               <div class="flex items-center gap-2 flex-wrap mb-1.5">
                 <span class="font-extrabold text-base text-[#242426] group-hover:text-[#5A5128] transition-colors">
                   {{ room.name }}
-                </span>
-
-                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#EAE5D9] text-[#4A473E] border border-[#242426]/20">
-                  {{ room.tag }}
                 </span>
 
                 <span

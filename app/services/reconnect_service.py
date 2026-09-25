@@ -97,7 +97,7 @@ class ReconnectService:
                 "reconnect_token": token,
                 "room_id": player.room_id,
                 "room_name": room.name,
-                "avatar": player.avatar,
+                "avatar_id": player.avatar_id,
             }
 
             try:
@@ -116,7 +116,7 @@ class ReconnectService:
                             if game.current_round
                             else []
                         ),
-                        "handed_cards": [card.to_dict() for card in player.handed_cards],
+                        "hand_cards": [card.to_dict() for card in player.hand_cards],
                         "score": player.score,
                         "is_host": player.is_host,
                         "players": (

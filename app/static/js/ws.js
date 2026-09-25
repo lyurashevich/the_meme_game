@@ -119,7 +119,7 @@
               document.getElementById("tableArea").classList.remove("hidden");
 
               renderRound(data.payload);
-              renderPlayerCards(data.payload.handed_cards);
+              renderPlayerCards(data.payload.hand_cards);
               renderPlayedCards(data.payload.players_choice);
             }
 

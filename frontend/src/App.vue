@@ -50,8 +50,8 @@ const player = ref<PlayerProfile>({
 });
 
 // Rooms & active game data
-// const rooms = ref<GameRoom[]>(INITIAL_ROOMS);
-const rooms = ref<GameRoom[]>([]);
+const rooms = ref<GameRoom[]>(INITIAL_ROOMS);
+// const rooms = ref<GameRoom[]>([]);
 const currentRoom = ref<GameRoom>(INITIAL_ROOMS[0]);
 const playersInRoom = ref<PlayerProfile[]>(MOCK_PLAYERS_IN_ROOM);
 const handCards = ref<MemeCardData[]>(MOCK_HAND_CARDS);

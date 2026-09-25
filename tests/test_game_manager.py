@@ -37,7 +37,7 @@ class TestGameManager:
 
     async def test_join_room(self, test_room, room_service):
 
-        player = Player(id="333")
+        player = Player(id="333", username="Lisaveta")
         await room_service.join_room(test_room.id, player)
 
         assert player in test_room.players
@@ -57,7 +57,7 @@ class TestGameManager:
 
     async def test_join_room__full_room(self, test_room, room_service, game_manager):
         test_room.max_players = 1
-        player = Player(id="555")
+        player = Player(id="555", username="Lisaveta")
 
         with pytest.raises(Exception) as e:
             await room_service.join_room(test_room.id, player)
@@ -66,7 +66,7 @@ class TestGameManager:
         assert player.id not in game_manager.player_connections
 
     async def test_leave_room(self, test_player, test_room, room_service, game_manager):
-        player = Player(id="555")
+        player = Player(id="555", username="Lisaveta")
         await room_service.join_room(test_room.id, player)
         await room_service.leave_room(player, test_room.id)
 

@@ -34,7 +34,7 @@ async def _play_round_to_completion(game_service, game):
     current_round = game.current_round
     for player in game.room.players:
         if player is not current_round.leader:
-            await game_service.player_select_card(game.room_id, player.id, player.handed_cards[0].id)
+            await game_service.player_select_card(game.room_id, player.id, player.hand_cards[0].id)
 
     winner = next(player for player in game.room.players if player is not current_round.leader)
     winner_card_id = current_round.player_choices[winner.id].id
@@ -105,7 +105,7 @@ class TestGameLogic:
             assert payload["event"] == WebsocketEvents.ROUND_STARTED.value
             assert payload["payload"]["room_id"] == prepared_game.room.id
             assert payload["payload"]["leader_id"] is None
-            assert payload["payload"]["player_cards"] == [card.to_dict() for card in player.handed_cards]
+            assert payload["payload"]["player_cards"] == [card.to_dict() for card in player.hand_cards]
 
     async def test_start_first_round(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
@@ -117,7 +117,7 @@ class TestGameLogic:
         assert prepared_game.state == GameState.ACTIVE
         assert prepared_game.current_round.state == RoundState.CHOOSING_CARDS
         for player in prepared_game.room.players:
-            assert len(player.handed_cards) == CARDS_PER_PLAYER
+            assert len(player.hand_cards) == CARDS_PER_PLAYER
 
     async def test_start_first_round__wrong_game_state(self, prepared_game, game_service):
         prepared_game.state = GameState.FINISHED
@@ -154,18 +154,18 @@ class TestGameLogic:
     async def test_player_select_card(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
-        selected_card = player.handed_cards[0]
+        selected_card = player.hand_cards[0]
 
         await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
 
         assert prepared_game.current_round.player_choices[player.id] == selected_card
-        assert selected_card not in player.handed_cards
-        assert len(player.handed_cards) == CARDS_PER_PLAYER - 1
+        assert selected_card not in player.hand_cards
+        assert len(player.hand_cards) == CARDS_PER_PLAYER - 1
 
     async def test_player_select_card__player_is_leader(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[0]
-        selected_card = player.handed_cards[0]
+        selected_card = player.hand_cards[0]
 
         with pytest.raises(InvalidPlayerActionException) as e:
             await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
@@ -193,7 +193,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         prepared_game.state = GameState.FINISHED
         player = prepared_game.room.players[1]
-        selected_card = player.handed_cards[0]
+        selected_card = player.hand_cards[0]
 
         with pytest.raises(InvalidGameStateException) as e:
             await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
@@ -206,8 +206,8 @@ class TestGameLogic:
     async def test_player_select_card__card_already_selected(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
-        prepared_game.current_round.player_choices[player.id] = player.handed_cards[0]
-        selected_card = player.handed_cards[1]
+        prepared_game.current_round.player_choices[player.id] = player.hand_cards[0]
+        selected_card = player.hand_cards[1]
 
         with pytest.raises(InvalidPlayerActionException) as e:
             await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
@@ -218,7 +218,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         prepared_game.current_round = None
         player = prepared_game.room.players[1]
-        selected_card = player.handed_cards[0]
+        selected_card = player.hand_cards[0]
 
         with pytest.raises(RoundNotFoundException) as e:
             await game_service.player_select_card(prepared_game.room_id, player.id, selected_card.id)
@@ -228,7 +228,7 @@ class TestGameLogic:
     async def test_player_select_card__wrong_round_state(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
         player = prepared_game.room.players[1]
-        selected_card = player.handed_cards[0]
+        selected_card = player.hand_cards[0]
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
 
         with pytest.raises(InvalidRoundStateException) as e:
@@ -243,7 +243,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
@@ -279,7 +279,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         winner_id = prepared_game.room.players[2].id
         prepared_game.current_round.state = RoundState.ROUND_ENDED
@@ -324,7 +324,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
@@ -368,7 +368,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         leader = prepared_game.current_round.leader
         winner = prepared_game.room.players[2]
@@ -408,7 +408,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
@@ -443,7 +443,7 @@ class TestGameLogic:
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
@@ -463,8 +463,8 @@ class TestGameLogic:
         assert prepared_game.current_round.situation_card not in prepared_game.situation_deck
         assert prepared_game.current_round.situation_card not in prepared_game.situation_discard_pile
         for player in prepared_game.room.players:
-            assert len(player.handed_cards) == CARDS_PER_PLAYER
-            assert len(set(player.handed_cards)) == CARDS_PER_PLAYER
+            assert len(player.hand_cards) == CARDS_PER_PLAYER
+            assert len(set(player.hand_cards)) == CARDS_PER_PLAYER
 
     async def test_should_end_game__max_rounds_reached(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
@@ -526,7 +526,7 @@ class TestGameLogic:
 
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
@@ -540,7 +540,7 @@ class TestGameLogic:
         assert prepared_game.current_round is None
         for player in prepared_game.room.players:
             assert player.score == 0
-            assert player.handed_cards == []
+            assert player.hand_cards == []
 
     async def test_leader_choose_winner__ends_game_on_max_rounds(self, prepared_game, game_service):
         prepared_game.settings.max_rounds = 1
@@ -548,7 +548,7 @@ class TestGameLogic:
 
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
@@ -567,7 +567,7 @@ class TestGameLogic:
 
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
 
@@ -652,7 +652,7 @@ class TestGameLogic:
         assert prepared_game.current_round is None
         for player in prepared_game.room.players:
             assert player.score == 0
-            assert player.handed_cards == []
+            assert player.hand_cards == []
 
     async def test_end_game__not_owner_raises(self, prepared_game, game_service):
         with pytest.raises(NotRoomOwnerException) as e:
@@ -752,7 +752,7 @@ class TestGameLogic:
 
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
-                await game_service.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 
         winner = next(p for p in prepared_game.room.players if p is not prepared_game.current_round.leader)
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
@@ -825,15 +825,15 @@ class TestGameLogic:
 #         """Test that leader doesn't get a card when handing out one card"""
 #         game_with_cards.room.players = players[:3]
 #         game_with_cards.leader_index = 0
-#         leader_initial_cards = len(players[0].handed_cards)
+#         leader_initial_cards = len(players[0].hand_cards)
 
 #         await game_logic.hand_out_one_card(game_with_cards)
 
 #         # Leader should not get a new card
-#         assert len(players[0].handed_cards) == leader_initial_cards
+#         assert len(players[0].hand_cards) == leader_initial_cards
 #         # Other players should get cards
 #         for player in players[1:3]:
-#             assert len(player.handed_cards) > 0
+#             assert len(player.hand_cards) > 0
 
 #     # @pytest.mark.asyncio
 #     async def test_choose_leader_rotation(self, game_logic, game_with_cards, players):
@@ -916,7 +916,7 @@ class TestGameLogic:
 
 #         # Give players cards
 #         for i, player in enumerate(players[1:3]):
-#             player.handed_cards = [MemeCard(id=i+1, image_url=f"test{i+1}.jpg")]
+#             player.hand_cards = [MemeCard(id=i+1, image_url=f"test{i+1}.jpg")]
 
 #         # Simulate concurrent card selections
 #         tasks = [

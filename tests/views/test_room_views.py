@@ -4,7 +4,7 @@ import pytest
 class TestRoomViews:
 
     def setup_method(self):
-        self.url = "/room"
+        self.url = "/api/room"
 
     async def test_create_room(self, client_with_no_db, test_player):
 

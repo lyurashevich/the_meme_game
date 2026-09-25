@@ -206,7 +206,7 @@ class GameService:
                 "current_situation_card": round_.situation_card.to_dict() if round_ else None,
                 "score": {p.id: p.score for p in game.room.players},
                 "players": [p.username for p in game.room.players],
-                "player_cards": [card.to_dict() for card in player.handed_cards],
+                "player_cards": [card.to_dict() for card in player.hand_cards],
             },
         }
 
@@ -307,7 +307,7 @@ class GameService:
             for _ in range(CARDS_PER_PLAYER):
                 if game.meme_deck:
                     card = game.meme_deck.pop(0)
-                    player.handed_cards.append(card)
+                    player.hand_cards.append(card)
 
     async def _hand_out_one_card(self, game: Game):
 
@@ -323,7 +323,7 @@ class GameService:
             if player == current_leader:
                 continue
             card = game.meme_deck.pop(0)
-            player.handed_cards.append(card)
+            player.hand_cards.append(card)
 
     @staticmethod
     async def _get_situation_card(game: Game) -> SituationCard:
@@ -370,12 +370,12 @@ class GameService:
             if player_id in current_round.player_choices:
                 raise InvalidPlayerActionException(hint="Player already selected a card")
 
-            selected_card = next((card for card in player.handed_cards if card.id == card_id), None)
+            selected_card = next((card for card in player.hand_cards if card.id == card_id), None)
             if not selected_card:
                 raise CardNotFoundException()
 
             current_round.player_choices[player_id] = selected_card
-            player.handed_cards.remove(selected_card)
+            player.hand_cards.remove(selected_card)
 
             if self._validate_if_all_the_players_confirmed_their_choices(game):
                 round_state_changed = self._change_round_state(current_round, RoundState.LEADER_CHOOSING)
@@ -534,7 +534,7 @@ class GameService:
 
         final_scores = {player.id: player.score for player in room.players}
         for player in room.players:
-            player.handed_cards.clear()
+            player.hand_cards.clear()
             player.score = 0
         players_ids = [player.id for player in room.players]
 
@@ -560,8 +560,8 @@ class GameService:
         for player in game.room.players:
             if player.id == leader.id:
                 continue
-            while len(player.handed_cards) < CARDS_PER_PLAYER and game.meme_deck:
-                player.handed_cards.append(game.meme_deck.pop(0))
+            while len(player.hand_cards) < CARDS_PER_PLAYER and game.meme_deck:
+                player.hand_cards.append(game.meme_deck.pop(0))
 
     async def _handle_player_left_locked(self, room_id: str, leaver_id: str) -> list[tuple[list[str], dict]]:
         """Keep an active game consistent after a player leaves mid-game.
@@ -716,7 +716,7 @@ class GameService:
 
             room.remove_player(player)
             player.room_id = None
-            player.handed_cards.clear()
+            player.hand_cards.clear()
             self.game_manager.remove_player_connection(player.id)
 
             # If the owner just left and players remain, promote the next one

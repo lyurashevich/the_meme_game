@@ -14,7 +14,6 @@ from app.schemas.room import (
     LeaveRoomResponseSchema,
     LeaveRoomSchema,
     RoomCreateSchema,
-    RoomResponseSchema,
     RoomStateSchema,
 )
 from app.services.game_service import GameService
@@ -24,7 +23,7 @@ from app.services.room_service import RoomService
 router = APIRouter(prefix="/api/room", tags=["room"])
 
 
-@router.get("/all", response_model=list[RoomResponseSchema])
+@router.get("/all", response_model=list[RoomStateSchema])
 async def get_rooms(room_service: RoomService = Depends(get_room_service)):
     return room_service.get_rooms_list()
 
@@ -39,7 +38,7 @@ async def get_room(room_id: str, room_service: RoomService = Depends(get_room_se
     return room
 
 
-@router.post("/", response_model=RoomResponseSchema, status_code=201)
+@router.post("/", response_model=RoomStateSchema, status_code=201)
 async def create_room(
     data: RoomCreateSchema,
     game_manager: GameManager = Depends(get_game_manager),

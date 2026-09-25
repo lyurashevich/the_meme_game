@@ -50,7 +50,7 @@ async def websocket_endpoint(
                     player.id,
                     {
                         "event": WebsocketEvents.PLAYER_RECONNECTED.value,
-                        "payload": {"reconnect_token": token, "avatar": player.avatar, "player_id": player.id},
+                        "payload": {"reconnect_token": token, "avatar_id": player.avatar_id, "player_id": player.id},
                     },
                 )
                 await connection_manager.send_personal_json(*payload)
@@ -75,7 +75,7 @@ async def websocket_endpoint(
                     "player_id": player.id,
                     "reconnect_token": token,
                     "username": player.username,
-                    "avatar": player.avatar,
+                    "avatar_id": player.avatar_id,
                 },
             },
         )

@@ -10,7 +10,7 @@ class TestPlayer:
         player = Player(id="1", username="Lisaveta")
         assert player.id == "1"
         assert player.username == "Lisaveta"
-        assert player.handed_cards == []
+        assert player.hand_cards == []
         assert not player.is_host
         assert player.score == 0
         assert player.is_connected
@@ -34,7 +34,7 @@ class TestRoom:
         assert test_player in room.players
 
     async def test_add_player(self, test_room):
-        player = Player(id="2")
+        player = Player(id="2", username="Lisaveta")
 
         players_quantity = len(test_room.players)
 
@@ -46,7 +46,7 @@ class TestRoom:
         assert player in test_room.players
 
     async def test_add_player__already_joined(self, test_room):
-        player = Player(id="2")
+        player = Player(id="2", username="Lisaveta")
         test_room.add_player(player)
 
         with pytest.raises(Exception) as e:
@@ -56,7 +56,7 @@ class TestRoom:
 
     async def test_add_player__room_is_full(self, test_room):
         test_room.max_players = 1
-        player = Player(id="2")
+        player = Player(id="2", username="Lisaveta")
 
         with pytest.raises(Exception) as e:
             test_room.add_player(player)
@@ -64,7 +64,7 @@ class TestRoom:
         assert "The room is full" in str(e.value)
 
     async def test_remove_player__not_found(self, test_room):
-        player = Player(id="2")
+        player = Player(id="2", username="Lisaveta")
 
         with pytest.raises(PlayerNotInRoomException) as e:
             test_room.remove_player(player)
@@ -72,7 +72,7 @@ class TestRoom:
         assert str(e.value.message) == PlayerNotInRoomException.message
 
     async def test_remove_player(self, test_room):
-        player = Player(id="2")
+        player = Player(id="2", username="Lisaveta")
         test_room.add_player(player)
 
         test_room.remove_player(player)
@@ -83,8 +83,8 @@ class TestRoom:
 
     async def test_reassign_owner__promotes_next_player_by_join_order(self, test_room):
         old_owner = test_room.owner
-        next_player = Player(id="2")
-        later_player = Player(id="3")
+        next_player = Player(id="2", username="Lisaveta")
+        later_player = Player(id="3", username="Maria")
         test_room.add_player(next_player)
         test_room.add_player(later_player)
 
@@ -157,14 +157,14 @@ class TestGame:
 #         assert game.meme_discard_pile == {}
 #         assert game.situation_discard_pile == {}
 #         for player in game.room.players:
-#             assert len(player.handed_cards) == 6
-#             assert len(set(player.handed_cards)) == 6
+#             assert len(player.hand_cards) == 6
+#             assert len(set(player.hand_cards)) == 6
 #
 #     async def test_player_select_card(self, prepared_game):
 #
 #         for player in prepared_game.room.players:
 #             if player != prepared_game.current_round.leader:
-#                 await game_logic.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+#                 await game_logic.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 #
 #         assert prepared_game.current_round.player_choices != {}
 #         assert prepared_game.current_round.leader.id not in prepared_game.current_round.player_choices
@@ -172,7 +172,7 @@ class TestGame:
 #     # async def test_end_round(self, prepared_game):
 #     #     for player in prepared_game.room.players:
 #     #         if player != prepared_game.current_round.leader:
-#     #             await game_logic.player_select_card(prepared_game.room_id, player.id, player.handed_cards[0].id)
+#     #             await game_logic.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
 #     #
 #     #     winner = prepared_game.room.players[-1]
 #     #     await game_logic.leader_choose_winner(prepared_game.room_id, winner.id)
@@ -185,7 +185,7 @@ class TestGame:
 #     #     assert winner.score == 1
 #     #     for player in prepared_game.room.players:
 #     #         if prepared_game.current_round.leader != player:
-#     #             assert len(player.handed_cards) == 5
+#     #             assert len(player.hand_cards) == 5
 #
 #     # async def test_start_new_round(self, prepared_game):
 #     #     initial_situation_card = prepared_game.current_round.situation_card
@@ -200,7 +200,7 @@ class TestGame:
 #     #     # assert not prepared_game.current_round.winner
 #     #     # assert prepared_game.current_round.player_choices == {}
 #     #     # for player in prepared_game.room.players:
-#     #     #     assert len(player.handed_cards) == 6
+#     #     #     assert len(player.hand_cards) == 6
 #
 #     # async def test_hand_out_initial_cards(self, prepared_game):
 #     #
@@ -209,8 +209,8 @@ class TestGame:
 #     #     await game_logic.hand_out_initial_cards(prepared_game)
 #     #
 #     #     for player in prepared_game.room.players:
-#     #         assert len(player.handed_cards) == 6
-#     #         assert len(set(player.handed_cards)) == 6
+#     #         assert len(player.hand_cards) == 6
+#     #         assert len(set(player.hand_cards)) == 6
 #     #
 #     #     assert len(prepared_game.meme_deck) == full_meme_deck - 4 * 6
 #

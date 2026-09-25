@@ -15,7 +15,7 @@
 
 #         assert player.id == 1
 #         assert player.username == "Alice"
-#         assert player.handed_cards == []
+#         assert player.hand_cards == []
 #         assert player.is_host == False
 #         assert player.score == 0
 #         assert player.is_connected == True
@@ -24,10 +24,10 @@
 #     def test_player_with_cards(self):
 #         """Test player with handed cards"""
 #         cards = [MemeCard(id=i, image_url=f"test{i}.jpg") for i in range(1, 4)]
-#         player = Player(id=1, username="Alice", handed_cards=cards)
+#         player = Player(id=1, username="Alice", hand_cards=cards)
 
-#         assert len(player.handed_cards) == 3
-#         assert player.handed_cards[0].id == 1
+#         assert len(player.hand_cards) == 3
+#         assert player.hand_cards[0].id == 1
 
 #     def test_player_score_increment(self):
 #         """Test player score increment"""

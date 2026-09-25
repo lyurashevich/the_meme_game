@@ -9,27 +9,22 @@ export interface AvatarOption {
 
 export interface PlayerProfile {
   id: string;
-  nickname: string;
+  username: string;
   avatarId: string;
-  isHost?: boolean;
-  score?: number;
-  status?: string;
-  isReady?: boolean;
-  hasPlayedCard?: boolean;
+  isConnected: boolean;
 }
 
 export interface GameRoom {
   id: string;
   name: string;
-  // hostName: string;
+  ownerName: string;
   playersCount: number;
   maxPlayers: number;
-  ownerId: str;
+  ownerId: string;
   invitationLink?: string;
-  // roundsCount: number;
-  // timeLimit: number;
-  // tag: string;
-  isPrivate?: boolean;
+  roundsCount: number;
+  timeLimit: number;
+  isPrivate: boolean;
   // status: 'waiting' | 'in-progress' | 'full';
 }
 
@@ -45,7 +40,7 @@ export interface MemeCardData {
 
 export interface SituationCardData {
   id: string;
-  category: string;
+  // category: string;
   roundNumber: number;
   prompt: string;
   submittedCardsCount?: number;

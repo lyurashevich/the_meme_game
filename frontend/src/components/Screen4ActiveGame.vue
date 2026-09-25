@@ -201,9 +201,6 @@ const handlePlaySelectedCard = () => {
                   КАРТА СИТУАЦИИ
                 </span>
               </div>
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#E4D976] border border-[#242426] text-[#242426]">
-                {{ props.situation.category }}
-              </span>
             </div>
 
             <!-- Situation Prompt Text -->
