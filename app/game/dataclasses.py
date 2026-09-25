@@ -11,7 +11,7 @@ from app.game.game_settings import GameSettings
 from app.models import MemeCard, SituationCard
 from app.schemas.round import PlayerChoiceSchema
 
-AVATAR_COUNT = 5
+AVATARS = ("cat", "frog", "capybara", "doge", "hamster", "pigeon")
 
 
 @dataclass
@@ -22,22 +22,22 @@ class ReconnectToken:
 
 @dataclass
 class Player:
+    username: str = ""
+    avatar_id: str | None = None
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    username: str | None = None
-    handed_cards: list[MemeCard] = field(default_factory=list)
+    hand_cards: list[MemeCard] = field(default_factory=list)
     is_host: bool = False  # Host is the first leader
     score: int = 0
     is_connected: bool = True
     connection_order: int = 0  # Order of connection for leader rotation
     room_id: str | None = None
-    avatar: int | None = None
 
     def __post_init__(self):
         if not self.username:
             self.username = Faker().name()
 
-        if not self.avatar:
-            self.avatar = random.randint(1, AVATAR_COUNT)  # nosec B311 - game logic only, not cryptography
+        if not self.avatar_id:
+            self.avatar_id = random.choice(AVATARS)  # nosec B311 - game logic only, not cryptography
 
 
 @dataclass
@@ -60,6 +60,20 @@ class Room:
         if self.owner is None:
             raise Exception("Owner not found")
         return self.owner.id
+
+    @property
+    def owner_name(self) -> str:
+        if self.owner is None:
+            raise Exception("owner not found")
+        return self.owner.username
+
+    @property
+    def rounds_count(self) -> int | None:
+        return self.settings.round_time_limit
+
+    @property
+    def time_limit(self) -> int:
+        return self.settings.round_time_limit
 
     @property
     def players_count(self) -> int:

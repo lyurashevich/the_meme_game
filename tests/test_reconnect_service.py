@@ -12,7 +12,7 @@ class TestBuildReconnectPayload:
                 "reconnect_token": "token-123",
                 "room_id": test_room.id,
                 "room_name": test_room.name,
-                "avatar": test_player.avatar,
+                "avatar_id": test_player.avatar_id,
             },
         }
 
@@ -42,6 +42,6 @@ class TestBuildReconnectPayload:
         assert payload["current_round_number"] == current_round.round_number
         assert payload["leader_id"] == test_player.id
         assert payload["players_choice"] == []
-        assert payload["handed_cards"] == [card.to_dict() for card in test_player.handed_cards]
+        assert payload["hand_cards"] == [card.to_dict() for card in test_player.hand_cards]
         assert payload["is_host"] == test_player.is_host
         assert {p["id"] for p in payload["players"]} == {p.id for p in prepared_game.room.players}

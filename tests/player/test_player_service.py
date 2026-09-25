@@ -1,22 +1,24 @@
 from unittest.mock import AsyncMock, Mock
 
 from app.game.enums import WebsocketEvents
-from app.schemas.players import PlayerProfileUpdateSchema
+from app.schemas.players import BasePlayerProfileSchema
 
 
 class TestPlayerService:
 
     async def test_update_player_profile__no_room(self, test_player, player_service, connection_manager):
         new_username = "new"
+        test_player.avatar_id = "avatar_id"
         test_player.room_id = None
 
         connection_manager.broadcast_to_players = AsyncMock()
 
         player_service.players[test_player.id] = test_player
 
-        await player_service.update_player_profile(test_player.id, PlayerProfileUpdateSchema(username=new_username))
+        await player_service.update_player_profile(test_player.id, BasePlayerProfileSchema(username=new_username))
 
         assert test_player.username == new_username
+        assert test_player.avatar_id == "avatar_id"
 
         connection_manager.broadcast_to_players.assert_not_called()
 
@@ -33,7 +35,7 @@ class TestPlayerService:
 
         player_service.players[test_player.id] = test_player
 
-        await player_service.update_player_profile(test_player.id, PlayerProfileUpdateSchema(username=new_username))
+        await player_service.update_player_profile(test_player.id, BasePlayerProfileSchema(username=new_username))
 
         assert test_player.username == new_username
 

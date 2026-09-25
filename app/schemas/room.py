@@ -11,23 +11,18 @@ class RoomCreateSchema(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
-class RoomResponseSchema(BaseModel):
+class RoomStateSchema(BaseModel):
     id: str
     name: str
+    owner_name: str
+    players_count: int
     max_players: int
-    is_private: bool
     owner_id: str
-    players_count: int
     invitation_link: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class RoomStateSchema(BaseModel):
-    name: str
-    max_players: int
+    rounds_count: int | None = None
+    time_limit: int
     is_private: bool
-    players_count: int
+    # status: str
 
     model_config = ConfigDict(from_attributes=True)
 

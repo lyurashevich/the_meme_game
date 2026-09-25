@@ -1,39 +1,11 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class BasePlayerProfileSchema(BaseModel):
-    pass
+    username: str | None = ''
+    avatar_id: str | None = None
 
 
-class PlayerProfileResponseSchema(BasePlayerProfileSchema):
-    username: str
-    avatar: int
-
-
-class PlayerProfileUpdateSchema(BasePlayerProfileSchema):
-    username: str | None
-
-
-class PlayerCardsSchema(BaseModel):
-    id: int
-    image_url: str
-
-
-class PlayerCreateSchema(BaseModel):
-    username: str | None = None
-
-
-class PlayerStateSchema(PlayerCreateSchema):
-    handed_cards: list[int]  # cards' ids
-    score: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PlayerSchema(PlayerStateSchema):
+class BasePlayerProfileResponseSchema(BasePlayerProfileSchema):
     id: str
-    is_host: bool
     is_connected: bool
-    connection_order: int
-
-    model_config = ConfigDict(from_attributes=True)

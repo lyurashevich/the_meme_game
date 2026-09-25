@@ -1,6 +1,12 @@
 from enum import Enum
 
 
+class RoomState(Enum):
+    WAITING = "waiting"
+    IN_PROGRESS = "in_progress"
+    FULL = "full"
+
+
 class GameState(Enum):
     STARTING = "starting"  # Game is about to start
     ACTIVE = "active"  # Game has started
