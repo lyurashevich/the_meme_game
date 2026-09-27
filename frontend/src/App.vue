@@ -33,6 +33,9 @@ import Screen3RoomLobby from './components/Screen3RoomLobby.vue';
 import Screen4ActiveGame from './components/Screen4ActiveGame.vue';
 import DesignSpecsModal from './components/DesignSpecsModal.vue';
 
+import { createPlayer } from './services/playerService.ts';
+import { joinRoom, createRoom, loadRooms } from './services/roomService.ts';
+
 // Screen state
 const currentScreen = ref<ScreenId>('screen1');
 const showSpecs = ref(false);
@@ -40,13 +43,9 @@ const showSpecs = ref(false);
 // Player state
 const player = ref<PlayerProfile>({
   id: 'p-me',
-  nickname: 'Кот_В_Шоке',
+  username: 'Кот_В_Шоке',
   avatarId: 'cat',
-  isHost: false,
-  score: 2,
-  status: 'Готов шутить',
-  isReady: true,
-  hasPlayedCard: true,
+  isConnected: true,
 });
 
 // Rooms & active game data
@@ -73,13 +72,11 @@ const handleUpdatePlayer = (updated: Partial<PlayerProfile>) => {
 // Screen transitions
 const handleConfirmProfile = async () => {
   try {
-    const saved = await apiFetch<PlayerProfile>('/player/', {
-      method: 'POST',
-      body: JSON.stringify(player.value),
-    })
+    const saved = await createPlayer(player.value);
+
     console.log('saved', saved)
     player.value = saved
-    await loadRooms()
+    await handleLoadRooms()
     currentScreen.value = 'screen2'
   } catch (e) {
     console.error('Ошибка сохранения профиля:', e)
@@ -87,16 +84,8 @@ const handleConfirmProfile = async () => {
 }
 
 const handleJoinRoom = async (room: GameRoom) => {
-  console.log(room)
   try {
-    const res = await apiFetch<GameRoom>(`/room/${room.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        player_id: player.value.id,
-        room_id: room.id,
-        confirm: false,
-      })
-    })
+    const res = await joinRoom(room, player.value.id);
     currentRoom.value = res;
     currentScreen.value = 'screen3';
   } catch (e) {
@@ -106,17 +95,18 @@ const handleJoinRoom = async (room: GameRoom) => {
 
 const handleCreateRoom = async (newRoom: GameRoom) => {
   console.log(newRoom);
+
   try {
-    const saved = await apiFetch<RoomData>('/room/', {
-      method: 'POST',
-      body: JSON.stringify(newRoom)
-    })
+    const saved = await createRoom(newRoom, player.value.id);
+
     rooms.value = [newRoom, ...rooms.value];
     currentRoom.value = saved;
+
     player.value = {
       ...player.value,
       isHost: true,
     };
+
     currentScreen.value = 'screen3';
   } catch (e) {
     console.error('Ошибка создания комнаты:', e)
@@ -168,9 +158,9 @@ const handlePlayCard = (card: MemeCardData) => {
   ];
 };
 
-const loadRooms = async () => {
+const handleLoadRooms = async () => {
   try {
-    const data = await apiFetch<GameRoom[]>('/room/all')
+    const data = await loadRooms()
     console.log(data)
     rooms.value = data
   } catch (e) {

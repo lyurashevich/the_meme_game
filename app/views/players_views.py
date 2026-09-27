@@ -16,7 +16,7 @@ async def get_all_players(player_service: PlayerService = Depends(get_player_ser
     return players
 
 
-@router.post("/", response_model=BasePlayerProfileSchema, status_code=201)
+@router.post("/", response_model=BasePlayerProfileResponseSchema, status_code=201)
 async def create_player(data: BasePlayerProfileSchema, player_service: PlayerService = Depends(get_player_service)):
     player = player_service.create_player(username=data.username)
     return player
