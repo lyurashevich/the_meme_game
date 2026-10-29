@@ -66,15 +66,15 @@ class TestWebsocketDisconnect:
     async def test_websocket_disconnect_notifies_other_players_in_room(
         self, websocket, connection_manager, player_service, reconnect_service, room_service
     ):
-        leaving_player = player_service.create_player()
-        other_player = player_service.create_player()
+        leaving_player = await player_service.create_player()
+        other_player = await player_service.create_player()
         room = await room_service.create_room(owner=leaving_player)
         await room_service.join_room(room.id, other_player)
 
         websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect())
         connection_manager.broadcast_to_players = AsyncMock()
 
-        with patch.object(player_service, "create_player", return_value=leaving_player):
+        with patch.object(player_service, "create_player", new_callable=AsyncMock, return_value=leaving_player):
             await websocket_endpoint(
                 websocket=websocket,
                 reconnect_token=None,
@@ -116,14 +116,14 @@ class TestWebsocketDisconnect:
     async def test_websocket_disconnect_after_room_cleanup_is_a_no_op(
         self, websocket, connection_manager, player_service, reconnect_service, room_service
     ):
-        player = player_service.create_player()
+        player = await player_service.create_player()
         room = await room_service.create_room(owner=player)
         await room_service.cleanup_room(room.id)  # player.room_id is now a dangling reference
 
         websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect())
         connection_manager.broadcast_to_players = AsyncMock()
 
-        with patch.object(player_service, "create_player", return_value=player):
+        with patch.object(player_service, "create_player", new_callable=AsyncMock, return_value=player):
             await websocket_endpoint(
                 websocket=websocket,
                 reconnect_token=None,

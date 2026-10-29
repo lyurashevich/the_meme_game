@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/room", tags=["room"])
 
 @router.get("/all", response_model=list[RoomStateSchema])
 async def get_rooms(room_service: RoomService = Depends(get_room_service)):
-    return room_service.get_rooms_list()
+    return await room_service.get_rooms_list()
 
 
 @router.get("/{room_id}", response_model=RoomStateSchema)
@@ -33,7 +33,7 @@ async def get_room(room_id: str, room_service: RoomService = Depends(get_room_se
     if not room_id:
         raise HTTPException(status_code=400, detail="Room id is required")
 
-    room = room_service.get_room(room_id)
+    room = await room_service.get_room(room_id)
 
     return room
 
@@ -47,9 +47,9 @@ async def create_room(
     player_service: PlayerService = Depends(get_player_service),
 ):
 
-    player = player_service.get_player(player_id=data.player_id)
+    player = await player_service.get_player(player_id=data.player_id)
 
-    game_manager.validate_player_can_join_room(player.id)
+    game_manager.validate_player_can_join_room(player)
 
     room = await room_service.create_room(
         owner=player,
@@ -58,9 +58,8 @@ async def create_room(
         is_private=data.is_private,
     )
 
-    game_manager.add_player_connection(data.player_id, room.id)
-
-    audience = list(set(connection_manager.player_sockets) - game_manager.players_in_rooms)
+    players_in_rooms = {p.id for p in await player_service.get_players() if p.room_id}
+    audience = list(set(connection_manager.player_sockets) - players_in_rooms)
 
     recipients, payload = room_service.build_room_created_message(room, audience)
     await connection_manager.broadcast_to_players(recipients, payload)
@@ -72,18 +71,16 @@ async def create_room(
 async def join_room(
     request: JoinRoomSchema,
     room_id: str,
-    game_manager: GameManager = Depends(get_game_manager),
     connection_manager: ConnectionManager = Depends(get_connection_manager),
     room_service: RoomService = Depends(get_room_service),
     player_service: PlayerService = Depends(get_player_service),
 ):
-    player = player_service.get_player(request.player_id)
+    player = await player_service.get_player(request.player_id)
 
     await room_service.join_room(room_id, player)
-    room = room_service.get_room(room_id)
+    room = await room_service.get_room(room_id)
 
-    game_manager.add_player_connection(player.id, room.id)
-    player_service.add_player(player.id)
+    await player_service.add_player(player.id)
 
     for recipients, message in room_service.build_join_room_messages(room, player):
         await connection_manager.broadcast_to_players(recipients, message)
@@ -96,7 +93,7 @@ async def leave_room(
     player_service: PlayerService = Depends(get_player_service),
     game_service: GameService = Depends(get_game_service),
 ):
-    player = player_service.get_player(request.player_id)
+    player = await player_service.get_player(request.player_id)
 
     return await game_service.process_leave(player, room_id, request.confirm)
 
@@ -106,6 +103,6 @@ async def get_room_messages(
     room_id: str,
     room_service: RoomService = Depends(get_room_service),
 ):
-    room = room_service.get_room(room_id)
+    room = await room_service.get_room(room_id)
 
     return room.messages[-50:]

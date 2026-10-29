@@ -24,7 +24,7 @@ class TestGameManager:
             owner=test_player,
         )
 
-        assert room.id in room_service.active_rooms
+        assert await room_service.rooms.get(room.id) is room
         assert room.name == room_name
         assert room.max_players == max_players
         assert room.is_private == is_private
@@ -32,7 +32,7 @@ class TestGameManager:
     async def test_create_room__blank_name(self, test_player, room_service):
         room = await room_service.create_room(owner=test_player)
 
-        assert room.id in room_service.active_rooms
+        assert await room_service.rooms.get(room.id) is room
         assert room.name
 
     async def test_join_room(self, test_room, room_service):
@@ -63,7 +63,7 @@ class TestGameManager:
             await room_service.join_room(test_room.id, player)
 
         assert "The room is full" in str(e.value)
-        assert player.id not in game_manager.player_connections
+        assert player.room_id is None
 
     async def test_leave_room(self, test_player, test_room, room_service, game_manager):
         player = Player(id="555", username="Lisaveta")

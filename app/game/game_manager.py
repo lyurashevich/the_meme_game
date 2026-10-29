@@ -1,42 +1,36 @@
 from asyncio import Task
-from dataclasses import dataclass, field
 
 from app.exceptions import (
     AlreadyInARoomException,
     GameNotFoundException,
 )
-from app.game.dataclasses import Game
+from app.game.dataclasses import Game, Player
+from app.repositories.base import GameRepository
 
 
-@dataclass
 class GameManager:
-    active_games: dict[str, Game] = field(default_factory=dict)  # room_id -> Game
-    player_connections: dict[str, str] = field(default_factory=dict)  # player_id -> room_id
-    room_tasks: dict[str, dict[str, Task]] = field(default_factory=dict)  # room_id -> {task_name -> Task}
+    def __init__(self, games: GameRepository):
+        self.games = games
+        # asyncio tasks are bound to this process's event loop, so they stay local
+        self.room_tasks: dict[str, dict[str, Task]] = {}  # room_id -> {task_name -> Task}
 
-    @property
-    def players_in_rooms(self) -> set[str]:
-        return set(self.player_connections)
-
-    def remove_player_connection(self, player_id: str) -> None:
-        self.player_connections.pop(player_id, None)
-
-    def add_player_connection(self, player_id: str, room_id: str) -> None:
-        self.player_connections[player_id] = room_id
-
-    def validate_player_can_join_room(self, player_id: str) -> bool:
-        if player_id in self.player_connections:
+    @staticmethod
+    def validate_player_can_join_room(player: Player) -> bool:
+        if player.room_id:
             raise AlreadyInARoomException()
 
         return True
 
-    def get_game(self, room_id: str) -> Game:
-        game = self.active_games.get(room_id)
+    async def get_game(self, room_id: str) -> Game:
+        game = await self.games.get(room_id)
 
         if not game:
             raise GameNotFoundException()
 
         return game
+
+    async def add_game(self, room_id: str, game: Game) -> None:
+        await self.games.add(room_id, game)
 
     def add_task(self, room_id: str, name: str, task: Task) -> None:
         room_tasks = self.room_tasks.setdefault(room_id, {})

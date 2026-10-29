@@ -7,16 +7,18 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
 from app.db import TEST_DATABASE_URL, Base, get_db
-from app.dependencies import get_game_service
-from app.game.connection_manager import ConnectionManager
+from app.dependencies import (
+    build_services,
+    get_connection_manager,
+    get_game_manager,
+    get_game_service,
+    get_player_service,
+    get_reconnect_service,
+    get_room_service,
+)
 from app.game.dataclasses import Game, Player
-from app.game.game_manager import GameManager
 from app.main import app
 from app.models import MemeCard, SituationCard
-from app.services.game_service import GameService
-from app.services.player_service import PlayerService
-from app.services.reconnect_service import ReconnectService
-from app.services.room_service import RoomService
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -33,34 +35,52 @@ def override_game_service(game_service):
     app.dependency_overrides.pop(get_game_service, None)
 
 
-@pytest.fixture
-def connection_manager():
-    return ConnectionManager()
+@pytest.fixture(autouse=True)
+def services():
+    """Fresh services and storage for every test, also injected into the app's dependencies."""
+    services = build_services()
+    overrides = {
+        get_connection_manager: lambda: services.connection_manager,
+        get_game_manager: lambda: services.game_manager,
+        get_room_service: lambda: services.room_service,
+        get_player_service: lambda: services.player_service,
+        get_game_service: lambda: services.game_service,
+        get_reconnect_service: lambda: services.reconnect_service,
+    }
+    app.dependency_overrides.update(overrides)
+    yield services
+    for dependency in overrides:
+        app.dependency_overrides.pop(dependency, None)
 
 
 @pytest.fixture
-def room_service():
-    return RoomService()
+def connection_manager(services):
+    return services.connection_manager
 
 
 @pytest.fixture
-def game_manager():
-    return GameManager()
+def room_service(services):
+    return services.room_service
 
 
 @pytest.fixture
-def player_service(connection_manager, room_service):
-    return PlayerService(connection_manager, room_service)
+def game_manager(services):
+    return services.game_manager
 
 
 @pytest.fixture
-def game_service(room_service, game_manager, connection_manager):
-    return GameService(room_service, game_manager, connection_manager)
+def player_service(services):
+    return services.player_service
 
 
 @pytest.fixture
-def reconnect_service(room_service, player_service, game_manager):
-    return ReconnectService(room_service, player_service, game_manager)
+def game_service(services):
+    return services.game_service
+
+
+@pytest.fixture
+def reconnect_service(services):
+    return services.reconnect_service
 
 
 @pytest.fixture
@@ -79,7 +99,7 @@ async def client(db_session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as client:
         yield client
 
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
@@ -96,9 +116,9 @@ async def db_session():
 
 
 @pytest.fixture
-def test_player(player_service):
+async def test_player(player_service):
     player = Player(username="Lisaveta", id="333")
-    player_service.players[player.id] = player
+    await player_service.players.add(player)
     return player
 
 
@@ -109,24 +129,17 @@ def test_players():
 
 
 @pytest.fixture
-async def test_room(test_player, room_service, player_service, game_manager):
-    room = await room_service.create_room(owner=test_player)
-    yield room
-    room_service.active_rooms.clear()
-    player_service.players.clear()
-    game_manager.active_games.clear()
+async def test_room(test_player, room_service):
+    return await room_service.create_room(owner=test_player)
 
 
 @pytest.fixture
-async def test_room_with_players(test_player, test_players, room_service, player_service, game_manager):
+async def test_room_with_players(test_player, test_players, room_service):
     room = await room_service.create_room(owner=test_player)
     for player in test_players:
         room.add_player(player)
 
-    yield room
-    room_service.active_rooms.clear()
-    player_service.players.clear()
-    game_manager.active_games.clear()
+    return room
 
 
 @pytest.fixture

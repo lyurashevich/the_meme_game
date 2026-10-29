@@ -12,19 +12,18 @@ router = APIRouter(prefix="/api/player", tags=["players"])
 
 @router.get("/all", response_model=list[BasePlayerProfileResponseSchema])
 async def get_all_players(player_service: PlayerService = Depends(get_player_service)):
-    players = [player for player in player_service.players.values()]
-    return players
+    return await player_service.get_players()
 
 
 @router.post("/", response_model=BasePlayerProfileResponseSchema, status_code=201)
 async def create_player(data: BasePlayerProfileSchema, player_service: PlayerService = Depends(get_player_service)):
-    player = player_service.create_player(username=data.username)
+    player = await player_service.create_player(username=data.username)
     return player
 
 
 @router.get("/{player_id}/profile", response_model=BasePlayerProfileResponseSchema)
 async def get_player_profile(player_id: str, player_service: PlayerService = Depends(get_player_service)):
-    player = player_service.get_player(player_id)
+    player = await player_service.get_player(player_id)
 
     return player
 

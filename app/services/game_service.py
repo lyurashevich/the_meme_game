@@ -55,11 +55,11 @@ class GameService:
 
     async def get_game_settings(self, room_id: str) -> GameSettings:
         async with self.room_service.get_room_lock(room_id):
-            return self.room_service.get_room(room_id).settings
+            return (await self.room_service.get_room(room_id)).settings
 
     async def change_game_settings(self, room_id: str, player_id: str, data: GameSettingsSchema) -> GameSettings:
         async with self.room_service.get_room_lock(room_id):
-            room = self.room_service.get_room(room_id)
+            room = await self.room_service.get_room(room_id)
 
             if room.owner_id != player_id:
                 raise NotRoomOwnerException()
@@ -70,11 +70,11 @@ class GameService:
 
     async def finish_round_flow(self, room_id: str) -> None:
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
             await self._finalize_round(game)
 
             if self._should_end_game(game):
-                messages = self._end_game_locked(
+                messages = await self._end_game_locked(
                     room_id,
                     message="Игра завершена: достигнут лимит раундов или необходимое количество очков для победы.",
                 )
@@ -138,8 +138,8 @@ class GameService:
         await asyncio.sleep(timeout)
 
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
-            room = self.room_service.get_room(room_id)
+            game = await self.game_manager.get_game(room_id)
+            room = await self.room_service.get_room(room_id)
 
             if not game or not game.current_round:
                 return
@@ -163,7 +163,7 @@ class GameService:
 
     async def get_game_score(self, room_id: str) -> list[GameScore]:
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
 
             return [
                 GameScore(id=player.id, username=player.username, score=player.score) for player in game.room.players
@@ -177,7 +177,7 @@ class GameService:
     async def prepare_game(self, room_id: str, db: AsyncSession) -> Game | None:
 
         async with self.room_service.get_room_lock(room_id=room_id):
-            room = self.room_service.get_room(room_id)
+            room = await self.room_service.get_room(room_id)
             self._validate_room_can_start_game(room)
 
             # Snapshot room.settings at game start: change_game_settings replaces
@@ -189,7 +189,7 @@ class GameService:
             game = Game(room=room, settings=room.settings)
 
             game.leader_index = 0
-            self.game_manager.active_games[room_id] = game
+            await self.game_manager.add_game(room_id, game)
 
             await self._initialize_decks(game, db)
 
@@ -225,7 +225,7 @@ class GameService:
     async def start_first_round(self, room_id: str) -> Game:
 
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
 
             self._validate_game_state(game, GameState.STARTING)
 
@@ -356,8 +356,8 @@ class GameService:
         round_state_changed = False
 
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
-            room = self.room_service.get_room(room_id)
+            game = await self.game_manager.get_game(room_id)
+            room = await self.room_service.get_room(room_id)
 
             self._validate_game_state(game, GameState.ACTIVE)
             current_round = self._validate_game_round_state(game, RoundState.CHOOSING_CARDS)
@@ -411,7 +411,7 @@ class GameService:
     async def leader_choose_winner(self, room_id: str, card_id: int):
 
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
 
             self._validate_game_state(game, GameState.ACTIVE)
             current_round = self._validate_game_round_state(game, RoundState.LEADER_CHOOSING)
@@ -435,7 +435,7 @@ class GameService:
             winner.score += 1
 
         await self.connection_manager.broadcast_to_players(
-            [player.id for player in self.room_service.get_room(room_id).players],
+            [player.id for player in (await self.room_service.get_room(room_id)).players],
             {
                 "event": WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value,
                 "payload": {"winner_id": winner.id, "winner_username": winner.username, "card_id": card_id},
@@ -495,20 +495,20 @@ class GameService:
         messages it returns (network I/O is kept out of the lock).
         """
         async with self.room_service.get_room_lock(room_id):
-            room = self.room_service.get_room(room_id)
+            room = await self.room_service.get_room(room_id)
 
             if room.owner_id != player_id:
                 raise NotRoomOwnerException()
 
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
             if game.state == GameState.FINISHED:
                 raise InvalidGameStateException(game_state="STARTING or ACTIVE")
 
-            messages = self._end_game_locked(room_id, message="Игра завершена владельцем комнаты.")
+            messages = await self._end_game_locked(room_id, message="Игра завершена владельцем комнаты.")
 
         await self._send_messages(messages)
 
-    def _end_game_locked(
+    async def _end_game_locked(
         self,
         room_id: str,
         message: str = "Игра завершена: в комнате осталось меньше игроков, чем нужно для продолжения.",
@@ -523,12 +523,12 @@ class GameService:
         """
         self.game_manager.clear_room_tasks(room_id)
 
-        game = self.game_manager.get_game(room_id)
+        game = await self.game_manager.get_game(room_id)
         if game:
             game.state = GameState.FINISHED
             game.current_round = None
 
-        room = self.room_service.get_room(room_id)
+        room = await self.room_service.get_room(room_id)
         if not room:
             return []
 
@@ -573,7 +573,7 @@ class GameService:
         aborts the round and starts a fresh one. Mutates state only and RETURNS
         the outgoing messages ``(recipient_ids, payload)`` in send order.
         """
-        game = self.game_manager.get_game(room_id)
+        game = await self.game_manager.get_game(room_id)
         if not game or not game.current_round:
             return []
 
@@ -639,7 +639,7 @@ class GameService:
             except NotEnoughCardsException:
                 # No situation card left to start a fresh round: end the game
                 # gracefully instead of leaving the leave half-applied (500).
-                return self._end_game_locked(room_id)
+                return await self._end_game_locked(room_id)
             self._deal_up_to_full_hand(game, new_leader)
 
             new_round = GameRound(
@@ -696,13 +696,13 @@ class GameService:
         room_empty = False
 
         async with self.room_service.get_room_lock(room_id):
-            room = self.room_service.get_room(room_id)  # raises RoomNotFoundException -> 404
+            room = await self.room_service.get_room(room_id)  # raises RoomNotFoundException -> 404
 
             if player not in room.players:
                 raise PlayerNotInRoomException()  # -> 409 instead of a raw 500 from remove_player
 
             try:
-                game = self.game_manager.get_game(room_id)
+                game = await self.game_manager.get_game(room_id)
             except GameNotFoundException:
                 game = None
 
@@ -717,7 +717,6 @@ class GameService:
             room.remove_player(player)
             player.room_id = None
             player.hand_cards.clear()
-            self.game_manager.remove_player_connection(player.id)
 
             # If the owner just left and players remain, promote the next one
             # (join order) - otherwise room.owner_id keeps pointing at a player
@@ -729,7 +728,7 @@ class GameService:
                 new_owner_id = room.owner_id
 
             if game_active and remaining_after < MIN_PLAYERS:
-                messages.extend(self._end_game_locked(room_id))
+                messages.extend(await self._end_game_locked(room_id))
             elif game_active:
                 messages.extend(await self._handle_player_left_locked(room_id, player.id))
 
@@ -760,17 +759,17 @@ class GameService:
 
     async def get_game_state(self, room_id: str) -> Optional[Game]:
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
         return game
 
     async def get_room_state(self, room_id: str) -> Optional[Room]:
         async with self.room_service.get_room_lock(room_id):
-            room = self.room_service.get_room(room_id)
+            room = await self.room_service.get_room(room_id)
         return room
 
     async def get_current_round(self, room_id: str) -> GameRound:
         async with self.room_service.get_room_lock(room_id):
-            game = self.game_manager.get_game(room_id)
+            game = await self.game_manager.get_game(room_id)
             if not game.current_round:
                 raise RoundNotFoundException()
             return game.current_round

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 from app.game.enums import WebsocketEvents
 from app.schemas.players import BasePlayerProfileSchema
@@ -13,7 +13,7 @@ class TestPlayerService:
 
         connection_manager.broadcast_to_players = AsyncMock()
 
-        player_service.players[test_player.id] = test_player
+        await player_service.players.add(test_player)
 
         await player_service.update_player_profile(test_player.id, BasePlayerProfileSchema(username=new_username))
 
@@ -27,13 +27,13 @@ class TestPlayerService:
     ):
         new_username = "new"
         test_player.room_id = test_room.id
-        room_service.get_room = Mock()
+        room_service.get_room = AsyncMock()
         room_service.get_room.return_value = test_room
         test_room.players = [test_player]
 
         connection_manager.broadcast_to_players = AsyncMock()
 
-        player_service.players[test_player.id] = test_player
+        await player_service.players.add(test_player)
 
         await player_service.update_player_profile(test_player.id, BasePlayerProfileSchema(username=new_username))
 

@@ -65,7 +65,7 @@ async def websocket_endpoint(
             player = None
 
     if not player:
-        player = player_service.create_player()
+        player = await player_service.create_player()
         connection_manager.add_connection(player.id, websocket)
 
         token = await reconnect_service.create_reconnect_token(player.id)
@@ -112,7 +112,7 @@ async def websocket_endpoint(
 
                 if player.room_id:
                     try:
-                        room = room_service.get_room(player.room_id)
+                        room = await room_service.get_room(player.room_id)
                     except RoomNotFoundException:
                         room = None  # type: ignore
 

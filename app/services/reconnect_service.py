@@ -11,6 +11,7 @@ from app.exceptions import (
 from app.game.dataclasses import Player, ReconnectToken
 from app.game.enums import WebsocketEvents
 from app.game.game_manager import GameManager
+from app.repositories.base import ReconnectTokenRepository
 from app.services.player_service import PlayerService
 from app.services.room_service import RoomService
 
@@ -18,60 +19,61 @@ RECONNECT_TOKEN_TTL_SECONDS = 60  # TTL for reconnect token (seconds)
 
 
 class ReconnectService:
-    reconnect_tokens: dict[str, ReconnectToken] = {}  # token -> ReconnectToken(player_id, expires_at)
-    player_tokens: dict[str, str] = {}  # player_id -> token
-    reconnect_lock: Lock = Lock()
-
-    def __init__(self, room_service: RoomService, player_service: PlayerService, game_manager: GameManager):
+    def __init__(
+        self,
+        tokens: ReconnectTokenRepository,
+        room_service: RoomService,
+        player_service: PlayerService,
+        game_manager: GameManager,
+    ):
+        self.tokens = tokens
         self.room_service = room_service
         self.player_service = player_service
         self.game_manager = game_manager
+        self.reconnect_lock = Lock()
 
     async def create_reconnect_token(self, player_id: str) -> str:
         async with self.reconnect_lock:
-            old = self.player_tokens.pop(player_id, None)
+            old = await self.tokens.get_token_for_player(player_id)
             if old:
-                self.reconnect_tokens.pop(old, None)
+                await self.tokens.remove(old)
 
             token = secrets.token_hex(16)
             expires_at = None
             # expires_at = datetime.now(timezone.utc) + timedelta(seconds=RECONNECT_TOKEN_TTL_SECONDS)
 
-            self.player_tokens[player_id] = token
-            self.reconnect_tokens[token] = ReconnectToken(player_id=player_id, expires_at=expires_at)
+            await self.tokens.add(token, ReconnectToken(player_id=player_id, expires_at=expires_at))
 
             return token
 
     async def _consume_reconnect_token(self, token: str, now: datetime) -> str:
         async with self.reconnect_lock:
-            entry = self.reconnect_tokens.pop(token, None)
+            entry = await self.tokens.remove(token)
 
             if not entry:
                 raise InvalidReconnectToken()
 
             if entry.expires_at and entry.expires_at < now:
-                self.player_tokens.pop(entry.player_id, None)
                 raise InvalidReconnectToken()
 
-            self.player_tokens.pop(entry.player_id, None)
             return entry.player_id
 
     async def disconnect(self, player_id) -> None:
         async with self.reconnect_lock:
-            player = self.player_service.get_player(player_id)
+            player = await self.player_service.get_player(player_id)
             player.is_connected = False
-            token = self.player_tokens.get(player_id, None)
-            if not token:
+            token = await self.tokens.get_token_for_player(player_id)
+            entry = await self.tokens.get(token) if token else None
+            if not token or not entry:
                 raise InvalidReconnectToken()
 
-            self.reconnect_tokens[token].expires_at = datetime.now(timezone.utc) + timedelta(
-                seconds=RECONNECT_TOKEN_TTL_SECONDS
-            )
+            entry.expires_at = datetime.now(timezone.utc) + timedelta(seconds=RECONNECT_TOKEN_TTL_SECONDS)
+            await self.tokens.add(token, entry)
 
     async def handle_reconnect(self, reconnection_token: str, now: datetime) -> Player:
         player_id = await self._consume_reconnect_token(reconnection_token, now)
 
-        player = self.player_service.get_player(player_id)
+        player = await self.player_service.get_player(player_id)
         player.is_connected = True
 
         return player
@@ -80,10 +82,9 @@ class ReconnectService:
         now = datetime.now(timezone.utc)
 
         async with self.reconnect_lock:
-            for token, entry in list(self.reconnect_tokens.items()):
+            for token, entry in await self.tokens.list():
                 if entry.expires_at and entry.expires_at < now:
-                    self.reconnect_tokens.pop(token, None)
-                    self.player_tokens.pop(entry.player_id, None)
+                    await self.tokens.remove(token)
 
     async def build_reconnect_payload(self, player: Player, token: str) -> tuple[str, dict]:
         """Build the PLAYER_RECONNECTED payload. Assumes ``player.room_id`` is set —
@@ -92,7 +93,7 @@ class ReconnectService:
             raise RoomNotFoundException()
 
         async with self.room_service.get_room_lock(room_id=player.room_id):
-            room = self.room_service.get_room(player.room_id)
+            room = await self.room_service.get_room(player.room_id)
             payload_data: dict[str, Any] = {
                 "reconnect_token": token,
                 "room_id": player.room_id,
@@ -101,7 +102,7 @@ class ReconnectService:
             }
 
             try:
-                game = self.game_manager.get_game(player.room_id)
+                game = await self.game_manager.get_game(player.room_id)
             except GameNotFoundException:
                 game = None
 

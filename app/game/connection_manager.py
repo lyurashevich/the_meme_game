@@ -17,7 +17,9 @@ class ConnectionManager:
     - Safe handling when websocket doesn't exist (no exceptions)
     """
 
-    player_sockets: dict[str, WebSocket | None] = {}  # player_id -> Websocket
+    def __init__(self) -> None:
+        # sockets are bound to this process, so they never go to shared storage
+        self.player_sockets: dict[str, WebSocket] = {}  # player_id -> Websocket
 
     def add_connection(self, player_id: str, websocket: WebSocket) -> None:
         """Register a player connection."""

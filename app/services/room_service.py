@@ -4,16 +4,18 @@ from datetime import datetime
 from app.exceptions import PlayerNotInRoomException, RoomNotFoundException
 from app.game.dataclasses import Player, Room
 from app.game.enums import WebsocketEvents
+from app.repositories.base import RoomRepository
 from app.schemas.messages import ChatMessageResponse
 
 
 class RoomService:
-    active_rooms: dict[str, Room] = {}  # room_id -> Room
-    room_locks: dict[str, Lock] = {}  # room_id -> Lock
+    def __init__(self, rooms: RoomRepository):
+        self.rooms = rooms
+        self.room_locks: dict[str, Lock] = {}  # room_id -> Lock
 
     async def get_player(self, player_id: str, room_id: str) -> Player:
         async with self.get_room_lock(room_id):
-            room = self.get_room(room_id)
+            room = await self.get_room(room_id)
             player = next((player for player in room.players if player.id == player_id), None)
 
             if not player:
@@ -21,11 +23,11 @@ class RoomService:
 
             return player
 
-    def get_rooms_list(self) -> list[Room]:
-        return list(self.active_rooms.values())
+    async def get_rooms_list(self) -> list[Room]:
+        return await self.rooms.list()
 
-    def get_room(self, room_id: str) -> Room:
-        room = self.active_rooms.get(room_id)
+    async def get_room(self, room_id: str) -> Room:
+        room = await self.rooms.get(room_id)
 
         if not room:
             raise RoomNotFoundException()
@@ -47,7 +49,7 @@ class RoomService:
     ) -> Room:
         room = Room(owner=owner, name=room_name, max_players=max_players, is_private=is_private)
 
-        self.active_rooms[room.id] = room
+        await self.rooms.add(room)
         self.room_locks[room.id] = Lock()
         owner.room_id = room.id
 
@@ -55,7 +57,7 @@ class RoomService:
 
     async def join_room(self, room_id: str, player: Player) -> None:
         async with self.get_room_lock(room_id):
-            room = self.get_room(room_id=room_id)
+            room = await self.get_room(room_id=room_id)
 
             room.add_player(player)
             player.room_id = room_id
@@ -64,7 +66,7 @@ class RoomService:
         need_cleanup = False
 
         async with self.get_room_lock(room_id):
-            room = self.get_room(room_id=room_id)
+            room = await self.get_room(room_id=room_id)
 
             room.remove_player(player)
             player.room_id = None
@@ -82,15 +84,10 @@ class RoomService:
         # if room_id in self.active_games:
         #     del self.active_games[room_id]
 
-        if room_id in self.active_rooms:
-            del self.active_rooms[room_id]
+        await self.rooms.remove(room_id)
 
         if room_id in self.room_locks:
             del self.room_locks[room_id]
-
-        # players_to_remove = [player_id for player_id, room in self.player_connections.items() if room == room_id]
-        # for player_id in players_to_remove:
-        #     del self.player_connections[player_id]
 
     async def update_room(self):
         pass
@@ -144,7 +141,7 @@ class RoomService:
         )
 
         async with self.get_room_lock(room_id):
-            room = self.get_room(room_id=room_id)
+            room = await self.get_room(room_id=room_id)
             room.messages.append(chat_message)
 
             sockets = [p.id for p in room.players]

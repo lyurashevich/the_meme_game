@@ -46,14 +46,14 @@ async def _play_round_to_completion(game_service, game):
 
 class TestGameLogic:
     async def test_get_room(self, test_room, room_service):
-        room = room_service.get_room(test_room.id)
+        room = await room_service.get_room(test_room.id)
 
         assert room
         assert room.id == test_room.id
 
     async def test_get_room__not_found(self, room_service):
         with pytest.raises(RoomNotFoundException) as e:
-            room_service.get_room("qwerty")
+            await room_service.get_room("qwerty")
 
         assert str(e.value.message) == "Room not found"
 
@@ -74,7 +74,7 @@ class TestGameLogic:
         assert not game.situation_discard_pile
         assert game.state == GameState.STARTING
         assert game.room == test_room_with_players
-        assert game_manager.active_games[test_room_with_players.id] == game
+        assert await game_manager.games.get(test_room_with_players.id) == game
 
     async def test_prepare_game__not_enough_players(self, test_room, game_service, db_session):
         with pytest.raises(NotEnoughPlayersException) as e:
@@ -611,7 +611,7 @@ class TestGameLogic:
         assert prepared_game.current_round is None
 
     async def test_end_game_locked__default_message_preserved(self, prepared_game, game_service):
-        messages = game_service._end_game_locked(prepared_game.room_id)
+        messages = await game_service._end_game_locked(prepared_game.room_id)
 
         assert len(messages) == 1
         _, payload = messages[0]
@@ -621,7 +621,7 @@ class TestGameLogic:
         )
 
     async def test_end_game_locked__custom_message(self, prepared_game, game_service):
-        messages = game_service._end_game_locked(prepared_game.room_id, message="custom message")
+        messages = await game_service._end_game_locked(prepared_game.room_id, message="custom message")
 
         assert len(messages) == 1
         _, payload = messages[0]
@@ -631,7 +631,7 @@ class TestGameLogic:
         prepared_game.room.players[0].score = 3
         prepared_game.room.players[1].score = 1
 
-        messages = game_service._end_game_locked(prepared_game.room_id)
+        messages = await game_service._end_game_locked(prepared_game.room_id)
 
         _, payload = messages[0]
         assert payload["payload"]["final_scores"] == {

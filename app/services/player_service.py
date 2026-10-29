@@ -5,6 +5,7 @@ from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
 from app.game.enums import WebsocketEvents
 from app.models import MemeCard
+from app.repositories.base import PlayerRepository
 from app.schemas.players import BasePlayerProfileSchema
 from app.services.room_service import RoomService
 
@@ -12,9 +13,8 @@ RECONNECT_TIMEOUT = 60  # seconds
 
 
 class PlayerService:
-    players: dict[str, Player] = {}  # player_id -> Player
-
-    def __init__(self, connection_manager: ConnectionManager, room_service: RoomService):
+    def __init__(self, players: PlayerRepository, connection_manager: ConnectionManager, room_service: RoomService):
+        self.players = players
         self.connection_manager = connection_manager
         self.room_service = room_service
 
@@ -22,7 +22,7 @@ class PlayerService:
         await asyncio.sleep(RECONNECT_TIMEOUT)
 
         try:
-            player = self.get_player(player_id)
+            player = await self.get_player(player_id)
 
             if player.is_connected:
                 return
@@ -30,7 +30,7 @@ class PlayerService:
             if player.room_id:
                 await self.room_service.leave_room(player, player.room_id)
 
-            self.players.pop(player_id, None)
+            await self.players.remove(player_id)
 
             # Clean up any reconnect tokens for this player
             # to prevent memory leak and invalid token consumption
@@ -39,22 +39,25 @@ class PlayerService:
         except PlayerNotFoundException:
             return
 
-    def create_player(self, username: str = "") -> Player:
+    async def create_player(self, username: str = "") -> Player:
         player = Player(username=username)
-        self.players[player.id] = player
+        await self.players.add(player)
 
         return player
 
-    def get_player_cards(self, player_id: str) -> list[MemeCard]:
-        player = self.get_player(player_id)
+    async def get_players(self) -> list[Player]:
+        return await self.players.list()
+
+    async def get_player_cards(self, player_id: str) -> list[MemeCard]:
+        player = await self.get_player(player_id)
         return player.hand_cards
 
-    def add_player(self, player_id: str) -> None:
-        player = self.get_player(player_id)
-        self.players[player_id] = player
+    async def add_player(self, player_id: str) -> None:
+        player = await self.get_player(player_id)
+        await self.players.add(player)
 
-    def get_player(self, player_id: str) -> Player:
-        player = self.players.get(player_id)
+    async def get_player(self, player_id: str) -> Player:
+        player = await self.players.get(player_id)
 
         if not player:
             raise PlayerNotFoundException()
@@ -62,7 +65,7 @@ class PlayerService:
         return player
 
     async def update_player_profile(self, player_id: str, data: BasePlayerProfileSchema) -> Player:
-        player = self.get_player(player_id)
+        player = await self.get_player(player_id)
 
         if data.username:
             player.username = data.username
@@ -73,7 +76,7 @@ class PlayerService:
                 {"event": WebsocketEvents.PLAYER_PROFILE_UPDATED.value, "payload": {"username": player.username}},
             )
         else:
-            room = self.room_service.get_room(player.room_id)
+            room = await self.room_service.get_room(player.room_id)
             await self.connection_manager.broadcast_to_players(
                 [player.id for player in room.players],
                 {
