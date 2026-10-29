@@ -5,7 +5,7 @@ from app.db import get_db
 from app.schemas.cards import MemeCardCreate, MemeCardSchema, MemeCardUpdate
 from app.services.memes_services import CardService
 
-router = APIRouter(prefix="/memes", tags=["memes"])
+router = APIRouter(prefix="/api/memes", tags=["memes"])
 
 
 @router.get("/", response_model=list[MemeCardSchema])

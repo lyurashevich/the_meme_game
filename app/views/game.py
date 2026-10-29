@@ -19,7 +19,7 @@ from app.schemas.game import (
 )
 from app.services.game_service import GameService
 
-router = APIRouter(prefix="/game", tags=["game"])
+router = APIRouter(prefix="/api/game", tags=["game"])
 
 
 @router.post("/start", status_code=201, response_model=GameResponse)

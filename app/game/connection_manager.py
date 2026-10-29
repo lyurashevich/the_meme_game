@@ -1,4 +1,8 @@
+import logging
+
 from starlette.websockets import WebSocket
+
+logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
@@ -42,9 +46,8 @@ class ConnectionManager:
         if websocket:
             try:
                 await websocket.send_json(data)
-            except Exception:  # nosec B110
-                pass  # todo: add logging
-                # print("CONNECTION_MANAGER.PY LINE 46:", traceback.print_exc())
+            except Exception:
+                logger.exception("Failed to send message to player %s", player_id)
 
     async def broadcast_to_players(self, player_ids: list[str], message: dict, exclude_id: str | None = None) -> None:
         """

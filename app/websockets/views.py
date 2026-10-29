@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
@@ -20,6 +21,8 @@ from app.game.enums import WebsocketEvents
 from app.services.player_service import PlayerService
 from app.services.reconnect_service import ReconnectService
 from app.services.room_service import RoomService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ws")
 
@@ -98,11 +101,9 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         # normal disconnect
         pass
-    except Exception:  # nosec B110
-        # todo: add logging
-        # ensure we don't leave player marked connected on unexpected errors
-        # (logged elsewhere or in future)
-        pass
+    except Exception:
+        # the finally block still marks the player as disconnected
+        logger.exception("Unhandled error in websocket loop for player %s", player.id)
     finally:
         if player:
             try:
@@ -124,14 +125,6 @@ async def websocket_endpoint(
                             },
                             exclude_id=player.id,
                         )
-            except Exception:  # nosec B110
-                # todo: add logging
+            except Exception:
                 # swallow to avoid raising from websocket endpoint
-                pass
-
-
-@router.get("/{room_id}/messages")
-async def get_room_messages(room_id: str, room_service: RoomService = Depends(get_room_service)):
-    room = room_service.get_room(room_id)
-
-    return room.messages[-50:]
+                logger.exception("Failed to clean up after disconnect of player %s", player.id)

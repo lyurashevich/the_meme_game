@@ -4,7 +4,7 @@ from app.models import MemeCard
 
 
 class TestMemesViews:
-    url = "/memes"
+    url = "/api/memes"
 
     async def test_get_situation_cards_view(self, client, db_session):
         cards = [MemeCard(image_url=f"http://memes.org/{i}") for i in range(3)]

@@ -9,7 +9,7 @@ from app.schemas.cards import (
 )
 from app.services.situations_services import CardService
 
-router = APIRouter(prefix="/situations", tags=["situations"])
+router = APIRouter(prefix="/api/situations", tags=["situations"])
 
 
 @router.get("/", response_model=list[SituationCardSchema])

@@ -4,7 +4,7 @@ from app.models import SituationCard
 
 
 class TestSituationViews:
-    url = "/situations"
+    url = "/api/situations"
 
     async def test_get_situation_cards_view(self, client, db_session):
         cards = [SituationCard(text=f"situation {i}") for i in range(3)]

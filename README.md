@@ -85,8 +85,8 @@ Deployment: Docker (because containers are cool)
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    
-   # Install dependencies
-   pip install -r requirements.txt
+   # Install dependencies (runtime + tests/linters)
+   pip install -r requirements-dev.txt
    ```
 
 3. **Configure your database**

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     db_port: str | None = None
     db_name: str | None = None
     test_db_name: str | None = None
+    log_level: str = "INFO"
 
     @property
     def database_url(self) -> str:

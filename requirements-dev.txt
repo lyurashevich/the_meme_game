@@ -1,0 +1,26 @@
+-r requirements.txt
+
+black==26.3.1
+cfgv==3.4.0
+coverage==7.7.1
+distlib==0.4.0
+execnet==2.1.1
+flake8==7.3.0
+httpx2==2.7.0
+identify==2.6.13
+iniconfig==2.1.0
+isort==6.0.1
+mccabe==0.7.0
+mypy_extensions==1.1.0
+nodeenv==1.9.1
+platformdirs==4.4.0
+pluggy==1.5.0
+pre_commit==4.3.0
+pycodestyle==2.14.0
+pyflakes==3.4.0
+pytest==9.0.3
+pytest-asyncio==1.4.0
+pytest-cov==6.0.0
+pytest-xdist==3.6.1
+PyYAML==6.0.2
+virtualenv==20.36.1

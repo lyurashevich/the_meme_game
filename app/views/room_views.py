@@ -108,4 +108,4 @@ async def get_room_messages(
 ):
     room = room_service.get_room(room_id)
 
-    return room.messages
+    return room.messages[-50:]

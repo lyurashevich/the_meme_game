@@ -5,7 +5,7 @@ from app.models import MemeCard, SituationCard
 class TestGameViews:
 
     def setup_method(self):
-        self.url = "/game"
+        self.url = "/api/game"
 
     async def test_start_game(self, client, db_session, test_player, test_room_with_players, game_manager):
         meme_cards = [MemeCard(image_url=f"http://memes.org/{i}") for i in range(30)]

@@ -4,7 +4,7 @@ from app.dependencies import get_game_service
 from app.schemas.round import GameRoundInfoSchema
 from app.services.game_service import GameService
 
-router = APIRouter(prefix="/round", tags=["rounds"])
+router = APIRouter(prefix="/api/round", tags=["rounds"])
 
 
 @router.get("/{room_id}/current", status_code=200, response_model=GameRoundInfoSchema)
