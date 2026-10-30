@@ -36,8 +36,9 @@ from app.services.snapshots import build_game_ended
 
 logger = logging.getLogger(__name__)
 
-MEME_CARDS_COOLDOWN = 20
-SITUATION_CARDS_COOLDOWN = 30
+# How many rounds a played card sits in the discard pile before it can be dealt again
+MEME_CARDS_COOLDOWN = 10
+SITUATION_CARDS_COOLDOWN = 20
 CARDS_PER_PLAYER = 6
 MIN_PLAYERS = 3
 
@@ -338,16 +339,28 @@ class GameService:
         return game.room.players[game.leader_index]
 
     @staticmethod
-    async def _process_meme_deck(game):
-        cards_to_return = game.meme_discard_pile.pop(game.current_round.round_number - MEME_CARDS_COOLDOWN, [])
-        game.meme_deck.extend(cards_to_return)
+    def _return_cooled_down_cards(discard_pile: dict[int, list], deck: list, current_round: int, cooldown: int):
+        """Move every batch whose cooldown is over back to the deck.
 
-    @staticmethod
-    async def _process_situation_deck(game):
-        cards_to_return = game.situation_discard_pile.pop(
-            game.current_round.round_number - SITUATION_CARDS_COOLDOWN, []
+        Batches are keyed by the round they were played in. All batches up to
+        ``current_round - cooldown`` come back, not just the one with exactly that key:
+        a round aborted because its leader left is never finalized, and picking a single
+        key would leave that round's batch in the pile forever.
+        """
+        for played_in in sorted(r for r in discard_pile if r <= current_round - cooldown):
+            deck.extend(discard_pile.pop(played_in))
+
+    @classmethod
+    async def _process_meme_deck(cls, game):
+        cls._return_cooled_down_cards(
+            game.meme_discard_pile, game.meme_deck, game.current_round.round_number, MEME_CARDS_COOLDOWN
         )
-        game.situation_deck.extend(cards_to_return)
+
+    @classmethod
+    async def _process_situation_deck(cls, game):
+        cls._return_cooled_down_cards(
+            game.situation_discard_pile, game.situation_deck, game.current_round.round_number, SITUATION_CARDS_COOLDOWN
+        )
 
     async def player_select_card(self, room_id: str, player_id: str, card_id: int) -> None:
         async with self.room_service.get_room_lock(room_id):
@@ -554,8 +567,11 @@ class GameService:
         current_round = game.current_round
         players = game.room.players
 
-        # the leaver's card leaves the table (the next snapshot no longer shows it)
-        current_round.player_choices.pop(leaver_id, None)
+        # The leaver's card leaves the table (the next snapshot no longer shows it). Nobody saw it
+        # yet while cards are being chosen, and it never won, so it goes straight back to the deck.
+        played_card = current_round.player_choices.pop(leaver_id, None)
+        if played_card is not None:
+            game.meme_deck.append(played_card)
 
         if current_round.leader.id != leaver_id:
             # Leader stays; keep the index pointing at the same player.
@@ -634,6 +650,8 @@ class GameService:
 
             room.remove_player(player)
             player.room_id = None
+            if game is not None and game.state != GameState.FINISHED:
+                game.meme_deck.extend(player.hand_cards)  # the leaver's hand stays in the game
             player.hand_cards.clear()
 
             # If the owner just left and players remain, promote the next one
