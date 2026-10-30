@@ -75,6 +75,12 @@ class NotEnoughCardsException(CustomException):
     status_code: int = 400
     message: str = "Not enough cards to start game."
 
+    def __init__(self, detail: str | None = None):
+        if detail:
+            self.message = f"{self.message} {detail}"
+
+        super().__init__(self.message)
+
 
 class RoomHasNoOwnerException(CustomException):
     code: str = "room_has_no_owner"

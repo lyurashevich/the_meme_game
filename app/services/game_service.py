@@ -185,7 +185,12 @@ class GameService:
                 raise NotRoomOwnerException()
 
         game = await self.prepare_game(room_id, db)
-        await self.start_first_round(room_id)
+        try:
+            await self.start_first_round(room_id)
+        except Exception:
+            # all or nothing: never leave the room with a game that was set up but never started
+            await self.game_manager.games.remove(room_id)
+            raise
 
         await self.notifier.broadcast_room_state(room_id)
         await self.notifier.broadcast_rooms_list()  # the room is no longer joinable
@@ -205,13 +210,26 @@ class GameService:
             # game.settings (not room.settings) is therefore the authoritative
             # source for a running game - phase_timer's timeout included.
             game = Game(room=room, settings=room.settings)
-
             game.leader_index = 0
+
+            # check the decks before registering the game: a failed start leaves the room as it was
+            await self._initialize_decks(game, db)
+            self._validate_decks_can_start(game)
+
             await self.game_manager.add_game(room_id, game)
 
-            await self._initialize_decks(game, db)
-
         return game
+
+    @staticmethod
+    def _validate_decks_can_start(game: Game) -> None:
+        """The first round needs a full hand for every player and a situation."""
+        memes_needed = CARDS_PER_PLAYER * len(game.room.players)
+
+        if len(game.meme_deck) < memes_needed or not game.situation_deck:
+            raise NotEnoughCardsException(
+                f"{len(game.room.players)} players need at least {memes_needed} memes and 1 situation; "
+                f"there are {len(game.meme_deck)} memes and {len(game.situation_deck)} situations."
+            )
 
     async def start_first_round(self, room_id: str) -> Game:
 
@@ -287,14 +305,13 @@ class GameService:
     @staticmethod
     async def _hand_out_initial_cards(game: Game) -> None:
 
-        if len(game.meme_deck) < len(game.room.players):
+        # a full hand for everyone or nothing: running dry halfway would leave some players empty-handed
+        if len(game.meme_deck) < CARDS_PER_PLAYER * len(game.room.players):
             raise NotEnoughCardsException()
 
         for player in game.room.players:
             for _ in range(CARDS_PER_PLAYER):
-                if game.meme_deck:
-                    card = game.meme_deck.pop(0)
-                    player.hand_cards.append(card)
+                player.hand_cards.append(game.meme_deck.pop(0))
 
     @staticmethod
     def _players_to_deal_to(game: Game) -> list[Player]:
