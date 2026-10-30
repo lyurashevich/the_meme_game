@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 from typing import Optional
 
@@ -13,6 +14,7 @@ from app.exceptions import (
     NotEnoughCardsException,
     NotEnoughPlayersException,
     NotRoomOwnerException,
+    NotRoundLeaderException,
     PlayerNotFoundException,
     PlayerNotInRoomException,
     RoomHasNoOwnerException,
@@ -29,6 +31,8 @@ from app.schemas.room import LeaveRoomResponseSchema
 from app.services.memes_services import CardService as MemeService
 from app.services.room_service import RoomService
 from app.services.situations_services import CardService as SituationService
+
+logger = logging.getLogger(__name__)
 
 MEME_CARDS_COOLDOWN = 20
 SITUATION_CARDS_COOLDOWN = 30
@@ -173,6 +177,18 @@ class GameService:
     def _validate_room_can_start_game(room: Room) -> None:
         if len(room.players) < MIN_PLAYERS:
             raise NotEnoughPlayersException()
+
+    async def start_game(self, room_id: str, player_id: str, db: AsyncSession) -> Game:
+        """Owner-only entry point: prepare the game and start its first round."""
+        async with self.room_service.get_room_lock(room_id):
+            room = await self.room_service.get_room(room_id)
+            if room.owner_id != player_id:
+                raise NotRoomOwnerException()
+
+        game = await self.prepare_game(room_id, db)
+        await self.start_first_round(room_id)
+
+        return game
 
     async def prepare_game(self, room_id: str, db: AsyncSession) -> Game | None:
 
@@ -408,13 +424,21 @@ class GameService:
             else False
         )
 
-    async def leader_choose_winner(self, room_id: str, card_id: int):
+    async def leader_choose_winner(self, room_id: str, player_id: str, card_id: int) -> None:
+        """Record the winner and announce it; the next round starts in the background.
 
+        Returns as soon as the winner is announced. The pause that keeps the winning card on
+        screen and the transition to the next round (or the end of the game) run in the
+        room's ``winner_announcement`` task.
+        """
         async with self.room_service.get_room_lock(room_id):
             game = await self.game_manager.get_game(room_id)
 
             self._validate_game_state(game, GameState.ACTIVE)
             current_round = self._validate_game_round_state(game, RoundState.LEADER_CHOOSING)
+
+            if current_round.leader.id != player_id:
+                raise NotRoundLeaderException()
 
             winner_player_id = next(
                 (player_id for player_id, card in current_round.player_choices.items() if card.id == card_id),
@@ -442,6 +466,10 @@ class GameService:
             },
         )
 
+        task = asyncio.create_task(self._finish_round_after_announcement(room_id))
+        self.game_manager.add_task(room_id, "winner_announcement", task)
+
+    async def _finish_round_after_announcement(self, room_id: str) -> None:
         await asyncio.sleep(self.WINNER_ANNOUNCEMENT_DELAY_SECONDS)
 
         try:
@@ -451,6 +479,9 @@ class GameService:
             # waiting for the winner animation to play out (e.g. the leader disconnected
             # mid-animation and _handle_player_left_locked already started a new round).
             pass
+        except Exception:
+            # nobody awaits this task, so the error would otherwise be lost
+            logger.exception("Failed to finish the round in room %s", room_id)
 
     async def _finalize_round(self, game: Game):
         self._validate_game_state(game, GameState.ACTIVE)

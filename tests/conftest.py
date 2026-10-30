@@ -6,7 +6,7 @@ from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
-from app.db import TEST_DATABASE_URL, Base, get_db
+from app.db import TEST_DATABASE_URL, Base, get_db, get_session_factory
 from app.dependencies import (
     build_services,
     get_connection_manager,
@@ -48,11 +48,17 @@ def services():
         get_game_service: lambda: services.game_service,
         get_reconnect_service: lambda: services.reconnect_service,
         get_services: lambda: services,
+        get_session_factory: lambda: test_session_maker,
     }
     app.dependency_overrides.update(overrides)
     yield services
     for dependency in overrides:
         app.dependency_overrides.pop(dependency, None)
+
+
+@pytest.fixture
+def session_factory():
+    return test_session_maker
 
 
 @pytest.fixture
@@ -140,6 +146,7 @@ async def test_room_with_players(test_player, test_players, room_service):
     room = await room_service.create_room(owner=test_player)
     for player in test_players:
         room.add_player(player)
+        player.room_id = room.id
 
     return room
 
@@ -163,7 +170,7 @@ def test_game(test_room):
 
 @pytest.fixture
 def mock_meme_cards():
-    meme_cards = [MemeCard(id={i}, image_url=f"http://memes.org/{i}") for i in range(30)]
+    meme_cards = [MemeCard(id=i, image_url=f"http://memes.org/{i}") for i in range(30)]
 
     from app.services.memes_services import CardService
 

@@ -37,7 +37,7 @@ def dispatcher():
 
 @pytest.fixture
 def ctx(services):
-    return ActionContext(player=Player(id="p1", username="Lisaveta"), services=services)
+    return ActionContext(player=Player(id="p1", username="Lisaveta"), services=services, session_factory=None)
 
 
 def message(event, payload=None, request_id="req-1"):
@@ -113,22 +113,20 @@ class TestDispatcher:
 class TestChatMessageAction:
     """End-to-end through the real websocket endpoint and the registered handlers."""
 
-    def create_room(self, client, player_id):
-        response = client.post("/api/room/", json={"player_id": player_id})
-        assert response.status_code == 201
-        return response.json()["id"]
-
     def test_chat_message_is_broadcast_to_the_room(self, client_with_no_db):
         client = client_with_no_db
         with client.websocket_connect("/ws") as alice, client.websocket_connect("/ws") as bob:
             alice_id = alice.receive_json()["payload"]["player_id"]
-            bob_id = bob.receive_json()["payload"]["player_id"]
+            bob.receive_json()  # player_created
 
-            room_id = self.create_room(client, alice_id)
-            bob.receive_json()  # room_created
-            client.patch(f"/api/room/{room_id}", json={"player_id": bob_id, "room_id": room_id})
-            bob.receive_json()  # you_joined_the_room
-            alice.receive_json()  # player_joined_room
+            alice.send_json({"event": "create_room", "request_id": "c1", "payload": {}})
+            room_id = alice.receive_json()["payload"]["room_id"]  # ack
+            assert bob.receive_json()["event"] == "room_created"
+
+            bob.send_json({"event": "join_room", "request_id": "j1", "payload": {"room_id": room_id}})
+            assert bob.receive_json()["event"] == "you_joined_the_room"
+            assert bob.receive_json() == {"event": "ack", "request_id": "j1", "payload": {"room_id": room_id}}
+            assert alice.receive_json()["event"] == "player_joined_room"
 
             alice.send_json({"event": "chat_message", "request_id": "r1", "payload": {"text": "  hi  "}})
 

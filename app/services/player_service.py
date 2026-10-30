@@ -70,6 +70,9 @@ class PlayerService:
         if data.username:
             player.username = data.username
 
+        if data.avatar_id:
+            player.avatar_id = data.avatar_id
+
         if not player.room_id:
             await self.connection_manager.send_personal_json(
                 player_id,

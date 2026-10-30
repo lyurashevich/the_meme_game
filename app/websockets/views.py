@@ -2,8 +2,10 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from app.db import get_session_factory
 from app.dependencies import Services, get_services
 from app.exceptions import (
     InvalidReconnectToken,
@@ -24,6 +26,7 @@ async def websocket_endpoint(
     websocket: WebSocket,
     reconnect_token: str | None = None,
     services: Services = Depends(get_services),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
 ):
     connection_manager = services.connection_manager
     player_service = services.player_service
@@ -77,7 +80,7 @@ async def websocket_endpoint(
             },
         )
 
-    ctx = ActionContext(player=player, services=services)
+    ctx = ActionContext(player=player, services=services, session_factory=session_factory)
 
     try:
         while True:

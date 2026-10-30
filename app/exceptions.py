@@ -100,6 +100,12 @@ class PlayerNotInRoomException(CustomException):
     message: str = "Player is not in the room"
 
 
+class NotRoundLeaderException(CustomException):
+    code: str = "not_round_leader"
+    status_code: int = 403
+    message: str = "This action is allowed for the round leader"
+
+
 class NotRoomOwnerException(CustomException):
     code: str = "not_room_owner_exception"
     status_code: int = 403

@@ -11,6 +11,11 @@ engine = create_async_engine(DATABASE_URL, echo=False)
 session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 
+def get_session_factory() -> async_sessionmaker:
+    """For code that needs sessions outside a single request, e.g. websocket actions."""
+    return session_maker
+
+
 async def get_db():
     async with session_maker() as session:
         yield session

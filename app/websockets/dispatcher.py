@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.dependencies import Services
 from app.exceptions import CustomException
@@ -23,6 +24,7 @@ class ActionContext:
 
     player: Player
     services: Services
+    session_factory: async_sessionmaker[AsyncSession]
 
 
 ActionHandler = Callable[[ActionContext, Any], Awaitable[dict | None]]
