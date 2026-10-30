@@ -77,9 +77,15 @@ class GameService:
             if room.owner_id != player_id:
                 raise NotRoomOwnerException()
 
+            # A running game plays by the copy of the settings it took at start; changing them now
+            # would only make the screen ("round 3 of 10") disagree with the game (ending at 5).
+            if self._is_game_running(await self.game_manager.games.get(room_id)):
+                raise GameAlreadyStartedException()
+
             room.settings = GameSettings(**data.model_dump())
 
         await self.notifier.broadcast_room_state(room_id)
+        await self.notifier.broadcast_rooms_list()  # the room list shows the settings too
 
         return room.settings
 

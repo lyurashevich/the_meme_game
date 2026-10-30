@@ -135,15 +135,21 @@ class TestRoomsList:
             {
                 "id": started_game.room_id,
                 "name": started_game.room.name,
+                "owner_name": "Lisaveta",
                 "players_count": 4,
                 "max_players": 10,
+                "round_time_limit": 60,
+                "max_rounds": None,
                 "status": "playing",
             },
             {
                 "id": waiting_room.id,
                 "name": waiting_room.name,
+                "owner_name": "Host",
                 "players_count": 1,
                 "max_players": 5,
+                "round_time_limit": 60,
+                "max_rounds": None,
                 "status": "waiting",
             },
         ]

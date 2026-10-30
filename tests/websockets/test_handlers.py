@@ -197,6 +197,35 @@ class TestUpdateSettings:
         assert error_code(reply) == "validation_error"
 
 
+class TestSettingsDuringGame:
+    async def test_cannot_change_settings_while_a_game_runs(self, act, test_player, started_game):
+        reply = await act(test_player, "update_settings", {"round_time_limit": 120, "max_rounds": 10})
+
+        assert error_code(reply) == "game_already_started"
+        assert started_game.room.settings.max_rounds is None
+        assert started_game.room.settings.round_time_limit == 60
+
+    async def test_can_change_settings_after_the_game_ended(self, act, test_player, started_game, game_service):
+        await game_service.end_game(started_game.room_id, test_player.id)
+
+        reply = await act(test_player, "update_settings", {"round_time_limit": 120, "max_rounds": 10})
+
+        assert reply["event"] == "ack"
+        assert started_game.room.settings.max_rounds == 10
+
+    async def test_room_list_shows_new_settings(
+        self, act, test_player, test_room, lone_player, connection_manager, outbox
+    ):
+        connection_manager.player_sockets = {test_player.id: object(), lone_player.id: object()}
+
+        await act(test_player, "update_settings", {"round_time_limit": 90, "max_rounds": 5})
+
+        rooms_list = [m["payload"] for m in events_for(outbox, lone_player.id) if m["event"] == "rooms_list"][-1]
+        assert rooms_list[0]["round_time_limit"] == 90
+        assert rooms_list[0]["max_rounds"] == 5
+        assert rooms_list[0]["owner_name"] == test_player.username
+
+
 class TestStartGame:
     @pytest.fixture
     async def cards_in_db(self, db_session):

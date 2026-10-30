@@ -28,8 +28,11 @@ def build_rooms_list(rooms: list[Room], games: dict[str, Game | None]) -> list[d
         {
             "id": room.id,
             "name": room.name,
+            "owner_name": room.owner.username if room.owner else None,
             "players_count": room.players_count,
             "max_players": room.max_players,
+            "round_time_limit": room.settings.round_time_limit,
+            "max_rounds": room.settings.max_rounds,  # None: no limit
             "status": "playing" if _is_running(games.get(room.id)) else "waiting",
         }
         for room in rooms

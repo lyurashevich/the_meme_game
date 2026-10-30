@@ -19,8 +19,8 @@ from app.exceptions import (
     RoundNotFoundException,
 )
 from app.game.enums import GameEndReason, GameState, RoundState
+from app.game.game_settings import GameSettings
 from app.models import MemeCard
-from app.schemas.game import GameSettingsSchema
 from app.services.game_service import CARDS_PER_PLAYER
 from tests.helpers import events_for, last_room_state
 
@@ -570,13 +570,9 @@ class TestGameLogic:
         prepared_game.settings.score_to_win = None
         prepared_game.room.players[1].score = 1
 
-        # change_game_settings replaces room.settings with a new object; game.settings
-        # (the snapshot captured once at game start) must stay untouched.
-        await game_service.change_game_settings(
-            room_id=prepared_game.room_id,
-            player_id=prepared_game.room.owner_id,
-            data=GameSettingsSchema(round_time_limit=60, score_to_win=1),
-        )
+        # Owners can't change settings during a game any more, but a game must still rely only on
+        # the copy (game.settings) it took at start - whatever happens to room.settings afterwards.
+        prepared_game.room.settings = GameSettings(round_time_limit=60, score_to_win=1)
 
         assert game_service._should_end_game(prepared_game) is False
 
@@ -791,14 +787,10 @@ class TestGameLogic:
     ):
         await game_service.start_first_round(prepared_game.room_id)
 
-        await game_service.change_game_settings(
-            room_id=prepared_game.room_id,
-            player_id=prepared_game.room.owner_id,
-            data=GameSettingsSchema(round_time_limit=120, max_rounds=None, score_to_win=None),
-        )
+        # Owners can't change settings during a game any more (see TestSettingsDuringGame), but the
+        # running game must keep using the settings object captured in prepare_game regardless.
+        prepared_game.room.settings = GameSettings(round_time_limit=120, max_rounds=None, score_to_win=None)
 
-        # change_game_settings replaced room.settings with a new object, but
-        # game.settings still points at the object captured in prepare_game.
         assert prepared_game.room.settings.round_time_limit == 120
         assert prepared_game.settings.round_time_limit == 60
 

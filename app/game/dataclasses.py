@@ -73,7 +73,8 @@ class Room:
 
     @property
     def rounds_count(self) -> int | None:
-        return self.settings.round_time_limit
+        """How many rounds a game in this room lasts; None means no limit."""
+        return self.settings.max_rounds
 
     @property
     def time_limit(self) -> int:

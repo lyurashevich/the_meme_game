@@ -22,3 +22,15 @@ class TestRoomViews:
         assert response.status_code == 200
         assert len(response.json()) == 1
         assert response.json()[0]["name"] == room.name
+
+    async def test_rounds_count_is_the_rounds_limit(self, client_with_no_db, test_room):
+        """Before: roundsCount returned the turn time (60) instead of the number of rounds."""
+        response = client_with_no_db.get(f"{self.url}/{test_room.id}")
+        assert response.json()["roundsCount"] is None  # no limit by default
+        assert response.json()["timeLimit"] == 60
+
+        test_room.settings.max_rounds = 5
+
+        response = client_with_no_db.get(f"{self.url}/{test_room.id}")
+        assert response.json()["roundsCount"] == 5
+        assert response.json()["timeLimit"] == 60
