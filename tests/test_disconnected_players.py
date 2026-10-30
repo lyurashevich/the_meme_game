@@ -100,6 +100,34 @@ class TestNotBackInTime:
         assert prepared_game.room_id not in game_manager.room_tasks  # no rounds playing on their own
 
 
+class TestDisconnectedLeader:
+    """Agreed policy: an offline leader is simply waited for - the leader's own timer ends the round
+    without a winner and the turn passes on; the cards played that round go to the discard pile."""
+
+    async def test_round_moves_on_after_the_leaders_time(
+        self, prepared_game, game_service, reconnect_service, player_service
+    ):
+        reconnect_service.reconnect_timeout = 60  # offline, but not removed yet
+        game_service.LEADER_TIME_LIMIT_SECONDS = 0
+        await game_service.start_first_round(prepared_game.room_id)
+        leader = prepared_game.current_round.leader
+        await reconnect_service.disconnect(leader.id)
+
+        for player in prepared_game.room.players:
+            if player is not leader:
+                await game_service.player_select_card(prepared_game.room_id, player.id, player.hand_cards[0].id)
+        played = set(prepared_game.current_round.player_choices.values())
+        await game_service.game_manager.room_tasks[prepared_game.room_id]["phase_timer"]  # the leader's 0 s
+
+        assert prepared_game.current_round.round_number == 2
+        assert prepared_game.current_round.leader is not leader
+        assert all(player.score == 0 for player in prepared_game.room.players)
+        assert played <= set(prepared_game.meme_discard_pile[1])  # into the discard pile, not back to hands
+        assert leader in prepared_game.room.players  # still a player, in case they come back
+        assert await player_service.players.get(leader.id) is leader
+        game_service.game_manager.clear_room_tasks(prepared_game.room_id)
+
+
 class TestBackInTime:
     async def test_reconnecting_cancels_the_removal(self, test_room, test_player, player_service, reconnect_service):
         reconnect_service.reconnect_timeout = 60
