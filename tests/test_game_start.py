@@ -6,6 +6,7 @@ check did fail, the game had already been registered, so the room was left with 
 stuck in "starting" with no round - shown to every player as running.
 """
 
+import asyncio
 import json
 from unittest.mock import patch
 
@@ -100,7 +101,7 @@ class TestStartIsAllOrNothing:
     ):
         await add_cards(memes=30, situations=5)
 
-        with patch.object(game_service, "start_first_round", side_effect=RuntimeError("boom")):
+        with patch.object(game_service, "_start_first_round_locked", side_effect=RuntimeError("boom")):
             reply = await start_game()
 
         assert reply["payload"]["code"] == "internal_error"
@@ -113,3 +114,62 @@ class TestStartIsAllOrNothing:
             await game_service._hand_out_initial_cards(prepared_game)
 
         assert all(player.hand_cards == [] for player in prepared_game.room.players)
+
+
+class TestStartWhileGameRunning:
+    """Before: starting again during a game silently replaced it - everyone's hand grew to 12
+    cards, scores carried over and played cards vanished - and a double click started the
+    game twice."""
+
+    async def test_cannot_start_during_a_game(
+        self, test_room_with_players, start_game, add_cards, game_service, game_manager
+    ):
+        await add_cards(memes=60, situations=10)
+        assert (await start_game())["event"] == "ack"
+        game = await game_manager.get_game(test_room_with_players.id)
+        player = test_room_with_players.players[1]
+        played = player.hand_cards[0]
+        await game_service.player_select_card(test_room_with_players.id, player.id, played.id)
+        player.score = 3
+
+        reply = await start_game()
+
+        assert reply["event"] == "error"
+        assert reply["payload"]["code"] == "game_already_started"
+        assert await game_manager.get_game(test_room_with_players.id) is game  # the running game is untouched
+        assert game.current_round.player_choices[player.id] is played
+        assert player.score == 3
+        assert [len(p.hand_cards) for p in test_room_with_players.players] == [6, 5, 6, 6]
+        game_manager.clear_room_tasks(test_room_with_players.id)
+
+    async def test_new_game_after_the_previous_one_ended(
+        self, test_room_with_players, start_game, add_cards, game_service, game_manager
+    ):
+        await add_cards(memes=60, situations=10)
+        await start_game()
+        first_game = await game_manager.get_game(test_room_with_players.id)
+        test_room_with_players.players[1].score = 3
+        await game_service.end_game(test_room_with_players.id, test_room_with_players.owner.id)
+
+        reply = await start_game()
+
+        assert reply["event"] == "ack"
+        new_game = await game_manager.get_game(test_room_with_players.id)
+        assert new_game is not first_game
+        assert new_game.state == GameState.ACTIVE
+        assert new_game.current_round.round_number == 1
+        assert [len(p.hand_cards) for p in test_room_with_players.players] == [6, 6, 6, 6]
+        assert [p.score for p in test_room_with_players.players] == [0, 0, 0, 0]
+        game_manager.clear_room_tasks(test_room_with_players.id)
+
+    async def test_double_click_starts_only_once(self, test_room_with_players, start_game, add_cards, game_manager):
+        await add_cards(memes=60, situations=10)
+
+        replies = await asyncio.gather(start_game(), start_game())
+
+        outcomes = sorted(reply["payload"].get("code", reply["event"]) for reply in replies)
+        assert outcomes == ["ack", "game_already_started"]
+        game = await game_manager.get_game(test_room_with_players.id)
+        assert game.state == GameState.ACTIVE
+        assert [len(p.hand_cards) for p in test_room_with_players.players] == [6, 6, 6, 6]
+        game_manager.clear_room_tasks(test_room_with_players.id)

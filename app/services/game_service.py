@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import (
     CardNotFoundException,
+    GameAlreadyStartedException,
     GameNotFoundException,
     InvalidGameStateException,
     InvalidPlayerActionException,
@@ -178,45 +179,58 @@ class GameService:
             raise NotEnoughPlayersException()
 
     async def start_game(self, room_id: str, player_id: str, db: AsyncSession) -> Game:
-        """Owner-only entry point: prepare the game and start its first round."""
+        """Owner-only entry point: prepare the game and start its first round.
+
+        Runs as one step under the room lock, so a second start (a double click) waits for
+        the first one to finish and then finds the game already running. A finished game
+        doesn't count: the owner can start a new one.
+        """
         async with self.room_service.get_room_lock(room_id):
             room = await self.room_service.get_room(room_id)
             if room.owner_id != player_id:
                 raise NotRoomOwnerException()
 
-        game = await self.prepare_game(room_id, db)
-        try:
-            await self.start_first_round(room_id)
-        except Exception:
-            # all or nothing: never leave the room with a game that was set up but never started
-            await self.game_manager.games.remove(room_id)
-            raise
+            current_game = await self.game_manager.games.get(room_id)
+            if current_game is not None and current_game.state != GameState.FINISHED:
+                raise GameAlreadyStartedException()
+
+            game = await self._prepare_game_locked(room_id, db)
+            try:
+                await self._start_first_round_locked(room_id)
+            except Exception:
+                # All or nothing: never leave the room with a game that was set up but never started.
+                # Safe under the lock - the game being removed is the one this call just created.
+                await self.game_manager.games.remove(room_id)
+                raise
 
         await self.notifier.broadcast_room_state(room_id)
         await self.notifier.broadcast_rooms_list()  # the room is no longer joinable
 
         return game
 
-    async def prepare_game(self, room_id: str, db: AsyncSession) -> Game | None:
-
+    async def prepare_game(self, room_id: str, db: AsyncSession) -> Game:
         async with self.room_service.get_room_lock(room_id=room_id):
-            room = await self.room_service.get_room(room_id)
-            self._validate_room_can_start_game(room)
+            return await self._prepare_game_locked(room_id, db)
 
-            # Snapshot room.settings at game start: change_game_settings replaces
-            # room.settings with a brand-new object rather than mutating it in
-            # place, so this reference stays frozen at whatever it was when the
-            # game started even if the owner changes room.settings mid-game.
-            # game.settings (not room.settings) is therefore the authoritative
-            # source for a running game - phase_timer's timeout included.
-            game = Game(room=room, settings=room.settings)
-            game.leader_index = 0
+    async def _prepare_game_locked(self, room_id: str, db: AsyncSession) -> Game:
+        """Set up a game with its decks and register it. Assumes the room lock is held."""
+        room = await self.room_service.get_room(room_id)
+        self._validate_room_can_start_game(room)
 
-            # check the decks before registering the game: a failed start leaves the room as it was
-            await self._initialize_decks(game, db)
-            self._validate_decks_can_start(game)
+        # Snapshot room.settings at game start: change_game_settings replaces
+        # room.settings with a brand-new object rather than mutating it in
+        # place, so this reference stays frozen at whatever it was when the
+        # game started even if the owner changes room.settings mid-game.
+        # game.settings (not room.settings) is therefore the authoritative
+        # source for a running game - phase_timer's timeout included.
+        game = Game(room=room, settings=room.settings)
+        game.leader_index = 0
 
-            await self.game_manager.add_game(room_id, game)
+        # check the decks before registering the game: a failed start leaves the room as it was
+        await self._initialize_decks(game, db)
+        self._validate_decks_can_start(game)
+
+        await self.game_manager.add_game(room_id, game)
 
         return game
 
@@ -232,29 +246,32 @@ class GameService:
             )
 
     async def start_first_round(self, room_id: str) -> Game:
-
         async with self.room_service.get_room_lock(room_id):
-            game = await self.game_manager.get_game(room_id)
+            return await self._start_first_round_locked(room_id)
 
-            self._validate_game_state(game, GameState.STARTING)
+    async def _start_first_round_locked(self, room_id: str) -> Game:
+        """Deal the hands and start round 1 of a prepared game. Assumes the room lock is held."""
+        game = await self.game_manager.get_game(room_id)
 
-            owner = game.room.owner
-            if owner is None:
-                raise RoomHasNoOwnerException()
+        self._validate_game_state(game, GameState.STARTING)
 
-            situation_card = await self._get_situation_card(game)
-            await self._hand_out_initial_cards(game)
-            new_round = GameRound(
-                round_number=1,
-                leader=owner,
-                situation_card=situation_card,
-                game=game,  # state = RoundState.CHOOSING_CARDS
-                time_limit=game.settings.round_time_limit,
-            )
-            game.current_round = new_round
-            game.state = GameState.ACTIVE
+        owner = game.room.owner
+        if owner is None:
+            raise RoomHasNoOwnerException()
 
-            self._start_phase_timer(game, game.settings.round_time_limit)
+        situation_card = await self._get_situation_card(game)
+        await self._hand_out_initial_cards(game)
+        new_round = GameRound(
+            round_number=1,
+            leader=owner,
+            situation_card=situation_card,
+            game=game,  # state = RoundState.CHOOSING_CARDS
+            time_limit=game.settings.round_time_limit,
+        )
+        game.current_round = new_round
+        game.state = GameState.ACTIVE
+
+        self._start_phase_timer(game, game.settings.round_time_limit)
 
         return game
 

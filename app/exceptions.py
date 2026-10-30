@@ -82,6 +82,12 @@ class NotEnoughCardsException(CustomException):
         super().__init__(self.message)
 
 
+class GameAlreadyStartedException(CustomException):
+    code: str = "game_already_started"
+    status_code: int = 409
+    message: str = "A game is already running in this room"
+
+
 class RoomHasNoOwnerException(CustomException):
     code: str = "room_has_no_owner"
     status_code: int = 400
