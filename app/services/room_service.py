@@ -80,9 +80,7 @@ class RoomService:
             await self.cleanup_room(room_id)
 
     async def cleanup_room(self, room_id) -> None:
-        # if room_id in self.active_games:
-        #     del self.active_games[room_id]
-
+        """Forget the room itself. Its game and timers are GameService's to remove (see _remove_room_locked)."""
         await self.rooms.remove(room_id)
 
         if room_id in self.room_locks:

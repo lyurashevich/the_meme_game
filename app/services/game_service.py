@@ -684,6 +684,12 @@ class GameService:
 
         return None
 
+    async def _remove_room_locked(self, room_id: str) -> None:
+        """Remove an empty room together with everything that belongs to it. Assumes the room lock is held."""
+        self.game_manager.clear_room_tasks(room_id)  # nothing may wake up later and touch a removed room
+        await self.game_manager.games.remove(room_id)  # a finished game would otherwise stay in memory forever
+        await self.room_service.cleanup_room(room_id)
+
     async def process_leave(self, player: Player, room_id: str, confirm: bool) -> LeaveRoomResponseSchema:
         """Remove ``player`` from ``room_id`` atomically and keep the game consistent.
 
@@ -695,7 +701,6 @@ class GameService:
         ask the user to confirm. All network I/O happens after the lock releases.
         """
         game_ended = None
-        room_empty = False
 
         async with self.room_service.get_room_lock(room_id):
             room = await self.room_service.get_room(room_id)  # raises RoomNotFoundException -> 404
@@ -734,10 +739,10 @@ class GameService:
             elif game_active:
                 game_ended = await self._handle_player_left_locked(room_id, player.id)
 
-            room_empty = not room.players
-
-        if room_empty:
-            await self.room_service.cleanup_room(room_id)
+            # the last player left: remove the room before releasing its lock, so nobody can join it
+            # in between and end up in a room that is about to disappear
+            if not room.players:
+                await self._remove_room_locked(room_id)
 
         await self.notifier.send_event(player.id, WebsocketEvents.YOU_LEFT_ROOM, {"room_id": room_id})
         await self._notify_room_changed(room_id, game_ended)  # no-op for an emptied room
