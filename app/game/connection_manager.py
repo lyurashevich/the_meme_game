@@ -25,9 +25,18 @@ class ConnectionManager:
         """Register a player connection."""
         self.player_sockets[player_id] = websocket
 
-    def remove_connection(self, player_id: str) -> None:
-        """Remove player connection."""
-        self.player_sockets.pop(player_id, None)
+    def remove_connection(self, player_id: str, websocket: WebSocket) -> bool:
+        """Forget ``websocket`` if it is still the player's current connection; return whether it was.
+
+        A player who reconnected (say, after switching from Wi-Fi to mobile data) already has a new
+        socket registered by the time the server notices the old one is dead. Closing the old one
+        must not unregister the new one.
+        """
+        if self.player_sockets.get(player_id) is not websocket:
+            return False
+
+        del self.player_sockets[player_id]
+        return True
 
     def get_connection(self, player_id: str) -> WebSocket | None:
         """Get websocket connection for a player (safe, returns None if not found)."""

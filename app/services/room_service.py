@@ -61,24 +61,6 @@ class RoomService:
             room.add_player(player)
             player.room_id = room_id
 
-    async def leave_room(self, player: Player, room_id: str) -> None:
-        need_cleanup = False
-
-        async with self.get_room_lock(room_id):
-            room = await self.get_room(room_id=room_id)
-
-            room.remove_player(player)
-            player.room_id = None
-
-            if room.owner is player and room.players:
-                room.reassign_owner()
-
-            if not room.players:
-                need_cleanup = True
-
-        if need_cleanup:
-            await self.cleanup_room(room_id)
-
     async def cleanup_room(self, room_id) -> None:
         """Forget the room itself. Its game and timers are GameService's to remove (see _remove_room_locked)."""
         await self.rooms.remove(room_id)

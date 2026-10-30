@@ -65,11 +65,3 @@ class TestGameManager:
             await room_service.join_room(test_room.id, player)
 
         assert player.room_id is None
-
-    async def test_leave_room(self, test_player, test_room, room_service, game_manager):
-        player = Player(id="555", username="Lisaveta")
-        await room_service.join_room(test_room.id, player)
-        await room_service.leave_room(player, test_room.id)
-
-        assert test_player in test_room.players
-        assert player not in test_room.players

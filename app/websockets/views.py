@@ -71,12 +71,13 @@ async def websocket_endpoint(
         logger.exception("Unhandled error in websocket loop for player %s", player.id)
     finally:
         try:
-            connection_manager.remove_connection(player.id)
-            await reconnect_service.disconnect(player.id)
+            # If the player already reconnected on another socket, this one closing changes nothing.
+            if connection_manager.remove_connection(player.id, websocket):
+                await reconnect_service.disconnect(player.id)
 
-            if player.room_id:
-                # the others see the player go offline
-                await notifier.broadcast_room_state(player.room_id)
+                if player.room_id:
+                    # the others see the player go offline
+                    await notifier.broadcast_room_state(player.room_id)
         except Exception:
             # swallow to avoid raising from websocket endpoint
             logger.exception("Failed to clean up after disconnect of player %s", player.id)

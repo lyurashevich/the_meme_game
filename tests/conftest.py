@@ -54,6 +54,9 @@ def services():
     yield services
     for dependency in overrides:
         app.dependency_overrides.pop(dependency, None)
+    # disconnects schedule a removal a minute later; don't leave those sleeping past the test
+    for task in services.reconnect_service._removal_tasks.values():
+        task.cancel()
 
 
 @pytest.fixture

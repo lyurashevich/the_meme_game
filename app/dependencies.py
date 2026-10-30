@@ -34,7 +34,7 @@ def build_services() -> Services:
     player_service = PlayerService(InMemoryPlayerRepository(), room_service)
     notifier = Notifier(connection_manager, room_service, game_manager, player_service)
     game_service = GameService(room_service, game_manager, notifier)
-    reconnect_service = ReconnectService(InMemoryReconnectTokenRepository(), player_service)
+    reconnect_service = ReconnectService(InMemoryReconnectTokenRepository(), player_service, game_service)
 
     return Services(
         connection_manager=connection_manager,

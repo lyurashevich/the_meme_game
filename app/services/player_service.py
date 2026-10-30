@@ -1,5 +1,3 @@
-import asyncio
-
 from app.exceptions import PlayerNotFoundException, UsernameTakenException
 from app.game.dataclasses import Player
 from app.models import MemeCard
@@ -7,34 +5,11 @@ from app.repositories.base import PlayerRepository
 from app.schemas.players import BasePlayerProfileSchema
 from app.services.room_service import RoomService
 
-RECONNECT_TIMEOUT = 60  # seconds
-
 
 class PlayerService:
     def __init__(self, players: PlayerRepository, room_service: RoomService):
         self.players = players
         self.room_service = room_service
-
-    async def players_cleanup(self, player_id: str, connection_manager):
-        await asyncio.sleep(RECONNECT_TIMEOUT)
-
-        try:
-            player = await self.get_player(player_id)
-
-            if player.is_connected:
-                return
-
-            if player.room_id:
-                await self.room_service.leave_room(player, player.room_id)
-
-            await self.players.remove(player_id)
-
-            # Clean up any reconnect tokens for this player
-            # to prevent memory leak and invalid token consumption
-            await self._cleanup_player_tokens(player_id)  # type: ignore  # todo: подумать че с этим делать......
-
-        except PlayerNotFoundException:
-            return
 
     async def create_player(self, username: str = "") -> Player:
         player = Player(username=username)
