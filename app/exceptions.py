@@ -106,6 +106,17 @@ class AlreadyInARoomException(CustomException):
     message: str = "You have already joined another room"
 
 
+class TooManyMessagesException(CustomException):
+    code: str = "too_many_messages"
+    status_code: int = 429
+
+    def __init__(self, retry_after_seconds: float):
+        self.retry_after_seconds = retry_after_seconds
+        self.message: str = f"Too many messages. Try again in {max(1, round(retry_after_seconds))} s."
+
+        super().__init__(self.message)
+
+
 class RoomIsFullException(CustomException):
     code: str = "room_is_full"
     status_code: int = 409

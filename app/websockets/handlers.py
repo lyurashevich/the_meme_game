@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import ConfigDict, Field, StringConstraints
 
-from app.exceptions import PlayerNotInRoomException
+from app.exceptions import PlayerNotInRoomException, TooManyMessagesException
 from app.game.enums import WebsocketEvents
 from app.schemas.game import GameSettingsSchema
 from app.schemas.players import BasePlayerProfileSchema
@@ -144,6 +144,11 @@ class ChatMessagePayload(ActionPayload):
 @dispatcher.action("chat_message", ChatMessagePayload)
 async def chat_message(ctx: ActionContext, payload: ChatMessagePayload) -> None:
     room_id = _current_room_id(ctx)
+
+    retry_after = ctx.chat_rate_limiter.try_acquire()
+    if retry_after is not None:
+        raise TooManyMessagesException(retry_after)
+
     message = await ctx.services.room_service.add_chat_message(room_id, ctx.player, payload.text)
 
     await ctx.services.notifier.broadcast_event(room_id, WebsocketEvents.CHAT_MESSAGE, message)

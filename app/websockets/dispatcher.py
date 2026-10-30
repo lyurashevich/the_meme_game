@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, ValidationError
@@ -14,8 +14,16 @@ from app.websockets.protocol import (
     build_ack,
     build_error,
 )
+from app.websockets.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
+
+CHAT_RATE_LIMIT = 5  # messages...
+CHAT_RATE_WINDOW_SECONDS = 10  # ...within this many seconds
+
+
+def _chat_rate_limiter() -> RateLimiter:
+    return RateLimiter(CHAT_RATE_LIMIT, CHAT_RATE_WINDOW_SECONDS)
 
 
 @dataclass
@@ -25,6 +33,8 @@ class ActionContext:
     player: Player
     services: Services
     session_factory: async_sessionmaker[AsyncSession]
+    # lives as long as the connection, so it needs no cleanup and no shared storage
+    chat_rate_limiter: RateLimiter = field(default_factory=_chat_rate_limiter)
 
 
 ActionHandler = Callable[[ActionContext, Any], Awaitable[dict | None]]
