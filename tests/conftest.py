@@ -6,6 +6,7 @@ from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
+from app.config import Settings, get_settings
 from app.db import TEST_DATABASE_URL, Base, get_db, get_session_factory
 from app.dependencies import (
     build_services,
@@ -20,6 +21,7 @@ from app.dependencies import (
 from app.game.dataclasses import Game, Player
 from app.main import app
 from app.models import MemeCard, SituationCard
+from tests.helpers import TEST_ADMIN_TOKEN
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -57,6 +59,14 @@ def services():
     # disconnects schedule a removal a minute later; don't leave those sleeping past the test
     for task in services.reconnect_service._removal_tasks.values():
         task.cancel()
+
+
+@pytest.fixture
+def admin_headers():
+    """Enables the card editing API with a test token; returns the headers that authorize a request."""
+    app.dependency_overrides[get_settings] = lambda: Settings(admin_token=TEST_ADMIN_TOKEN)
+    yield {"X-Admin-Token": TEST_ADMIN_TOKEN}
+    app.dependency_overrides.pop(get_settings, None)
 
 
 @pytest.fixture

@@ -1,5 +1,11 @@
+import secrets
 from dataclasses import dataclass
 
+from fastapi import Depends
+from fastapi.security import APIKeyHeader
+
+from app.config import Settings, get_settings
+from app.exceptions import AdminApiDisabledException, InvalidAdminTokenException
 from app.game.connection_manager import ConnectionManager
 from app.game.game_manager import GameManager
 from app.repositories.in_memory import (
@@ -76,3 +82,20 @@ def get_game_service() -> GameService:
 
 def get_reconnect_service() -> ReconnectService:
     return services.reconnect_service
+
+
+# Declared as a security scheme so Swagger UI (/docs) offers an "Authorize" field for it
+admin_token_header = APIKeyHeader(name="X-Admin-Token", auto_error=False)
+
+
+def require_admin(
+    token: str | None = Depends(admin_token_header),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Guards endpoints that change the card database. Closed unless ADMIN_TOKEN is configured."""
+    if not settings.admin_token:
+        raise AdminApiDisabledException()
+
+    # constant-time comparison: how long a wrong token takes to reject reveals nothing about it
+    if token is None or not secrets.compare_digest(token.encode(), settings.admin_token.encode()):
+        raise InvalidAdminTokenException()

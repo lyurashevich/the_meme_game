@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     db_name: str | None = None
     test_db_name: str | None = None
     log_level: str = "INFO"
+    # Enables the card editing endpoints (POST/PATCH/DELETE /api/memes, /api/situations) for requests
+    # with a matching X-Admin-Token header. Not set: those endpoints are disabled.
+    admin_token: str | None = None
 
     @property
     def database_url(self) -> str:

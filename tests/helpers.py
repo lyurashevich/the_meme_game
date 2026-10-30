@@ -1,5 +1,7 @@
 """Test helpers: assertions on messages captured by the ``outbox`` fixture and a websocket test client."""
 
+TEST_ADMIN_TOKEN = "test-admin-token"  # what the admin_headers fixture configures and sends
+
 
 def events_for(outbox, player_id):
     return [message for recipient, message in outbox if recipient == player_id]

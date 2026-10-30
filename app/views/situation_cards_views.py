@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
+from app.dependencies import require_admin
 from app.schemas.cards import (
     SituationCardCreate,
     SituationCardSchema,
@@ -24,13 +25,13 @@ async def get_situation_card(card_id: int = Path(..., gt=0), db: AsyncSession = 
     return await service.get_situation_card(card_id)
 
 
-@router.post("/", response_model=SituationCardSchema, status_code=201)
+@router.post("/", response_model=SituationCardSchema, status_code=201, dependencies=[Depends(require_admin)])
 async def create_situation_card(situation_card: SituationCardCreate, db: AsyncSession = Depends(get_db)):
     service = CardService(db)
     return await service.create_situation_card(situation_card)
 
 
-@router.patch("/{card_id}", response_model=SituationCardSchema)
+@router.patch("/{card_id}", response_model=SituationCardSchema, dependencies=[Depends(require_admin)])
 async def update_situation_card(
     situation_card: SituationCardUpdate,
     card_id: int = Path(..., gt=0),
@@ -40,7 +41,7 @@ async def update_situation_card(
     return await service.update_situation_card(card_id, situation_card)
 
 
-@router.delete("/{card_id}", status_code=204)
+@router.delete("/{card_id}", status_code=204, dependencies=[Depends(require_admin)])
 async def delete_situation_card(card_id: int = Path(..., gt=0), db: AsyncSession = Depends(get_db)):
     service = CardService(db)
     await service.delete_situation_card(card_id)

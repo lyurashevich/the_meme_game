@@ -32,8 +32,8 @@ class TestSituationViews:
 
         assert response.status_code == 404
 
-    async def test_create_situation_card_view(self, client, db_session):
-        response = await client.post(self.url, json={"text": "Test situation"})
+    async def test_create_situation_card_view(self, client, admin_headers, db_session):
+        response = await client.post(self.url, json={"text": "Test situation"}, headers=admin_headers)
 
         result = await db_session.execute(select(SituationCard).where(SituationCard.text == "Test situation"))
         card = result.scalar_one()
@@ -42,36 +42,36 @@ class TestSituationViews:
         assert response.json()["id"] == card.id
         assert response.json()["text"] == card.text
 
-    async def test_update_situation_card_view(self, client, db_session):
+    async def test_update_situation_card_view(self, client, admin_headers, db_session):
 
         card = SituationCard(text="Test situation")
         db_session.add(card)
         await db_session.commit()
 
-        response = await client.patch(f"{self.url}/{card.id}", json={"text": "Test situation2"})
+        response = await client.patch(f"{self.url}/{card.id}", json={"text": "Test situation2"}, headers=admin_headers)
 
         assert response.status_code == 200
         assert response.json()["text"] == "Test situation2"
         assert response.json()["id"] == card.id
 
-    async def test_update_situation_card_view__not_found(self, client, db_session):
+    async def test_update_situation_card_view__not_found(self, client, admin_headers, db_session):
 
-        response = await client.patch(f"{self.url}/999", json={"text": "Test situation2"})
+        response = await client.patch(f"{self.url}/999", json={"text": "Test situation2"}, headers=admin_headers)
 
         assert response.status_code == 404
 
-    async def test_delete_situation_card_view(self, client, db_session):
+    async def test_delete_situation_card_view(self, client, admin_headers, db_session):
         card = SituationCard(text="situation to delete")
         db_session.add(card)
         await db_session.commit()
 
-        response = await client.delete(f"{self.url}/{card.id}")
+        response = await client.delete(f"{self.url}/{card.id}", headers=admin_headers)
 
         assert response.status_code == 204
         result = await db_session.execute(select(SituationCard).where(SituationCard.id == card.id))
         assert not result.scalar_one_or_none()
 
-    async def test_delete_situation_card_view__not_found(self, client, db_session):
-        response = await client.delete(f"{self.url}/999")
+    async def test_delete_situation_card_view__not_found(self, client, admin_headers, db_session):
+        response = await client.delete(f"{self.url}/999", headers=admin_headers)
 
         assert response.status_code == 404

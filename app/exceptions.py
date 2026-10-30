@@ -117,6 +117,18 @@ class TooManyMessagesException(CustomException):
         super().__init__(self.message)
 
 
+class AdminApiDisabledException(CustomException):
+    code: str = "admin_api_disabled"
+    status_code: int = 403
+    message: str = "Card editing is disabled on this server (ADMIN_TOKEN is not set)"
+
+
+class InvalidAdminTokenException(CustomException):
+    code: str = "invalid_admin_token"
+    status_code: int = 401
+    message: str = "A valid X-Admin-Token header is required"
+
+
 class RoomIsFullException(CustomException):
     code: str = "room_is_full"
     status_code: int = 409
