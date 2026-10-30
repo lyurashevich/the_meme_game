@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Custom Scrollbar for Hand Cards and Chat */
 ::-webkit-scrollbar {
@@ -7,18 +7,18 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #ECE8DE;
+  background: #ece8de;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #C4BEAF;
+  background: #c4beaf;
   border-radius: 9999px;
   border: 1px solid #242426;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #A8A190;
+  background: #a8a190;
 }
 
 /* Base selection & focus aesthetics */

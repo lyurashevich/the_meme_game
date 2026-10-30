@@ -1,12 +1,11 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import './index.css'
-import App from './App.vue'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
 
-const app = createApp(App)
-
-const pinia = createPinia()
-
-app.use(pinia)
-
-app.mount('#root')
+// index.html has an empty <div id="root">; React renders the whole app inside it.
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
