@@ -1,6 +1,10 @@
 import pytest
 
-from app.exceptions import RoomNotFoundException
+from app.exceptions import (
+    AlreadyInARoomException,
+    RoomIsFullException,
+    RoomNotFoundException,
+)
 from app.game.dataclasses import Player
 
 
@@ -44,10 +48,8 @@ class TestGameManager:
 
     async def test_join_room__already_joined(self, test_player, test_room, room_service):
 
-        with pytest.raises(Exception) as e:
+        with pytest.raises(AlreadyInARoomException):
             await room_service.join_room(test_room.id, test_player)
-
-        assert "You have already joined" in str(e.value)
 
     async def test_join_room__room_not_found(self, test_player, room_service):
         with pytest.raises(RoomNotFoundException) as e:
@@ -59,10 +61,9 @@ class TestGameManager:
         test_room.max_players = 1
         player = Player(id="555", username="Lisaveta")
 
-        with pytest.raises(Exception) as e:
+        with pytest.raises(RoomIsFullException):
             await room_service.join_room(test_room.id, player)
 
-        assert "The room is full" in str(e.value)
         assert player.room_id is None
 
     async def test_leave_room(self, test_player, test_room, room_service, game_manager):

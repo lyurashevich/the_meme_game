@@ -20,7 +20,9 @@ from app.exceptions import (
     PlayerNotFoundException,
     PlayerNotInRoomException,
     RoomHasNoOwnerException,
+    RoomIsFullException,
     RoundNotFoundException,
+    UsernameTakenException,
 )
 from app.game.dataclasses import Game, GameRound, Player, Room
 from app.game.enums import GameEndReason, GameState, RoundState, WebsocketEvents
@@ -190,8 +192,7 @@ class GameService:
             if room.owner_id != player_id:
                 raise NotRoomOwnerException()
 
-            current_game = await self.game_manager.games.get(room_id)
-            if current_game is not None and current_game.state != GameState.FINISHED:
+            if self._is_game_running(await self.game_manager.games.get(room_id)):
                 raise GameAlreadyStartedException()
 
             game = await self._prepare_game_locked(room_id, db)
@@ -207,6 +208,33 @@ class GameService:
         await self.notifier.broadcast_rooms_list()  # the room is no longer joinable
 
         return game
+
+    @staticmethod
+    def _is_game_running(game: Game | None) -> bool:
+        """A game that is starting or active; a finished one is just history."""
+        return game is not None and game.state != GameState.FINISHED
+
+    async def join_room(self, room_id: str, player: Player) -> Room:
+        """Add ``player`` to the room's lobby.
+
+        Checks and join happen under the room lock - the same lock start_game holds - so a
+        game can't start between "no game is running" and the player being added.
+        """
+        async with self.room_service.get_room_lock(room_id):
+            room = await self.room_service.get_room(room_id)
+
+            self.game_manager.validate_player_can_join_room(player)
+            if self._is_game_running(await self.game_manager.games.get(room_id)):
+                raise GameAlreadyStartedException()  # joining a running game is not supported
+            if room.is_full:
+                raise RoomIsFullException()
+            if room.is_username_taken(player.username):
+                raise UsernameTakenException()
+
+            room.add_player(player)
+            player.room_id = room.id
+
+        return room
 
     async def prepare_game(self, room_id: str, db: AsyncSession) -> Game:
         async with self.room_service.get_room_lock(room_id=room_id):

@@ -71,9 +71,7 @@ class JoinRoomPayload(ActionPayload):
 @dispatcher.action("join_room", JoinRoomPayload)
 async def join_room(ctx: ActionContext, payload: JoinRoomPayload) -> dict:
     services = ctx.services
-    services.game_manager.validate_player_can_join_room(ctx.player)
-
-    await services.room_service.join_room(payload.room_id, ctx.player)
+    await services.game_service.join_room(payload.room_id, ctx.player)
 
     # the newcomer also gets the chat history; the others just see one more player
     await services.notifier.broadcast_room_state(payload.room_id, with_chat_for=ctx.player.id)

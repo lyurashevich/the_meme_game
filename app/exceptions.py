@@ -106,6 +106,18 @@ class AlreadyInARoomException(CustomException):
     message: str = "You have already joined another room"
 
 
+class RoomIsFullException(CustomException):
+    code: str = "room_is_full"
+    status_code: int = 409
+    message: str = "The room is full"
+
+
+class UsernameTakenException(CustomException):
+    code: str = "username_taken"
+    status_code: int = 409
+    message: str = "This name is already taken in the room"
+
+
 class PlayerNotInRoomException(CustomException):
     code: str = "player_not_in_room"
     status_code: int = 409

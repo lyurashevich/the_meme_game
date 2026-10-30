@@ -1,6 +1,10 @@
 import pytest
 
-from app.exceptions import PlayerNotInRoomException
+from app.exceptions import (
+    AlreadyInARoomException,
+    PlayerNotInRoomException,
+    RoomIsFullException,
+)
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import GameState
 
@@ -49,19 +53,15 @@ class TestRoom:
         player = Player(id="2", username="Lisaveta")
         test_room.add_player(player)
 
-        with pytest.raises(Exception) as e:
-            await test_room.add_player(player)
-
-        assert "already joined" in str(e.value)
+        with pytest.raises(AlreadyInARoomException):
+            test_room.add_player(player)
 
     async def test_add_player__room_is_full(self, test_room):
         test_room.max_players = 1
         player = Player(id="2", username="Lisaveta")
 
-        with pytest.raises(Exception) as e:
+        with pytest.raises(RoomIsFullException):
             test_room.add_player(player)
-
-        assert "The room is full" in str(e.value)
 
     async def test_remove_player__not_found(self, test_room):
         player = Player(id="2", username="Lisaveta")

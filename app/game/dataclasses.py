@@ -5,7 +5,11 @@ from datetime import datetime
 
 from faker.proxy import Faker
 
-from app.exceptions import PlayerNotInRoomException
+from app.exceptions import (
+    AlreadyInARoomException,
+    PlayerNotInRoomException,
+    RoomIsFullException,
+)
 from app.game.enums import GameState, RoundState
 from app.game.game_settings import GameSettings
 from app.models import MemeCard, SituationCard
@@ -87,13 +91,22 @@ class Room:
             self.players.append(self.owner)
             self.players[0].is_host = True
 
+    @property
+    def is_full(self) -> bool:
+        return len(self.players) >= self.max_players
+
     def add_player(self, player: Player) -> None:
-        if len(self.players) >= self.max_players:
-            raise Exception("The room is full")
         if player in self.players:
-            raise Exception("You have already joined the room!")
+            raise AlreadyInARoomException()
+        if self.is_full:
+            raise RoomIsFullException()
 
         self.players.append(player)
+
+    def is_username_taken(self, username: str, by_other_than: Player | None = None) -> bool:
+        """Names are unique per room, ignoring case ("Neo" and "neo" look the same to players)."""
+        name = username.casefold()
+        return any(p.username.casefold() == name for p in self.players if p is not by_other_than)
 
     def remove_player(self, player: Player) -> None:
         if player not in self.players:
