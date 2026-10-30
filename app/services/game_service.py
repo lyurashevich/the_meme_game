@@ -88,6 +88,9 @@ class GameService:
 
             if self._should_end_game(game):
                 game_ended = await self._end_game_locked(room_id, GameEndReason.LIMIT_REACHED)
+            elif not self._can_start_new_round(game):
+                # checked before touching the decks, so a round is never half-dealt
+                game_ended = await self._end_game_locked(room_id, GameEndReason.OUT_OF_CARDS)
             else:
                 await self._start_new_round(game)
 
@@ -292,21 +295,32 @@ class GameService:
                     card = game.meme_deck.pop(0)
                     player.hand_cards.append(card)
 
+    @staticmethod
+    def _players_to_deal_to(game: Game) -> list[Player]:
+        """Who gets a new card between rounds: everyone except the leader of the round that just
+        ended - they didn't play a card, so their hand is still full."""
+        current_leader = game.room.players[game.leader_index]
+        return [player for player in game.room.players if player != current_leader]
+
+    @classmethod
+    def _can_start_new_round(cls, game: Game) -> bool:
+        """Whether the decks can cover one more round: a situation, and a meme for everyone who
+        played one. Run after _finalize_round, so cards back from their cooldown count."""
+        return bool(game.situation_deck) and len(game.meme_deck) >= len(cls._players_to_deal_to(game))
+
     async def _hand_out_one_card(self, game: Game):
 
         self._validate_game_state(game, GameState.ACTIVE)
         self._validate_game_round_state(game, RoundState.ROUND_ENDED)
 
-        current_leader = game.room.players[game.leader_index]
+        players = self._players_to_deal_to(game)
 
-        if not game.meme_deck:
+        # check up front: running dry halfway would leave some players a card short
+        if len(game.meme_deck) < len(players):
             raise NotEnoughCardsException()
 
-        for player in game.room.players:
-            if player == current_leader:
-                continue
-            card = game.meme_deck.pop(0)
-            player.hand_cards.append(card)
+        for player in players:
+            player.hand_cards.append(game.meme_deck.pop(0))
 
     @staticmethod
     async def _get_situation_card(game: Game) -> SituationCard:
