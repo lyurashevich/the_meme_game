@@ -1,13 +1,13 @@
 import json
-from unittest.mock import AsyncMock
 
 import pytest
 
 from app.game.dataclasses import Player
-from app.game.enums import GameState, RoundState, WebsocketEvents
+from app.game.enums import GameState, RoundState
 from app.models import MemeCard, SituationCard
 from app.websockets.dispatcher import ActionContext
 from app.websockets.handlers import dispatcher
+from tests.helpers import events_for, last_room_state
 
 
 @pytest.fixture
@@ -20,16 +20,6 @@ def act(services, session_factory):
         return await dispatcher.dispatch(ctx, raw)
 
     return act
-
-
-@pytest.fixture
-def broadcasts(connection_manager):
-    connection_manager.broadcast_to_players = AsyncMock()
-    return connection_manager.broadcast_to_players
-
-
-def sent_events(broadcasts):
-    return [call.args[1]["event"] for call in broadcasts.await_args_list]
 
 
 def error_code(reply):
@@ -58,6 +48,15 @@ class TestUpdateProfile:
         assert test_player.username == "Neo"
         assert test_player.avatar_id == "cat"
 
+    async def test_room_sees_new_name(self, act, test_room_with_players, outbox):
+        player = test_room_with_players.players[1]
+
+        await act(player, "update_profile", {"username": "Neo"})
+
+        for other in test_room_with_players.players:
+            names = {p["id"]: p["username"] for p in last_room_state(outbox, other.id)["players"]}
+            assert names[player.id] == "Neo"
+
     async def test_empty_payload_changes_nothing(self, act, test_player):
         reply = await act(test_player, "update_profile")
 
@@ -82,17 +81,25 @@ class TestCreateRoom:
         assert room.owner is test_player
         assert test_player.room_id == room.id
 
-    async def test_announces_room_to_players_outside_rooms(
-        self, act, test_player, test_room, lone_player, connection_manager, broadcasts
+    async def test_owner_gets_room_state_and_lobby_gets_rooms_list(
+        self, act, test_player, test_room, lone_player, player_service, connection_manager, outbox
     ):
-        connection_manager.player_sockets = {test_player.id: object(), lone_player.id: object()}
+        browsing = await player_service.create_player(username="Browsing")
+        connection_manager.player_sockets = {p.id: object() for p in (test_player, lone_player, browsing)}
 
-        await act(lone_player, "create_room")
+        reply = await act(lone_player, "create_room")
 
-        recipients, message = broadcasts.await_args.args
-        assert message["event"] == WebsocketEvents.ROOM_CREATED.value
-        # test_player is busy in test_room; lone_player is now in the new room
-        assert recipients == []
+        state = last_room_state(outbox, lone_player.id)
+        assert state["room"]["id"] == reply["payload"]["room_id"]
+        assert state["room"]["owner_id"] == lone_player.id
+        assert state["chat"] == []
+        # only players outside rooms get the list: test_player is busy in test_room
+        rooms_list_recipients = [player_id for player_id, m in outbox if m["event"] == "rooms_list"]
+        assert rooms_list_recipients == [browsing.id]
+        assert {room["id"] for room in events_for(outbox, browsing.id)[-1]["payload"]} == {
+            test_room.id,
+            reply["payload"]["room_id"],
+        }
 
     async def test_player_already_in_a_room(self, act, test_player, test_room):
         reply = await act(test_player, "create_room")
@@ -108,16 +115,21 @@ class TestCreateRoom:
 
 
 class TestJoinRoom:
-    async def test_joins_room_and_notifies_players(self, act, test_room, lone_player, broadcasts):
+    async def test_joins_room_and_notifies_players(self, act, test_room, test_player, lone_player, outbox):
+        test_room.messages = [{"text": "earlier"}]
+
         reply = await act(lone_player, "join_room", {"room_id": test_room.id})
 
         assert reply["payload"] == {"room_id": test_room.id}
         assert lone_player in test_room.players
         assert lone_player.room_id == test_room.id
-        assert sent_events(broadcasts) == [
-            WebsocketEvents.YOU_JOINED_THE_ROOM.value,
-            WebsocketEvents.PLAYER_JOINED_ROOM.value,
-        ]
+
+        newcomer_view = last_room_state(outbox, lone_player.id)
+        owner_view = last_room_state(outbox, test_player.id)
+        assert [p["id"] for p in newcomer_view["players"]] == [test_player.id, lone_player.id]
+        assert [p["id"] for p in owner_view["players"]] == [test_player.id, lone_player.id]
+        assert newcomer_view["chat"] == [{"text": "earlier"}]  # history only for the newcomer
+        assert "chat" not in owner_view
 
     async def test_player_already_in_a_room(self, act, test_player, test_room, room_service):
         other_room = await room_service.create_room(owner=Player(username="Other"))
@@ -192,16 +204,18 @@ class TestStartGame:
         db_session.add_all([SituationCard(text=f"situation {i}") for i in range(5)])
         await db_session.commit()
 
-    async def test_owner_starts_game(
-        self, act, test_player, test_room_with_players, game_manager, cards_in_db, broadcasts
-    ):
+    async def test_owner_starts_game(self, act, test_player, test_room_with_players, game_manager, cards_in_db, outbox):
         reply = await act(test_player, "start_game")
 
         assert reply["event"] == "ack", reply
         game = await game_manager.get_game(test_room_with_players.id)
         assert game.state == GameState.ACTIVE
         assert game.current_round.leader is test_player
-        assert sent_events(broadcasts)[0] == WebsocketEvents.GAME_STARTED.value
+        for player in test_room_with_players.players:
+            snapshot = last_room_state(outbox, player.id)["game"]
+            assert snapshot["round_number"] == 1
+            assert snapshot["leader_id"] == test_player.id
+            assert len(snapshot["my_hand"]) == len(player.hand_cards) == 6
         game_manager.clear_room_tasks(test_room_with_players.id)
 
     async def test_not_owner(self, act, test_room_with_players, game_manager, cards_in_db):

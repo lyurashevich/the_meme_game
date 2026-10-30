@@ -9,6 +9,7 @@ from app.repositories.in_memory import (
     InMemoryRoomRepository,
 )
 from app.services.game_service import GameService
+from app.services.notifier import Notifier
 from app.services.player_service import PlayerService
 from app.services.reconnect_service import ReconnectService
 from app.services.room_service import RoomService
@@ -20,6 +21,7 @@ class Services:
     game_manager: GameManager
     room_service: RoomService
     player_service: PlayerService
+    notifier: Notifier
     game_service: GameService
     reconnect_service: ReconnectService
 
@@ -29,15 +31,17 @@ def build_services() -> Services:
     connection_manager = ConnectionManager()
     game_manager = GameManager(InMemoryGameRepository())
     room_service = RoomService(InMemoryRoomRepository())
-    player_service = PlayerService(InMemoryPlayerRepository(), connection_manager, room_service)
-    game_service = GameService(room_service, game_manager, connection_manager)
-    reconnect_service = ReconnectService(InMemoryReconnectTokenRepository(), room_service, player_service, game_manager)
+    player_service = PlayerService(InMemoryPlayerRepository(), room_service)
+    notifier = Notifier(connection_manager, room_service, game_manager, player_service)
+    game_service = GameService(room_service, game_manager, notifier)
+    reconnect_service = ReconnectService(InMemoryReconnectTokenRepository(), player_service)
 
     return Services(
         connection_manager=connection_manager,
         game_manager=game_manager,
         room_service=room_service,
         player_service=player_service,
+        notifier=notifier,
         game_service=game_service,
         reconnect_service=reconnect_service,
     )

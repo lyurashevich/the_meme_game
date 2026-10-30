@@ -39,28 +39,28 @@
 
 Основная модель — персональный снапшот. После любого изменения в комнате каждому игроку уходит его `room_state` целиком: при ≤10 игроках это дёшево. Клиенту не нужно склеивать дельты, реконнект работает так же.
 
-- `session` — `{player_id, reconnect_token, username, avatar}`. Отправляется при подключении.
-- `rooms_list` — список публичных комнат: `{id, name, players_count, max_players, status}`. Отправляется игрокам вне комнат при любом изменении.
+- `session` — `{player_id, reconnect_token, username, avatar_id}`. Отправляется при подключении. Затем приходит `room_state` (если игрок в комнате, с историей чата) или `rooms_list`.
+- `rooms_list` — список публичных комнат: `[{id, name, players_count, max_players, status: "waiting" | "playing"}]`. Отправляется игрокам вне комнат при любом изменении списка.
 - `room_state` — снапшот:
   ```
   {
-    room: {id, name, owner_id, max_players, settings},
-    players: [{id, username, avatar, score, is_connected}],
-    game: null | {
-      state, round_number, leader_id, situation: {id, text},
-      round_state, ends_at,               // ISO-время дедлайна текущей фазы
-      submitted_player_ids: [...],        // кто уже сдал карту (без картинок)
-      table: [{card_id, image_url}],      // только в фазе leader_choosing, перемешано, анонимно
+    room: {id, name, owner_id, max_players, settings: {round_time_limit, max_rounds, score_to_win}},
+    players: [{id, username, avatar_id, score, is_connected}],
+    game: null | {                        // null — лобби (игры нет или она закончилась)
+      state, round_number, round_state, leader_id, situation: {id, text},
       my_hand: [{id, image_url}],
-      my_selected_card_id
+      my_selected_card_id,
+      submitted_player_ids: [...],        // кто уже сдал карту (без картинок)
+      table: [{id, image_url}],           // с фазы leader_choosing: анонимно, по возрастанию id
+      winner: null | {player_id, card_id}
     },
-    chat: [последние 50 сообщений]        // только в первом снапшоте после входа или реконнекта
+    chat: [{player_id, username, text, timestamp}]   // только после входа в комнату или реконнекта
   }
   ```
-- `round_winner` — `{winner_id, card_id}`. Разовое событие для анимации.
-- `game_ended` — `{reason, final_scores, winner_ids}`.
+- `round_winner` — `{winner_id, card_id}`. Разовое событие для анимации; приходит до снапшота следующего раунда.
+- `game_ended` — `{room_id, reason, final_scores, winner_ids}`, `reason`: `owner_ended` | `limit_reached` | `not_enough_players` | `out_of_cards`.
 - `chat_message` — `{player_id, username, text, timestamp}`.
-- `you_left_room`.
+- `you_left_room` — `{room_id}`.
 
 ## Задачи
 
@@ -73,7 +73,7 @@
 - [x] Интерфейс репозитория состояния (комнаты, игроки, игры, токены) и in-memory реализация вместо class-level словарей.
 - [x] WS-диспетчер: разбор сообщений, валидация payload через pydantic, ack/error, игрок берётся из соединения.
 - [x] Перенести действия в WS-обработчики. Удалить REST-ручки, которые меняют состояние.
-- [ ] Билдер снапшота `room_state` и рассылка после каждого изменения. Удалить разрозненные события.
+- [x] Билдер снапшота `room_state` и рассылка после каждого изменения. Удалить разрозненные события.
 - [ ] Отправлять дедлайн фазы (`ends_at`).
 - [ ] Исправить баги:
   - [ ] Колода закончилась: завершать игру, а не падать в фоновой задаче.

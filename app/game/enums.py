@@ -20,29 +20,24 @@ class RoundState(Enum):
 
 
 class WebsocketEvents(Enum):
+    # replies to client actions
     ACK = "ack"
     ERROR = "error"
 
-    PLAYER_CREATED = "player_created"
-    PLAYER_RECONNECTED = "player_reconnected"
-    PLAYER_DISCONNECTED = "player_disconnected"
-    PLAYER_PROFILE_UPDATED = "player_profile_updated"
+    # state: the client replaces what it has with what it receives
+    SESSION = "session"  # who you are; sent on connect
+    ROOMS_LIST = "rooms_list"  # for players outside rooms
+    ROOM_STATE = "room_state"  # personal snapshot of your room
 
-    ROOM_CREATED = "room_created"
-    PLAYER_JOINED_ROOM = "player_joined_room"
-    PLAYER_LEFT_ROOM = "player_left_room"
-
-    YOU_JOINED_THE_ROOM = "you_joined_the_room"
-    YOU_LEFT_THE_ROOM = "you_left_the_room"
-
-    GAME_STARTED = "game_started"
+    # one-off moments that a snapshot can't express
+    ROUND_WINNER = "round_winner"
     GAME_ENDED = "game_ended"
+    CHAT_MESSAGE = "chat_message"
+    YOU_LEFT_ROOM = "you_left_room"
 
-    ROUND_STARTED = "round_started"
-    PLAYER_SELECTED_CARD = "player_selected_card"
-    PLAYER_CARD_REMOVED = "player_card_removed"
-    ROUND_STATE_CHANGED = "round_state_changed"
-    LEADER_HAS_CHOSEN_WINNER = "leader_has_chosen_winner"
-    ROUND_ENDED = "round_ended"
 
-    PLAYER_CARDS_UPDATED = "player_cards_updated"
+class GameEndReason(Enum):
+    OWNER_ENDED = "owner_ended"
+    LIMIT_REACHED = "limit_reached"  # max_rounds or score_to_win
+    NOT_ENOUGH_PLAYERS = "not_enough_players"
+    OUT_OF_CARDS = "out_of_cards"

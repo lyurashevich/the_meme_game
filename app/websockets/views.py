@@ -7,12 +7,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.db import get_session_factory
 from app.dependencies import Services, get_services
-from app.exceptions import (
-    InvalidReconnectToken,
-    PlayerNotFoundException,
-    RoomNotFoundException,
-)
-from app.game.enums import WebsocketEvents
+from app.exceptions import InvalidReconnectToken, PlayerNotFoundException
 from app.websockets.dispatcher import ActionContext
 from app.websockets.handlers import dispatcher
 
@@ -31,54 +26,34 @@ async def websocket_endpoint(
     connection_manager = services.connection_manager
     player_service = services.player_service
     reconnect_service = services.reconnect_service
-    room_service = services.room_service
+    notifier = services.notifier
 
     await websocket.accept()
 
     player = None
-    now = datetime.now(timezone.utc)
 
     if reconnect_token:
         try:
-            player = await reconnect_service.handle_reconnect(reconnect_token, now)
-            connection_manager.add_connection(player.id, websocket)
-
-            token = await reconnect_service.create_reconnect_token(player.id)
-
-            if not player.room_id:
-                payload = (
-                    player.id,
-                    {
-                        "event": WebsocketEvents.PLAYER_RECONNECTED.value,
-                        "payload": {"reconnect_token": token, "avatar_id": player.avatar_id, "player_id": player.id},
-                    },
-                )
-                await connection_manager.send_personal_json(*payload)
-            else:
-                payload = await reconnect_service.build_reconnect_payload(player, token)
-                await connection_manager.send_personal_json(*payload)
-
+            player = await reconnect_service.handle_reconnect(reconnect_token, datetime.now(timezone.utc))
         except (PlayerNotFoundException, InvalidReconnectToken):
             player = None
 
     if not player:
         player = await player_service.create_player()
-        connection_manager.add_connection(player.id, websocket)
 
-        token = await reconnect_service.create_reconnect_token(player.id)
+    connection_manager.add_connection(player.id, websocket)
+    token = await reconnect_service.create_reconnect_token(player.id)
 
-        await connection_manager.send_personal_json(
-            player.id,
-            {
-                "event": WebsocketEvents.PLAYER_CREATED.value,
-                "payload": {
-                    "player_id": player.id,
-                    "reconnect_token": token,
-                    "username": player.username,
-                    "avatar_id": player.avatar_id,
-                },
-            },
-        )
+    if player.room_id and await services.room_service.rooms.get(player.room_id) is None:
+        player.room_id = None  # the room was removed while the player was away
+
+    # who you are, then where you are: your room (with the chat history) or the room list
+    await notifier.send_session(player, token)
+    if player.room_id:
+        # everyone else in the room sees the player back online
+        await notifier.broadcast_room_state(player.room_id, with_chat_for=player.id)
+    else:
+        await notifier.send_rooms_list(player.id)
 
     ctx = ActionContext(player=player, services=services, session_factory=session_factory)
 
@@ -95,26 +70,13 @@ async def websocket_endpoint(
         # the finally block still marks the player as disconnected
         logger.exception("Unhandled error in websocket loop for player %s", player.id)
     finally:
-        if player:
-            try:
-                connection_manager.remove_connection(player.id)
-                await reconnect_service.disconnect(player.id)
+        try:
+            connection_manager.remove_connection(player.id)
+            await reconnect_service.disconnect(player.id)
 
-                if player.room_id:
-                    try:
-                        room = await room_service.get_room(player.room_id)
-                    except RoomNotFoundException:
-                        room = None  # type: ignore
-
-                    if room:
-                        await connection_manager.broadcast_to_players(
-                            [p.id for p in room.players],
-                            {
-                                "event": WebsocketEvents.PLAYER_DISCONNECTED.value,
-                                "payload": {"player_id": player.id, "username": player.username},
-                            },
-                            exclude_id=player.id,
-                        )
-            except Exception:
-                # swallow to avoid raising from websocket endpoint
-                logger.exception("Failed to clean up after disconnect of player %s", player.id)
+            if player.room_id:
+                # the others see the player go offline
+                await notifier.broadcast_room_state(player.room_id)
+        except Exception:
+            # swallow to avoid raising from websocket endpoint
+            logger.exception("Failed to clean up after disconnect of player %s", player.id)

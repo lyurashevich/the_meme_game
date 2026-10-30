@@ -3,6 +3,7 @@ from typing import Annotated
 from pydantic import ConfigDict, Field, StringConstraints
 
 from app.exceptions import PlayerNotInRoomException
+from app.game.enums import WebsocketEvents
 from app.schemas.game import GameSettingsSchema
 from app.schemas.players import BasePlayerProfileSchema
 from app.websockets.dispatcher import ActionContext, Dispatcher
@@ -34,6 +35,9 @@ async def update_profile(ctx: ActionContext, payload: UpdateProfilePayload) -> d
         ctx.player.id, BasePlayerProfileSchema(username=payload.username, avatar_id=payload.avatar_id)
     )
 
+    if player.room_id:
+        await ctx.services.notifier.broadcast_room_state(player.room_id)
+
     return {"username": player.username, "avatar_id": player.avatar_id}
 
 
@@ -54,11 +58,8 @@ async def create_room(ctx: ActionContext, payload: CreateRoomPayload) -> dict:
         owner=ctx.player, room_name=payload.name, max_players=payload.max_players
     )
 
-    # announce the new room to everyone who is browsing the room list
-    players_in_rooms = {p.id for p in await services.player_service.get_players() if p.room_id}
-    audience = list(set(services.connection_manager.player_sockets) - players_in_rooms)
-    recipients, message = services.room_service.build_room_created_message(room, audience)
-    await services.connection_manager.broadcast_to_players(recipients, message)
+    await services.notifier.broadcast_room_state(room.id, with_chat_for=ctx.player.id)
+    await services.notifier.broadcast_rooms_list()  # everyone browsing the list sees the new room
 
     return {"room_id": room.id}
 
@@ -73,12 +74,12 @@ async def join_room(ctx: ActionContext, payload: JoinRoomPayload) -> dict:
     services.game_manager.validate_player_can_join_room(ctx.player)
 
     await services.room_service.join_room(payload.room_id, ctx.player)
-    room = await services.room_service.get_room(payload.room_id)
 
-    for recipients, message in services.room_service.build_join_room_messages(room, ctx.player):
-        await services.connection_manager.broadcast_to_players(recipients, message)
+    # the newcomer also gets the chat history; the others just see one more player
+    await services.notifier.broadcast_room_state(payload.room_id, with_chat_for=ctx.player.id)
+    await services.notifier.broadcast_rooms_list()  # players count changed
 
-    return {"room_id": room.id}
+    return {"room_id": payload.room_id}
 
 
 class LeaveRoomPayload(ActionPayload):
@@ -113,10 +114,7 @@ async def start_game(ctx: ActionContext, payload: ActionPayload) -> None:
     game_service = ctx.services.game_service
 
     async with ctx.session_factory() as db:
-        game = await game_service.start_game(_current_room_id(ctx), ctx.player.id, db)
-
-    for recipients, message in game_service.build_game_started_messages(game):
-        await ctx.services.connection_manager.broadcast_to_players(recipients, message)
+        await game_service.start_game(_current_room_id(ctx), ctx.player.id, db)
 
 
 @dispatcher.action("end_game")
@@ -147,9 +145,7 @@ class ChatMessagePayload(ActionPayload):
 
 @dispatcher.action("chat_message", ChatMessagePayload)
 async def chat_message(ctx: ActionContext, payload: ChatMessagePayload) -> None:
-    recipients, message = await ctx.services.room_service.send_chat_message(
-        room_id=_current_room_id(ctx),
-        player=ctx.player,
-        message=payload.text,
-    )
-    await ctx.services.connection_manager.broadcast_to_players(recipients, message)
+    room_id = _current_room_id(ctx)
+    message = await ctx.services.room_service.add_chat_message(room_id, ctx.player, payload.text)
+
+    await ctx.services.notifier.broadcast_event(room_id, WebsocketEvents.CHAT_MESSAGE, message)

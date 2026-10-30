@@ -1,42 +1,20 @@
-from app.game.enums import WebsocketEvents
-from app.services.room_service import RoomService
+from app.services.snapshots import CHAT_HISTORY_LIMIT
 
 
-class TestRoomServiceMessages:
-    async def test_build_room_created_message(self, test_room):
-        audience = ["socket-1", "socket-2"]
+class TestRoomServiceChat:
+    async def test_add_chat_message(self, test_room, test_player, room_service):
+        message = await room_service.add_chat_message(test_room.id, test_player, "hi")
 
-        recipients, payload = RoomService.build_room_created_message(test_room, audience)
+        assert message["player_id"] == test_player.id
+        assert message["username"] == test_player.username
+        assert message["text"] == "hi"
+        assert message["timestamp"]
+        assert test_room.messages == [message]
 
-        assert recipients == audience
-        assert payload == {
-            "event": WebsocketEvents.ROOM_CREATED.value,
-            "payload": {"room_id": test_room.id, "room_name": test_room.name},
-        }
+    async def test_only_latest_messages_are_kept(self, test_room, test_player, room_service):
+        for i in range(CHAT_HISTORY_LIMIT + 5):
+            await room_service.add_chat_message(test_room.id, test_player, str(i))
 
-    async def test_build_join_room_messages(self, test_room_with_players, test_players):
-        room = test_room_with_players
-        joining_player = test_players[0]
-
-        messages = RoomService.build_join_room_messages(room, joining_player)
-
-        assert len(messages) == 2
-
-        you_joined_recipients, you_joined_payload = messages[0]
-        assert you_joined_recipients == [joining_player.id]
-        assert you_joined_payload == {
-            "event": WebsocketEvents.YOU_JOINED_THE_ROOM.value,
-            "payload": {
-                "room_id": room.id,
-                "room_name": room.name,
-                "players": [{"id": p.id, "username": p.username} for p in room.players],
-            },
-        }
-
-        player_joined_recipients, player_joined_payload = messages[1]
-        assert joining_player.id not in player_joined_recipients
-        assert set(player_joined_recipients) == {p.id for p in room.players if p.id != joining_player.id}
-        assert player_joined_payload == {
-            "event": WebsocketEvents.PLAYER_JOINED_ROOM.value,
-            "payload": {"player_id": joining_player.id, "username": joining_player.username},
-        }
+        assert len(test_room.messages) == CHAT_HISTORY_LIMIT
+        assert test_room.messages[0]["text"] == "5"
+        assert test_room.messages[-1]["text"] == str(CHAT_HISTORY_LIMIT + 4)

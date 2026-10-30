@@ -67,6 +67,18 @@ def connection_manager(services):
 
 
 @pytest.fixture
+def outbox(connection_manager):
+    """Records every message the server sends to clients, as ``(player_id, message)`` in send order."""
+    sent = []
+
+    async def record(player_id, message):
+        sent.append((player_id, message))
+
+    connection_manager.send_personal_json = record
+    return sent
+
+
+@pytest.fixture
 def room_service(services):
     return services.room_service
 
@@ -79,6 +91,11 @@ def game_manager(services):
 @pytest.fixture
 def player_service(services):
     return services.player_service
+
+
+@pytest.fixture
+def notifier(services):
+    return services.notifier
 
 
 @pytest.fixture
@@ -142,9 +159,10 @@ async def test_room(test_player, room_service):
 
 
 @pytest.fixture
-async def test_room_with_players(test_player, test_players, room_service):
+async def test_room_with_players(test_player, test_players, room_service, player_service):
     room = await room_service.create_room(owner=test_player)
     for player in test_players:
+        await player_service.players.add(player)
         room.add_player(player)
         player.room_id = room.id
 

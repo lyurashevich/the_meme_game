@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -18,10 +18,11 @@ from app.exceptions import (
     RoomNotFoundException,
     RoundNotFoundException,
 )
-from app.game.enums import GameState, RoundState, WebsocketEvents
+from app.game.enums import GameEndReason, GameState, RoundState
 from app.models import MemeCard
 from app.schemas.game import GameSettingsSchema
 from app.services.game_service import CARDS_PER_PLAYER
+from tests.helpers import events_for, last_room_state
 
 
 async def _choose_winner(game_service, game, card_id):
@@ -109,25 +110,6 @@ class TestGameLogic:
             await game_service.start_game(test_room_with_players.id, not_owner.id, db=db_session)
 
         assert await game_manager.games.get(test_room_with_players.id) is None
-
-    async def test_build_game_started_messages(self, prepared_game, game_service):
-        messages = game_service.build_game_started_messages(prepared_game)
-
-        assert len(messages) == 1 + len(prepared_game.room.players)
-
-        game_started_recipients, game_started_payload = messages[0]
-        assert game_started_recipients == [player.id for player in prepared_game.room.players]
-        assert game_started_payload == {
-            "event": WebsocketEvents.GAME_STARTED.value,
-            "payload": {"room_id": prepared_game.room.id},
-        }
-
-        for (recipients, payload), player in zip(messages[1:], prepared_game.room.players):
-            assert recipients == [player.id]
-            assert payload["event"] == WebsocketEvents.ROUND_STARTED.value
-            assert payload["payload"]["room_id"] == prepared_game.room.id
-            assert payload["payload"]["leader_id"] is None
-            assert payload["payload"]["player_cards"] == [card.to_dict() for card in player.hand_cards]
 
     async def test_start_first_round(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
@@ -317,17 +299,19 @@ class TestGameLogic:
         assert prepared_game.current_round.round_number == 2
         game_service.game_manager.clear_room_tasks(prepared_game.room_id)
 
-    async def test_phase_timer__leader_timeout_broadcasts_next_round(self, prepared_game, game_service):
+    async def test_phase_timer__leader_timeout_broadcasts_next_round(
+        self, prepared_game, game_service, connection_manager
+    ):
         """Regression: when the leader runs out of time, phase_timer finishes the round and in
         doing so asks to cancel the "phase_timer" task - i.e. itself. It used to get cancelled at
         its next real await, so the next round started on the server but was never broadcast."""
-        sent_events = []
+        sent = []
 
-        async def suspending_broadcast(player_ids, message, exclude_id=None):
+        async def suspending_send(player_id, message):
             await asyncio.sleep(0)  # a real socket send suspends; AsyncMock doesn't
-            sent_events.append(message["event"])
+            sent.append(message)
 
-        game_service.connection_manager.broadcast_to_players = suspending_broadcast
+        connection_manager.send_personal_json = suspending_send
         await game_service.start_first_round(prepared_game.room_id)
         game_service.game_manager.clear_room_tasks(prepared_game.room_id)
         prepared_game.current_round.state = RoundState.LEADER_CHOOSING
@@ -337,7 +321,8 @@ class TestGameLogic:
         await task
 
         assert prepared_game.current_round.round_number == 2
-        assert WebsocketEvents.ROUND_STARTED.value in sent_events
+        round_numbers = [m["payload"]["game"]["round_number"] for m in sent if m["event"] == "room_state"]
+        assert round_numbers and round_numbers[-1] == 2
         game_service.game_manager.clear_room_tasks(prepared_game.room_id)
 
     async def test_leader_choose_winner__game_not_found(self, prepared_game, test_game, game_service):
@@ -406,10 +391,12 @@ class TestGameLogic:
 
         assert str(e.value.message) == PlayerNotFoundException.message
 
-    async def test_leader_choose_winner__announces_winner_before_next_round_starts(self, prepared_game, game_service):
-        """``leader_has_chosen_winner`` must reach clients before the table is cleared and
-        the next round's data is sent, otherwise the winning card is already gone from the
-        client's DOM by the time it learns which card won (see the frontend animation)."""
+    async def test_leader_choose_winner__announces_winner_before_next_round_starts(
+        self, prepared_game, game_service, outbox
+    ):
+        """``round_winner`` must reach clients before the snapshot of the next round, otherwise
+        the winning card is already gone from the client's screen by the time it learns which
+        card won (see the frontend animation)."""
         await game_service.start_first_round(prepared_game.room_id)
         for player in prepared_game.room.players:
             if player is not prepared_game.current_round.leader:
@@ -417,36 +404,21 @@ class TestGameLogic:
 
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
-        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
-
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
-
-        sent_messages = []
-
-        async def record_broadcast(player_ids, message):
-            sent_messages.append(message)
-
-        async def record_personal(player_id, message):
-            sent_messages.append(message)
-
-        game_service.connection_manager.broadcast_to_players = AsyncMock(side_effect=record_broadcast)
-        game_service.connection_manager.send_personal_json = AsyncMock(side_effect=record_personal)
 
         await _choose_winner(game_service, prepared_game, winner_card_id)
 
-        events_in_order = [message["event"] for message in sent_messages]
-        winner_event_index = events_in_order.index(WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value)
-        round_started_index = events_in_order.index(WebsocketEvents.ROUND_STARTED.value)
-
-        assert winner_event_index < round_started_index
-        assert events_in_order.count(WebsocketEvents.LEADER_HAS_CHOSEN_WINNER.value) == 1
-
-        winner_message = sent_messages[winner_event_index]
-        assert winner_message["payload"] == {
-            "winner_id": winner.id,
-            "winner_username": winner.username,
-            "card_id": winner_card_id,
-        }
+        for player in prepared_game.room.players:
+            messages = events_for(outbox, player.id)
+            winner_index = next(i for i, m in enumerate(messages) if m["event"] == "round_winner")
+            next_round_index = next(
+                i
+                for i, m in enumerate(messages)
+                if m["event"] == "room_state" and m["payload"]["game"]["round_number"] == 2
+            )
+            assert winner_index < next_round_index
+            assert messages[winner_index]["payload"] == {"winner_id": winner.id, "card_id": winner_card_id}
+            assert [m["event"] for m in messages].count("round_winner") == 1
 
     async def test_leader_choose_winner__leader_leaving_during_delay_is_a_no_op(self, prepared_game, game_service):
         """While the winning card is on display, the leader may disconnect before the
@@ -649,7 +621,7 @@ class TestGameLogic:
         assert prepared_game.state == GameState.FINISHED
         assert prepared_game.current_round is None
 
-    async def test_leader_choose_winner__game_ended_sends_game_ended_event(self, prepared_game, game_service):
+    async def test_leader_choose_winner__game_ended_sends_game_ended_event(self, prepared_game, game_service, outbox):
         prepared_game.settings.score_to_win = 1
         await game_service.start_first_round(prepared_game.room_id)
 
@@ -661,18 +633,21 @@ class TestGameLogic:
 
         winner = prepared_game.room.players[2]
         winner_card_id = prepared_game.current_round.player_choices[winner.id].id
-        prepared_game.current_round.state = RoundState.LEADER_CHOOSING
-
-        game_service.connection_manager.broadcast_to_players = AsyncMock()
-        game_service.connection_manager.send_personal_json = AsyncMock()
 
         await _choose_winner(game_service, prepared_game, winner_card_id)
 
-        sent_events = [
-            call.args[1]["event"] for call in game_service.connection_manager.broadcast_to_players.await_args_list
-        ]
-        assert WebsocketEvents.GAME_ENDED.value in sent_events
-        game_service.connection_manager.send_personal_json.assert_not_awaited()
+        for player in prepared_game.room.players:
+            game_ended = [m["payload"] for m in events_for(outbox, player.id) if m["event"] == "game_ended"]
+            assert game_ended == [
+                {
+                    "room_id": prepared_game.room_id,
+                    "reason": GameEndReason.LIMIT_REACHED.value,
+                    "final_scores": {p.id: (1 if p is winner else 0) for p in prepared_game.room.players},
+                    "winner_ids": [winner.id],
+                }
+            ]
+            # and the screen goes back to the lobby
+            assert last_room_state(outbox, player.id)["game"] is None
 
     async def test_leader_choose_winner__max_rounds_ends_before_deck_exhaustion(self, prepared_game, game_service):
         # Top up the meme deck so this test only exercises the situation-card deck
@@ -698,36 +673,25 @@ class TestGameLogic:
         assert prepared_game.state == GameState.FINISHED
         assert prepared_game.current_round is None
 
-    async def test_end_game_locked__default_message_preserved(self, prepared_game, game_service):
-        messages = await game_service._end_game_locked(prepared_game.room_id)
+    async def test_end_game_locked__returns_reason(self, prepared_game, game_service):
+        payload = await game_service._end_game_locked(prepared_game.room_id, GameEndReason.NOT_ENOUGH_PLAYERS)
 
-        assert len(messages) == 1
-        _, payload = messages[0]
-        assert (
-            payload["payload"]["message"]
-            == "Игра завершена: в комнате осталось меньше игроков, чем нужно для продолжения."
-        )
-
-    async def test_end_game_locked__custom_message(self, prepared_game, game_service):
-        messages = await game_service._end_game_locked(prepared_game.room_id, message="custom message")
-
-        assert len(messages) == 1
-        _, payload = messages[0]
-        assert payload["payload"]["message"] == "custom message"
+        assert payload["room_id"] == prepared_game.room_id
+        assert payload["reason"] == "not_enough_players"
 
     async def test_end_game_locked__includes_final_scores_before_reset(self, prepared_game, game_service):
         prepared_game.room.players[0].score = 3
         prepared_game.room.players[1].score = 1
 
-        messages = await game_service._end_game_locked(prepared_game.room_id)
+        payload = await game_service._end_game_locked(prepared_game.room_id, GameEndReason.OWNER_ENDED)
 
-        _, payload = messages[0]
-        assert payload["payload"]["final_scores"] == {
+        assert payload["final_scores"] == {
             prepared_game.room.players[0].id: 3,
             prepared_game.room.players[1].id: 1,
             prepared_game.room.players[2].id: 0,
             prepared_game.room.players[3].id: 0,
         }
+        assert payload["winner_ids"] == [prepared_game.room.players[0].id]
         for player in prepared_game.room.players:
             assert player.score == 0
 
@@ -788,22 +752,22 @@ class TestGameLogic:
 
         game_service.game_manager.clear_room_tasks(prepared_game.room_id)
 
-    async def test_process_leave__owner_leaving_broadcasts_new_owner_id(self, test_room_with_players, game_service):
+    async def test_process_leave__owner_leaving_broadcasts_new_owner_id(
+        self, test_room_with_players, game_service, outbox
+    ):
         owner = test_room_with_players.owner
         next_owner = test_room_with_players.players[1]
 
-        game_service.connection_manager.broadcast_to_players = AsyncMock()
-        game_service.connection_manager.send_personal_json = AsyncMock()
-
         await game_service.process_leave(owner, test_room_with_players.id, confirm=False)
 
-        player_left_payloads = [
-            call.args[1]
-            for call in game_service.connection_manager.broadcast_to_players.await_args_list
-            if call.args[1]["event"] == WebsocketEvents.PLAYER_LEFT_ROOM.value
-        ]
-        assert len(player_left_payloads) == 1
-        assert player_left_payloads[0]["payload"]["new_owner_id"] == next_owner.id
+        assert events_for(outbox, owner.id)[0] == {
+            "event": "you_left_room",
+            "payload": {"room_id": test_room_with_players.id},
+        }
+        for player in test_room_with_players.players:
+            state = last_room_state(outbox, player.id)
+            assert state["room"]["owner_id"] == next_owner.id
+            assert owner.id not in {p["id"] for p in state["players"]}
 
     async def test_phase_timer__uses_configured_round_time_limit(self, prepared_game, game_service):
         prepared_game.settings.round_time_limit = 90

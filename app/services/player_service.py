@@ -1,9 +1,7 @@
 import asyncio
 
 from app.exceptions import PlayerNotFoundException
-from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
-from app.game.enums import WebsocketEvents
 from app.models import MemeCard
 from app.repositories.base import PlayerRepository
 from app.schemas.players import BasePlayerProfileSchema
@@ -13,9 +11,8 @@ RECONNECT_TIMEOUT = 60  # seconds
 
 
 class PlayerService:
-    def __init__(self, players: PlayerRepository, connection_manager: ConnectionManager, room_service: RoomService):
+    def __init__(self, players: PlayerRepository, room_service: RoomService):
         self.players = players
-        self.connection_manager = connection_manager
         self.room_service = room_service
 
     async def players_cleanup(self, player_id: str, connection_manager):
@@ -72,21 +69,5 @@ class PlayerService:
 
         if data.avatar_id:
             player.avatar_id = data.avatar_id
-
-        if not player.room_id:
-            await self.connection_manager.send_personal_json(
-                player_id,
-                {"event": WebsocketEvents.PLAYER_PROFILE_UPDATED.value, "payload": {"username": player.username}},
-            )
-        else:
-            room = await self.room_service.get_room(player.room_id)
-            await self.connection_manager.broadcast_to_players(
-                [player.id for player in room.players],
-                {
-                    "event": WebsocketEvents.PLAYER_PROFILE_UPDATED.value,
-                    "username": player.username,
-                    "player_id": player.id,
-                },
-            )
 
         return player

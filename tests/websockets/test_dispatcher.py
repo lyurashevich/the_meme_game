@@ -6,6 +6,7 @@ from app.exceptions import NotRoomOwnerException
 from app.game.dataclasses import Player
 from app.websockets.dispatcher import ActionContext, Dispatcher
 from app.websockets.protocol import ActionPayload
+from tests.helpers import WsClient
 
 
 class EchoPayload(ActionPayload):
@@ -114,39 +115,35 @@ class TestChatMessageAction:
     """End-to-end through the real websocket endpoint and the registered handlers."""
 
     def test_chat_message_is_broadcast_to_the_room(self, client_with_no_db):
-        client = client_with_no_db
-        with client.websocket_connect("/ws") as alice, client.websocket_connect("/ws") as bob:
-            alice_id = alice.receive_json()["payload"]["player_id"]
-            bob.receive_json()  # player_created
+        with (
+            client_with_no_db.websocket_connect("/ws") as alice_ws,
+            client_with_no_db.websocket_connect("/ws") as bob_ws,
+        ):
+            alice, bob = WsClient(alice_ws), WsClient(bob_ws)
+            room_id = alice.act("create_room")["room_id"]
+            bob.act("join_room", {"room_id": room_id})
 
-            alice.send_json({"event": "create_room", "request_id": "c1", "payload": {}})
-            room_id = alice.receive_json()["payload"]["room_id"]  # ack
-            assert bob.receive_json()["event"] == "room_created"
+            assert alice.send("chat_message", {"text": "  hi  "}) == {
+                "event": "ack",
+                "request_id": "chat_message",
+                "payload": {},
+            }
 
-            bob.send_json({"event": "join_room", "request_id": "j1", "payload": {"room_id": room_id}})
-            assert bob.receive_json()["event"] == "you_joined_the_room"
-            assert bob.receive_json() == {"event": "ack", "request_id": "j1", "payload": {"room_id": room_id}}
-            assert alice.receive_json()["event"] == "player_joined_room"
+            for client in (alice, bob):
+                chat = client.next("chat_message")["payload"]
+                assert chat["player_id"] == alice.player_id
+                assert chat["text"] == "hi"
+                assert set(chat) == {"player_id", "username", "text", "timestamp"}
 
-            alice.send_json({"event": "chat_message", "request_id": "r1", "payload": {"text": "  hi  "}})
-
-            chat_for_alice = alice.receive_json()
-            ack = alice.receive_json()
-            chat_for_bob = bob.receive_json()
-
-        assert ack == {"event": "ack", "request_id": "r1", "payload": {}}
-        for chat in (chat_for_alice, chat_for_bob):
-            assert chat["event"] == "chat_message"
-            assert chat["player_id"] == alice_id
-            assert chat["room_id"] == room_id
-            assert chat["message"] == "hi"
+            # someone joining later gets the history in their first snapshot
+            with client_with_no_db.websocket_connect("/ws") as carol_ws:
+                carol = WsClient(carol_ws)
+                carol.act("join_room", {"room_id": room_id})
+                assert [m["text"] for m in carol.next("room_state")["payload"]["chat"]] == ["hi"]
 
     def test_chat_message_outside_room_is_rejected(self, client_with_no_db):
         with client_with_no_db.websocket_connect("/ws") as ws:
-            ws.receive_json()  # player_created
-            ws.send_json({"event": "chat_message", "request_id": "r1", "payload": {"text": "hi"}})
-
-            reply = ws.receive_json()
+            reply = WsClient(ws).send("chat_message", {"text": "hi"})
 
         assert reply["event"] == "error"
         assert reply["payload"]["code"] == "player_not_in_room"
@@ -154,16 +151,14 @@ class TestChatMessageAction:
     @pytest.mark.parametrize("text", ["", "   ", "x" * 501])
     def test_chat_message_text_is_validated(self, client_with_no_db, text):
         with client_with_no_db.websocket_connect("/ws") as ws:
-            ws.receive_json()  # player_created
-            ws.send_json({"event": "chat_message", "request_id": "r1", "payload": {"text": text}})
-
-            reply = ws.receive_json()
+            reply = WsClient(ws).send("chat_message", {"text": text})
 
         assert reply["payload"]["code"] == "validation_error"
 
     def test_connection_survives_errors(self, client_with_no_db):
         with client_with_no_db.websocket_connect("/ws") as ws:
-            ws.receive_json()  # player_created
+            client = WsClient(ws)
+            client.next("rooms_list")
             ws.send_text("garbage")
             assert ws.receive_json()["payload"]["code"] == "invalid_message"
 

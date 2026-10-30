@@ -1,11 +1,10 @@
 from asyncio import Lock
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.exceptions import PlayerNotInRoomException, RoomNotFoundException
 from app.game.dataclasses import Player, Room
-from app.game.enums import WebsocketEvents
 from app.repositories.base import RoomRepository
-from app.schemas.messages import ChatMessageResponse
+from app.services.snapshots import CHAT_HISTORY_LIMIT
 
 
 class RoomService:
@@ -92,58 +91,18 @@ class RoomService:
     async def update_room(self):
         pass
 
-    @staticmethod
-    def build_room_created_message(room: Room, audience: list[str]) -> tuple[list[str], dict]:
-        return audience, {
-            "event": WebsocketEvents.ROOM_CREATED.value,
-            "payload": {"room_id": room.id, "room_name": room.name},
-        }
-
-    @staticmethod
-    def build_join_room_messages(room: Room, player: Player) -> list[tuple[list[str], dict]]:
-        you_joined = (
-            [player.id],
-            {
-                "event": WebsocketEvents.YOU_JOINED_THE_ROOM.value,
-                "payload": {
-                    "room_id": room.id,
-                    "room_name": room.name,
-                    "players": [{"id": p.id, "username": p.username} for p in room.players],
-                },
-            },
-        )
-        other_player_ids = [p.id for p in room.players if p.id != player.id]
-        player_joined = (
-            other_player_ids,
-            {
-                "event": WebsocketEvents.PLAYER_JOINED_ROOM.value,
-                "payload": {"player_id": player.id, "username": player.username},
-            },
-        )
-        return [you_joined, player_joined]
-
-    async def send_chat_message(self, room_id: str, player: Player, message: str) -> tuple[list[str], dict]:
-
-        chat_message = {
+    async def add_chat_message(self, room_id: str, player: Player, text: str) -> dict:
+        """Store a chat message (only the latest ``CHAT_HISTORY_LIMIT`` are kept) and return it."""
+        message = {
             "player_id": player.id,
-            "player_name": player.username,
-            "message": message,
-            "timestamp": datetime.now().isoformat(),
-            "room_id": room_id,
+            "username": player.username,
+            "text": text,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-
-        response_message = ChatMessageResponse(
-            player_id=player.id,
-            player_name=player.username,
-            message=message,
-            timestamp=chat_message["timestamp"],
-            room_id=room_id,
-        )
 
         async with self.get_room_lock(room_id):
             room = await self.get_room(room_id=room_id)
-            room.messages.append(chat_message)
+            room.messages.append(message)
+            del room.messages[:-CHAT_HISTORY_LIMIT]
 
-            sockets = [p.id for p in room.players]
-
-        return sockets, response_message.model_dump()
+        return message
