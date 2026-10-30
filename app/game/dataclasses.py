@@ -131,6 +131,8 @@ class GameRound:
     state: RoundState = RoundState.CHOOSING_CARDS
     time_limit: int = 60  # seconds
     finalized: bool = False
+    # when the current phase (choosing cards / leader choosing) times out; None while nothing is timed
+    phase_ends_at: datetime | None = None
 
     @property
     def player_choices_list(self):

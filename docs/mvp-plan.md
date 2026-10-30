@@ -44,6 +44,7 @@
 - `room_state` — снапшот:
   ```
   {
+    server_time,                          // ISO-время сервера в момент отправки
     room: {id, name, owner_id, max_players, settings: {round_time_limit, max_rounds, score_to_win}},
     players: [{id, username, avatar_id, score, is_connected}],
     game: null | {                        // null — лобби (игры нет или она закончилась)
@@ -52,11 +53,15 @@
       my_selected_card_id,
       submitted_player_ids: [...],        // кто уже сдал карту (без картинок)
       table: [{id, image_url}],           // с фазы leader_choosing: анонимно, по возрастанию id
-      winner: null | {player_id, card_id}
+      winner: null | {player_id, card_id},
+      ends_at                             // ISO-дедлайн текущей фазы; null, пока показывается победитель
     },
     chat: [{player_id, username, text, timestamp}]   // только после входа в комнату или реконнекта
   }
   ```
+  Таймер на клиенте: `осталось = ends_at − server_time` в момент получения, дальше отсчёт по локальным часам. Так расхождение часов клиента и сервера не влияет на таймер.
+
+  Фазы раунда: `choosing_cards` (игроки сдают карты, `round_time_limit` секунд) → `leader_choosing` (ведущий выбирает, 30 секунд). Если время на сдачу вышло и никто не сдал карту, начинается следующий раунд. Если ведущий не успел, раунд заканчивается без победителя.
 - `round_winner` — `{winner_id, card_id}`. Разовое событие для анимации; приходит до снапшота следующего раунда.
 - `game_ended` — `{room_id, reason, final_scores, winner_ids}`, `reason`: `owner_ended` | `limit_reached` | `not_enough_players` | `out_of_cards`.
 - `chat_message` — `{player_id, username, text, timestamp}`.
@@ -74,7 +79,7 @@
 - [x] WS-диспетчер: разбор сообщений, валидация payload через pydantic, ack/error, игрок берётся из соединения.
 - [x] Перенести действия в WS-обработчики. Удалить REST-ручки, которые меняют состояние.
 - [x] Билдер снапшота `room_state` и рассылка после каждого изменения. Удалить разрозненные события.
-- [ ] Отправлять дедлайн фазы (`ends_at`).
+- [x] Отправлять дедлайн фазы (`ends_at`). Заодно: у фазы ведущего появился свой таймер (30 с); пустой стол пропускается.
 - [ ] Исправить баги:
   - [ ] Колода закончилась: завершать игру, а не падать в фоновой задаче.
   - [ ] Стартовая проверка колоды: нужно `игроки × 6` карт.

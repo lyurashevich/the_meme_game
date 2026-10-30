@@ -4,6 +4,8 @@ Pure functions: they only read the objects they are given, so they can be called
 at any moment and always describe the state as it is right now.
 """
 
+from datetime import datetime, timezone
+
 from app.game.dataclasses import Game, Player, Room
 from app.game.enums import GameState, RoundState
 from app.models import MemeCard
@@ -35,14 +37,20 @@ def build_rooms_list(rooms: list[Room], games: dict[str, Game | None]) -> list[d
     ]
 
 
-def build_room_state(room: Room, game: Game | None, player: Player, chat: list[dict] | None = None) -> dict:
+def build_room_state(
+    room: Room, game: Game | None, player: Player, chat: list[dict] | None = None, now: datetime | None = None
+) -> dict:
     """Everything ``player`` may see about the room, from their point of view.
 
     ``chat`` is the message history; it is only included when the client needs it
     (right after joining or reconnecting), since new messages arrive as events.
+
+    ``server_time`` lets the client turn ``game.ends_at`` into a countdown without trusting
+    its own clock: remaining = ends_at - server_time, then count down locally.
     """
     settings = room.settings
     state = {
+        "server_time": _iso(now or datetime.now(timezone.utc)),
         "room": {
             "id": room.id,
             "name": room.name,
@@ -77,6 +85,10 @@ def _is_running(game: Game | None) -> bool:
     return game is not None and game.state != GameState.FINISHED
 
 
+def _iso(moment: datetime | None) -> str | None:
+    return moment.isoformat() if moment else None
+
+
 def _card(card: MemeCard) -> dict:
     return {"id": card.id, "image_url": card.image_url}
 
@@ -94,6 +106,7 @@ def _build_game_state(game: Game, player: Player) -> dict:
         "my_selected_card_id": None,
         "table": [],
         "winner": None,
+        "ends_at": None,
     }
     if round_ is None:
         return state
@@ -108,6 +121,8 @@ def _build_game_state(game: Game, player: Player) -> dict:
             # who has played already - but not what, until the leader starts judging
             "submitted_player_ids": list(round_.player_choices),
             "my_selected_card_id": my_choice.id if my_choice else None,
+            # deadline of the current phase; None while the winning card is being shown
+            "ends_at": _iso(round_.phase_ends_at),
         }
     )
 

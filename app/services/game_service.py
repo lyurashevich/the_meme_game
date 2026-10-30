@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +48,9 @@ class GameService:
     # real asyncio.sleep and would otherwise add wall-clock time to every test that calls
     # leader_choose_winner.
     WINNER_ANNOUNCEMENT_DELAY_SECONDS = 2.5
+    # How long the leader has to pick the winner once the cards are on the table. Players get
+    # the room's round_time_limit to play their cards; picking one of at most 9 cards is quicker.
+    LEADER_TIME_LIMIT_SECONDS = 30
 
     def __init__(
         self,
@@ -113,6 +117,19 @@ class GameService:
         current_round.state = new_state
         return True
 
+    def _start_phase_timer(self, game: Game, timeout: float) -> None:
+        """Time the current phase of the round: record the deadline (sent to clients as ``ends_at``)
+        and schedule ``phase_timer`` to fire at it. Both come from the same ``timeout``, so the
+        countdown players see always matches the real timer. Replaces any running phase timer."""
+        game.current_round.phase_ends_at = datetime.now(timezone.utc) + timedelta(seconds=timeout)
+        task = asyncio.create_task(self.phase_timer(game.room_id, timeout=timeout))
+        self.game_manager.add_task(game.room_id, "phase_timer", task)
+
+    def _start_leader_phase(self, game: Game) -> None:
+        """Move the round to the leader's turn and give the leader their own time limit."""
+        if self._change_round_state(game.current_round, RoundState.LEADER_CHOOSING):
+            self._start_phase_timer(game, self.LEADER_TIME_LIMIT_SECONDS)
+
     async def phase_timer(self, room_id: str, timeout: float):
         round_state_changed = False
         finish_round = False
@@ -126,8 +143,15 @@ class GameService:
                 return
 
             if game.current_round.state == RoundState.CHOOSING_CARDS:
-                round_state_changed = self._change_round_state(game.current_round, RoundState.LEADER_CHOOSING)
+                if game.current_round.player_choices:
+                    self._start_leader_phase(game)
+                    round_state_changed = True
+                else:
+                    # nobody played a card: there is nothing to judge, go on to the next round
+                    self._change_round_state(game.current_round, RoundState.LEADER_CHOOSING)
+                    finish_round = True
             elif game.current_round.state == RoundState.LEADER_CHOOSING:
+                # the leader ran out of time: the round ends without a winner
                 finish_round = True
 
         if round_state_changed:
@@ -208,9 +232,7 @@ class GameService:
             game.current_round = new_round
             game.state = GameState.ACTIVE
 
-            task = asyncio.create_task(self.phase_timer(room_id, timeout=game.settings.round_time_limit))
-
-            self.game_manager.add_task(room_id, "phase_timer", task)
+            self._start_phase_timer(game, game.settings.round_time_limit)
 
         return game
 
@@ -233,9 +255,7 @@ class GameService:
         )
         game.current_round = new_round
 
-        task = asyncio.create_task(self.phase_timer(game.room_id, timeout=game.settings.round_time_limit))
-
-        self.game_manager.add_task(game.room_id, "phase_timer", task)
+        self._start_phase_timer(game, game.settings.round_time_limit)
 
     @staticmethod
     def _validate_game_state(game: Game, state: GameState) -> None:
@@ -338,8 +358,7 @@ class GameService:
             player.hand_cards.remove(selected_card)
 
             if self._validate_if_all_the_players_confirmed_their_choices(game):
-                if self._change_round_state(current_round, RoundState.LEADER_CHOOSING):
-                    self.game_manager.cancel_task(room_id, "phase_timer")
+                self._start_leader_phase(game)
 
         await self.notifier.broadcast_room_state(room_id)
 
@@ -384,6 +403,10 @@ class GameService:
 
             current_round.winner = winner
             winner.score += 1
+
+            # the round now ends on its own after the announcement; the leader's timer must not cut it short
+            self.game_manager.cancel_task(room_id, "phase_timer")
+            current_round.phase_ends_at = None
 
         # the moment itself (to play the animation), then the state with the updated score
         await self.notifier.broadcast_event(
@@ -527,8 +550,7 @@ class GameService:
             if current_round.state == RoundState.CHOOSING_CARDS and (
                 self._validate_if_all_the_players_confirmed_their_choices(game)
             ):
-                if self._change_round_state(current_round, RoundState.LEADER_CHOOSING):
-                    self.game_manager.cancel_task(room_id, "phase_timer")
+                self._start_leader_phase(game)
         else:
             # The leader left: abort the current round and start a new one.
             self.game_manager.cancel_task(room_id, "phase_timer")
@@ -560,8 +582,7 @@ class GameService:
             )
             game.current_round = new_round
 
-            task = asyncio.create_task(self.phase_timer(room_id, timeout=game.settings.round_time_limit))
-            self.game_manager.add_task(room_id, "phase_timer", task)
+            self._start_phase_timer(game, game.settings.round_time_limit)
 
         return None
 

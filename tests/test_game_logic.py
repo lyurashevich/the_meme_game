@@ -812,10 +812,14 @@ class TestGameLogic:
 
         real_sleep = asyncio.sleep
         recorded_timeouts = []
+        never = asyncio.Event()
 
         async def fake_sleep(seconds):
             recorded_timeouts.append(seconds)
-            await real_sleep(0)
+            if seconds == game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS:
+                await real_sleep(0)
+            else:
+                await never.wait()  # phase timers: record the timeout, but never fire
 
         with patch("app.services.game_service.asyncio.sleep", side_effect=fake_sleep):
             await _choose_winner(game_service, prepared_game, winner_card_id)

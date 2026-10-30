@@ -6,6 +6,7 @@ Never call it while holding a room lock: sending is network I/O.
 """
 
 import asyncio
+from datetime import datetime, timezone
 
 from app.game.connection_manager import ConnectionManager
 from app.game.dataclasses import Player
@@ -72,8 +73,9 @@ class Notifier:
                 return
 
             game = await self.game_manager.games.get(room_id)
+            now = datetime.now(timezone.utc)
             snapshots = [
-                (p.id, build_room_state(room, game, p, chat=room.messages if p.id == with_chat_for else None))
+                (p.id, build_room_state(room, game, p, chat=room.messages if p.id == with_chat_for else None, now=now))
                 for p in room.players
             ]
 

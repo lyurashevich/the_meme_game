@@ -1,6 +1,7 @@
 """A whole round played by three players over real websocket connections."""
 
 from contextlib import ExitStack
+from datetime import datetime, timedelta
 
 from app.models import MemeCard, SituationCard
 from tests.helpers import WsClient
@@ -40,6 +41,7 @@ async def test_full_round_over_websockets(client_with_no_db, db_session, game_se
         screens = {client: client.next("room_state", in_round(1))["payload"]["game"] for client in players}
         assert screens[owner]["leader_id"] == owner.player_id
         assert screens[owner]["round_state"] == "choosing_cards"
+        assert screens[owner]["ends_at"]  # the countdown for the choosing phase
 
         # the leader can't play a card, the others can
         assert owner.send("select_card", {"card_id": 1})["payload"]["code"] == "invalid_player_action"
@@ -51,8 +53,12 @@ async def test_full_round_over_websockets(client_with_no_db, db_session, game_se
             chosen[client] = card_id
 
         # everyone played: the leader judges an anonymous table
-        table = owner.next("room_state", in_round(1, "leader_choosing"))["payload"]["game"]["table"]
-        assert sorted(card["id"] for card in table) == sorted(chosen.values())
+        judging_state = owner.next("room_state", in_round(1, "leader_choosing"))["payload"]
+        judging = judging_state["game"]
+        assert sorted(card["id"] for card in judging["table"]) == sorted(chosen.values())
+        # the leader gets their own countdown, computed the way the client does it
+        remaining = datetime.fromisoformat(judging["ends_at"]) - datetime.fromisoformat(judging_state["server_time"])
+        assert timedelta(seconds=28) < remaining <= timedelta(seconds=game_service.LEADER_TIME_LIMIT_SECONDS)
 
         # only the leader picks the winner; the ack comes back before the next round starts
         assert second.send("choose_winner", {"card_id": chosen[third]})["payload"]["code"] == "not_round_leader"
