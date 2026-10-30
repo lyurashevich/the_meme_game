@@ -20,6 +20,9 @@ class RoundState(Enum):
 
 
 class WebsocketEvents(Enum):
+    ACK = "ack"
+    ERROR = "error"
+
     PLAYER_CREATED = "player_created"
     PLAYER_RECONNECTED = "player_reconnected"
     PLAYER_DISCONNECTED = "player_disconnected"

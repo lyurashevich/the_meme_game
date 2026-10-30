@@ -46,6 +46,10 @@ def build_services() -> Services:
 services = build_services()
 
 
+def get_services() -> Services:
+    return services
+
+
 def get_connection_manager() -> ConnectionManager:
     return services.connection_manager
 

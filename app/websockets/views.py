@@ -1,26 +1,18 @@
-import json
 import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from app.dependencies import (
-    get_connection_manager,
-    get_player_service,
-    get_reconnect_service,
-    get_room_service,
-)
+from app.dependencies import Services, get_services
 from app.exceptions import (
     InvalidReconnectToken,
     PlayerNotFoundException,
     RoomNotFoundException,
 )
-from app.game.connection_manager import ConnectionManager
 from app.game.enums import WebsocketEvents
-from app.services.player_service import PlayerService
-from app.services.reconnect_service import ReconnectService
-from app.services.room_service import RoomService
+from app.websockets.dispatcher import ActionContext
+from app.websockets.handlers import dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +23,13 @@ router = APIRouter(prefix="/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
     reconnect_token: str | None = None,
-    connection_manager: ConnectionManager = Depends(get_connection_manager),
-    player_service: PlayerService = Depends(get_player_service),
-    reconnect_service: ReconnectService = Depends(get_reconnect_service),
-    room_service: RoomService = Depends(get_room_service),
+    services: Services = Depends(get_services),
 ):
+    connection_manager = services.connection_manager
+    player_service = services.player_service
+    reconnect_service = services.reconnect_service
+    room_service = services.room_service
+
     await websocket.accept()
 
     player = None
@@ -83,20 +77,13 @@ async def websocket_endpoint(
             },
         )
 
+    ctx = ActionContext(player=player, services=services)
+
     try:
         while True:
-            data = await websocket.receive_text()
-            message_data = json.loads(data)
-
-            if message_data.get("event") == "chat_message":
-                recipients, message_payload = await room_service.send_chat_message(
-                    room_id=message_data["room_id"],
-                    player=player,
-                    message=message_data["message"],
-                )
-                await connection_manager.broadcast_to_players(recipients, message_payload)
-            else:
-                await websocket.send_text(f"echo: {data}")
+            raw_message = await websocket.receive_text()
+            reply = await dispatcher.dispatch(ctx, raw_message)
+            await websocket.send_json(reply)
 
     except WebSocketDisconnect:
         # normal disconnect

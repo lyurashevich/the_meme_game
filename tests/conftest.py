@@ -15,6 +15,7 @@ from app.dependencies import (
     get_player_service,
     get_reconnect_service,
     get_room_service,
+    get_services,
 )
 from app.game.dataclasses import Game, Player
 from app.main import app
@@ -46,6 +47,7 @@ def services():
         get_player_service: lambda: services.player_service,
         get_game_service: lambda: services.game_service,
         get_reconnect_service: lambda: services.reconnect_service,
+        get_services: lambda: services,
     }
     app.dependency_overrides.update(overrides)
     yield services
