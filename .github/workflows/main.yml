@@ -14,16 +14,42 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # A PostgreSQL next to the job, the same version as in docker-compose;
+    # the tests only run against PostgreSQL
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: meme_game_test
+        ports:
+          - 5432:5432
+        # wait until it accepts connections before running the steps
+        options: >-
+          --health-cmd "pg_isready -U test -d meme_game_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: test
+      DB_PASSWORD: test
+      # never opened by the tests, but must differ from TEST_DB_NAME
+      DB_NAME: meme_game
+      TEST_DB_NAME: meme_game_test
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Print current branch
         run: echo "Branch:${{ github.ref }}"
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 

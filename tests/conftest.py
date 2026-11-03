@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
 from app.config import Settings, get_settings
-from app.db import TEST_DATABASE_URL, Base, get_db, get_session_factory
+from app.db import Base, get_db, get_session_factory
 from app.dependencies import (
     build_services,
     get_connection_manager,
@@ -27,7 +27,14 @@ from tests.helpers import TEST_ADMIN_TOKEN
 pytest_plugins = ("pytest_asyncio",)
 
 
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=True, poolclass=NullPool)
+# A PostgreSQL database of its own (TEST_DB_NAME): the tests empty its tables
+_settings = get_settings()
+if _settings.test_db_name == _settings.db_name:
+    raise pytest.UsageError(
+        f"TEST_DB_NAME is the same as DB_NAME ({_settings.db_name}): the tests would empty its tables. "
+        "Give the tests a database of their own."
+    )
+test_engine = create_async_engine(_settings.test_database_url, echo=True, poolclass=NullPool)
 test_session_maker = async_sessionmaker(test_engine, expire_on_commit=False)
 
 

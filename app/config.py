@@ -3,10 +3,12 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Both are found from the project root, wherever the app is started from (PyCharm, a script, tests).
-# Starting it from another folder used to miss .env and quietly create an empty SQLite file there.
+# .env is found from the project root, wherever the app is started from (PyCharm, a script, tests)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SQLITE_URL = f"sqlite+aiosqlite:///{PROJECT_ROOT / 'test.db'}"
+
+
+class DatabaseNotConfiguredError(RuntimeError):
+    """PostgreSQL settings are missing. Raised at startup, instead of quietly using some other database."""
 
 
 def _is_invalid(value: str | None) -> bool:
@@ -29,17 +31,28 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        if any(_is_invalid(v) for v in [self.db_user, self.db_password, self.db_host, self.db_port, self.db_name]):
-            return SQLITE_URL
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        return self._postgres_url(self.db_name, "DB_NAME")
 
     @property
     def test_database_url(self) -> str:
-        if any(_is_invalid(v) for v in [self.db_user, self.db_password, self.db_host, self.db_port, self.test_db_name]):
-            return SQLITE_URL
-        return (
-            f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.test_db_name}"
-        )
+        """The database pytest uses; it is wiped by the tests, so never the one with real data."""
+        return self._postgres_url(self.test_db_name, "TEST_DB_NAME")
+
+    def _postgres_url(self, db_name: str | None, db_name_variable: str) -> str:
+        values = {
+            "DB_HOST": self.db_host,
+            "DB_PORT": self.db_port,
+            "DB_USER": self.db_user,
+            "DB_PASSWORD": self.db_password,
+            db_name_variable: db_name,
+        }
+        missing = [variable for variable, value in values.items() if _is_invalid(value)]
+        if missing:
+            raise DatabaseNotConfiguredError(
+                f"PostgreSQL is not configured: set {', '.join(missing)} in .env or in the environment "
+                "(see .env.example)"
+            )
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{db_name}"
 
 
 @lru_cache
