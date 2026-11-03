@@ -113,7 +113,7 @@
 - [x] Ошибки и подтверждения: тосты по `error` с русскими текстами по коду ошибки (`src/api/errorMessages.ts`; тест следит, чтобы у каждого кода из `app/exceptions.py` был текст), диалог подтверждения выхода из идущей игры и завершения игры владельцем.
 
 ### 4. Инфраструктура
-- [ ] Multi-stage Dockerfile фронтенда; nginx отдаёт сборку и проксирует `/api` и `/ws`.
+- [x] Multi-stage Dockerfile фронтенда; nginx отдаёт сборку и проксирует `/api` и `/ws`. Этапы `dev` (Vite) и `prod` (nginx, ~62 МБ); адрес бэкенда — `BACKEND_URL`. Заодно образ бэкенда снова собирается: healthcheck на Python вместо curl с устаревшей закреплённой версией.
 - [ ] Отдельные `docker-compose` для dev и prod, `.env.example` с S3 и `MEDIA_BASE_URL`.
 - [x] CI: линт, typecheck и сборка фронтенда (`.github/workflows/frontend.yml`: форматирование, ESLint, тесты, `tsc` и сборка; версия Node — из `frontend/.nvmrc`).
 - [ ] Обновить README.
