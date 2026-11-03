@@ -115,7 +115,7 @@
 ### 4. Инфраструктура
 - [ ] Multi-stage Dockerfile фронтенда; nginx отдаёт сборку и проксирует `/api` и `/ws`.
 - [ ] Отдельные `docker-compose` для dev и prod, `.env.example` с S3 и `MEDIA_BASE_URL`.
-- [ ] CI: линт, typecheck и сборка фронтенда.
+- [x] CI: линт, typecheck и сборка фронтенда (`.github/workflows/frontend.yml`: форматирование, ESLint, тесты, `tsc` и сборка; версия Node — из `frontend/.nvmrc`).
 - [ ] Обновить README.
 
 ### Позже (после MVP)
