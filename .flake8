@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 120
+# not our code: the virtualenv and the frontend (with its node_modules)
+extend-exclude = .venv,frontend
