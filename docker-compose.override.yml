@@ -1,0 +1,39 @@
+---
+# Development: added to docker-compose.yml automatically by `docker compose up`.
+# The code is mounted from the host, so both servers pick up changes at once.
+#
+#   http://localhost:5173  the game (Vite dev server)
+#   http://localhost:8000  the backend, /docs for Swagger
+#   localhost:5433         the database, e.g. for the scripts:
+#                          DB_PORT=5433 python -m scripts.load_situations
+services:
+  db:
+    ports:
+      - "${DB_DOCKER_PORT:-5433}:5432"
+
+  fastapi:
+    volumes:
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    command: >-
+      sh -c "alembic upgrade head
+      && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: frontend
+      target: dev
+    volumes:
+      - ./frontend:/app
+      # node_modules from the image, not the host's (built for another system)
+      - /app/node_modules
+    environment:
+      BACKEND_URL: http://fastapi:8000
+      # file change events don't always pass into Docker (macOS, Windows)
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - fastapi

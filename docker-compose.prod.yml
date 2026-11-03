@@ -1,0 +1,26 @@
+---
+# Production, on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml \
+#     -f docker-compose.prod.yml up -d --build
+#
+# Only nginx is reachable from outside; the database and the backend are
+# seen by the other containers only. Everything restarts after a crash or
+# a reboot of the server.
+services:
+  db:
+    restart: unless-stopped
+
+  fastapi:
+    restart: unless-stopped
+
+  # The built app; passes /api and /ws on to the backend
+  web:
+    build: frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://fastapi:8000
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      fastapi:
+        condition: service_healthy

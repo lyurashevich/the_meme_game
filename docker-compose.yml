@@ -1,77 +1,60 @@
 ---
+# What development and production share: the database and the backend.
+#
+#   development: docker compose up --build
+#     (docker-compose.override.yml is added on its own)
+#   production:  docker compose -f docker-compose.yml \
+#                  -f docker-compose.prod.yml up -d --build
+#
+# ${DB_USER} and the like come from the .env file next to this one.
 services:
   db:
     image: postgres:17
-    restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-docker_db}
+      POSTGRES_DB: ${DB_NAME:-meme_game}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # - ./postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d docker_db"]
+      # $$ is a plain $ for the container's shell: the check uses
+      # whatever user and database were set above
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   fastapi:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
+    build: .
     environment:
-      - DB_HOST=db
-    # добавить depends_on: redis: condition: service_healthy,
-    # когда появится реальный redis-сервис в этом файле.
+      # Inside Docker the database is the "db" service on its usual port;
+      # DB_HOST and DB_PORT in .env are for running without Docker.
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-meme_game}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      # Python is in the image anyway; curl would be one more package
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request as u; u.urlopen('http://localhost:8000/health')
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
-    command:
-      - sh
-      - -c
-      - alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-  # Vite dev server with hot reload: http://localhost:5173
-  frontend:
-    build:
-      context: frontend
-      target: dev
-    container_name: frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - BACKEND_URL=http://fastapi:8000
-    depends_on:
-      - fastapi
-
-  # The built app the way it runs in production (nginx + static files): http://localhost:8080
-  nginx:
-    build: frontend
-    environment:
-      - BACKEND_URL=http://fastapi:8000
-    ports:
-      - "8080:80"
-    depends_on:
-      fastapi:
-        condition: service_healthy
+    # One process only: the game state lives in its memory (Redis later),
+    # so several workers would each have their own rooms.
+    command: >-
+      sh -c "alembic upgrade head
+      && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
   pgdata:
-  # postgres_data:
