@@ -2,7 +2,7 @@ import { Check, ChevronLeft, ChevronRight, Dices, Smile } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { AVATAR_OPTIONS } from '../avatars';
 import Avatar from '../components/Avatar';
-import type { PlayerProfile } from '../types';
+import type { Session } from '../protocol';
 
 const FUN_NICKNAMES = [
   'Дед_Инсайд',
@@ -17,26 +17,26 @@ const FUN_NICKNAMES = [
 ];
 
 interface PlayerCreationScreenProps {
-  player: PlayerProfile;
-  onUpdatePlayer: (changes: Partial<PlayerProfile>) => void;
+  me: Session;
+  onUpdateProfile: (changes: { username?: string; avatar_id?: string }) => void;
   onConfirm: () => void;
 }
 
-export default function PlayerCreationScreen({ player, onUpdatePlayer, onConfirm }: PlayerCreationScreenProps) {
+export default function PlayerCreationScreen({ me, onUpdateProfile, onConfirm }: PlayerCreationScreenProps) {
   // What is being typed lives here until the player confirms it
-  const [nickname, setNickname] = useState(player.username || 'Мемный чел');
+  const [nickname, setNickname] = useState(me.username || 'Мемный чел');
   const [isConfirming, setIsConfirming] = useState(false);
 
   // Derived from props on every render, so it always matches the chosen avatar
   const avatarIndex = Math.max(
     0,
-    AVATAR_OPTIONS.findIndex((a) => a.id === player.avatarId),
+    AVATAR_OPTIONS.findIndex((a) => a.id === me.avatar_id),
   );
   const avatar = AVATAR_OPTIONS[avatarIndex];
 
   const selectAvatar = (step: number) => {
     const next = (avatarIndex + step + AVATAR_OPTIONS.length) % AVATAR_OPTIONS.length;
-    onUpdatePlayer({ avatarId: AVATAR_OPTIONS[next].id });
+    onUpdateProfile({ avatar_id: AVATAR_OPTIONS[next].id });
   };
 
   const pickRandomNickname = () => {
@@ -45,7 +45,7 @@ export default function PlayerCreationScreen({ player, onUpdatePlayer, onConfirm
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault(); // a form would otherwise reload the page
-    onUpdatePlayer({ username: nickname.trim() || 'Анонимный_Мем' });
+    onUpdateProfile({ username: nickname.trim() || 'Анонимный_Мем' });
     setIsConfirming(true);
     setTimeout(onConfirm, 300); // let the "done" state show for a moment
   };
