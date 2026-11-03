@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config'; // Vite's own config plus the `test` section
 
 // Where the backend runs: uvicorn on port 8000 locally, the "fastapi" service in docker-compose.
 const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:8000';
@@ -14,5 +14,8 @@ export default defineConfig({
       '/api': backendUrl,
       '/ws': { target: backendUrl, ws: true },
     },
+  },
+  test: {
+    environment: 'node', // the tests don't touch the page, so no browser emulation is needed
   },
 });

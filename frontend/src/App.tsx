@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ConnectionIndicator from './components/ConnectionIndicator';
 import DesignSpecsModal from './components/DesignSpecsModal';
 import MockControls from './components/MockControls';
 import MockupHeader from './components/MockupHeader';
@@ -85,6 +86,7 @@ export default function App() {
       <main className="flex-1">{content}</main>
 
       <DesignSpecsModal isOpen={showSpecs} onClose={() => setShowSpecs(false)} />
+      <ConnectionIndicator />
     </div>
   );
 }

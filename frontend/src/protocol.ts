@@ -86,3 +86,56 @@ export interface RoomState {
   game: GameView | null; // null: lobby
   chat?: ChatMessage[]; // only right after joining or reconnecting
 }
+
+// One-off events that a snapshot can't express
+export interface RoundWinner {
+  winner_id: string;
+  card_id: number | null;
+}
+
+export interface GameEnded {
+  room_id: string;
+  reason: 'owner_ended' | 'limit_reached' | 'not_enough_players' | 'out_of_cards';
+  final_scores: Record<string, number>; // player id -> score
+  winner_ids: string[];
+}
+
+export interface ErrorPayload {
+  code: string;
+  message: string;
+  details?: unknown[];
+}
+
+// Everything the server can send. `event` tells which one it is, and TypeScript
+// narrows `payload` accordingly: after `if (message.event === 'session')` it knows it's a Session.
+export type ServerMessage =
+  | { event: 'session'; payload: Session }
+  | { event: 'rooms_list'; payload: RoomSummary[] }
+  | { event: 'room_state'; payload: RoomState }
+  | { event: 'round_winner'; payload: RoundWinner }
+  | { event: 'game_ended'; payload: GameEnded }
+  | { event: 'chat_message'; payload: ChatMessage }
+  | { event: 'you_left_room'; payload: { room_id: string } }
+  | { event: 'ack'; request_id: string | null; payload: unknown }
+  | { event: 'error'; request_id: string | null; payload: ErrorPayload };
+
+type Empty = Record<string, never>;
+
+// Client actions: what each one takes and what its ack carries
+export interface Actions {
+  update_profile: {
+    payload: { username?: string; avatar_id?: string };
+    result: { username: string; avatar_id: string };
+  };
+  create_room: { payload: { name?: string; max_players?: number }; result: { room_id: string } };
+  join_room: { payload: { room_id: string }; result: { room_id: string } };
+  leave_room: { payload: { confirm?: boolean }; result: { requires_confirmation: boolean } };
+  update_settings: { payload: GameSettings; result: GameSettings };
+  start_game: { payload: Empty; result: Empty };
+  end_game: { payload: Empty; result: Empty };
+  select_card: { payload: { card_id: number }; result: Empty };
+  choose_winner: { payload: { card_id: number }; result: Empty };
+  chat_message: { payload: { text: string }; result: Empty };
+}
+
+export type ActionName = keyof Actions;
