@@ -8,7 +8,7 @@
 #
 # ${DB_USER} and the like come from the .env file next to this one.
 services:
-  db:
+  postgres:
     image: postgres:17
     environment:
       POSTGRES_DB: ${DB_NAME:-meme_game}
@@ -24,12 +24,12 @@ services:
       timeout: 5s
       retries: 5
 
-  fastapi:
+  backend:
     build: .
     environment:
-      # Inside Docker the database is the "db" service on its usual port;
+      # Inside Docker the database is the "postgres" service on its usual port;
       # DB_HOST and DB_PORT in .env are for running without Docker.
-      DB_HOST: db
+      DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${DB_NAME:-meme_game}
       DB_USER: ${DB_USER:-postgres}
@@ -37,7 +37,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     healthcheck:
       # Python is in the image anyway; curl would be one more package

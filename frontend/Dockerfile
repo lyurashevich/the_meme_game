@@ -27,7 +27,7 @@ RUN npm run build
 # Nothing of Node gets here: the image holds only nginx and the few files from dist.
 FROM nginx:1.29-alpine AS prod
 # Where the backend is; nginx's image puts it into the config when the container starts
-ENV BACKEND_URL=http://fastapi:8000
+ENV BACKEND_URL=http://backend:8000
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

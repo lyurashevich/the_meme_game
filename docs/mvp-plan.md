@@ -118,7 +118,7 @@
 - [x] Отдельные `docker-compose` для dev и prod: общий `docker-compose.yml` (база и бэкенд), `docker-compose.override.yml` для разработки (подключается сам, код с хоста, перезагрузка) и `docker-compose.prod.yml` (наружу только nginx, перезапуск после сбоя). `.env.example` с комментариями; S3 и `MEDIA_BASE_URL` добавятся вместе с хранилищем картинок.
 - [x] CI: линт, typecheck и сборка фронтенда (`.github/workflows/frontend.yml`: форматирование, ESLint, тесты, `tsc` и сборка; версия Node — из `frontend/.nvmrc`).
 - [x] Убрать SQLite совсем: бэкенд и тесты работают только с PostgreSQL. Без настроек базы — `DatabaseNotConfiguredError` при старте со списком недостающих переменных. Тесты — на отдельной базе `TEST_DB_NAME` (pytest не запустится, если она совпадает с `DB_NAME`), в CI — сервис `postgres:17`. `aiosqlite` убран из зависимостей.
-- [ ] Переименовать сервисы в docker-compose (например, `fastapi` → `backend`). Вместе с ними поправить всё, что ссылается на имена: `BACKEND_URL`, `DB_HOST=db`, документацию.
+- [x] Переименовать сервисы в docker-compose: `db` → `postgres`, `fastapi` → `backend` (`frontend` и `web` прежние). Поправлены `DB_HOST`, `BACKEND_URL` в compose и в Dockerfile фронтенда, комментарии. Том `pgdata` не переименован, данные сохраняются.
 - [ ] Обновить README.
 
 ### Позже (после MVP)

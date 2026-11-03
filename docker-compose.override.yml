@@ -7,11 +7,11 @@
 #   localhost:5433         the database, e.g. for the scripts:
 #                          DB_PORT=5433 python -m scripts.load_situations
 services:
-  db:
+  postgres:
     ports:
       - "${DB_DOCKER_PORT:-5433}:5432"
 
-  fastapi:
+  backend:
     volumes:
       - ./app:/app/app
       - ./migrations:/app/migrations
@@ -30,10 +30,10 @@ services:
       # node_modules from the image, not the host's (built for another system)
       - /app/node_modules
     environment:
-      BACKEND_URL: http://fastapi:8000
+      BACKEND_URL: http://backend:8000
       # file change events don't always pass into Docker (macOS, Windows)
       CHOKIDAR_USEPOLLING: "true"
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
-      - fastapi
+      - backend
