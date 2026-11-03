@@ -1,15 +1,18 @@
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { ActionError } from './api/GameSocket';
+import { describeError } from './api/errorMessages';
 import AppHeader from './components/AppHeader';
+import ConfirmDialog from './components/ConfirmDialog';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import DesignSpecsModal from './components/DesignSpecsModal';
 import GameResultsModal from './components/GameResultsModal';
 import GameScreen from './screens/GameScreen';
 import LobbyScreen from './screens/LobbyScreen';
 import PlayerCreationScreen from './screens/PlayerCreationScreen';
+import Toasts from './components/Toasts';
 import RoomListScreen from './screens/RoomListScreen';
 import { useGameStore } from './store/gameStore';
+import { showToast } from './store/toastStore';
 
 // Whether this tab has been through the profile screen; per tab, like the player itself
 const PROFILE_KEY = 'profile_confirmed';
@@ -25,28 +28,25 @@ export default function App() {
 
   const [profileConfirmed, setProfileConfirmed] = useState(() => sessionStorage.getItem(PROFILE_KEY) === 'yes');
   const [showSpecs, setShowSpecs] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Which "are you sure?" is open, if any
+  const [confirming, setConfirming] = useState<'leave' | 'end_game' | null>(null);
 
   const confirmProfile = (confirmed: boolean) => {
     sessionStorage.setItem(PROFILE_KEY, confirmed ? 'yes' : 'no');
     setProfileConfirmed(confirmed);
   };
 
-  // Until there are proper notifications, a refused action shows up as a strip at the top
-  const showError = (reason: unknown) => {
-    if (reason instanceof ActionError) {
-      setError(reason.message);
-    } else {
-      console.error(reason);
-      setError('Что-то пошло не так');
-    }
-  };
+  // Both questions are about a running game: when it ends (say, the owner ended it meanwhile), the open
+  // question goes away, instead of hanging there and coming back in the next game. Changing state while
+  // rendering is fine in React when it's guarded like this; React redoes the render right away.
+  if (confirming && !roomState?.game) setConfirming(null);
+
+  const showError = (reason: unknown) => showToast(describeError(reason));
 
   // Run an action and report a failure; the screens don't need to know about errors at all
   const run =
     <Args extends unknown[]>(action: (...args: Args) => Promise<unknown>) =>
     (...args: Args) => {
-      setError(null);
       action(...args).catch(showError);
     };
 
@@ -54,12 +54,16 @@ export default function App() {
     try {
       // During a game the server asks to confirm first, since leaving costs the player their place
       const { requires_confirmation } = await actions.leaveRoom();
-      if (requires_confirmation && window.confirm('Игра идёт. Точно выйти? Вернуться в эту игру уже не получится.')) {
-        await actions.leaveRoom(true);
-      }
+      if (requires_confirmation) setConfirming('leave');
     } catch (reason) {
       showError(reason);
     }
+  };
+
+  const confirmed = () => {
+    setConfirming(null);
+    if (confirming === 'leave') run(actions.leaveRoom)(true);
+    if (confirming === 'end_game') run(actions.endGame)();
   };
 
   // The screen follows from the state. A player who reconnects into a room goes straight back to it.
@@ -76,7 +80,7 @@ export default function App() {
         onChooseWinner={run(actions.chooseWinner)}
         onSendMessage={run(actions.sendChat)}
         onLeaveRoom={leaveRoom}
-        onEndGame={run(actions.endGame)}
+        onEndGame={() => setConfirming('end_game')}
       />
     );
   } else if (roomState) {
@@ -113,17 +117,6 @@ export default function App() {
     <div className="min-h-screen bg-[#F4F1EA] text-[#242426] flex flex-col font-['Rubik',sans-serif]">
       <AppHeader onShowSpecs={() => setShowSpecs(true)} />
 
-      {error && (
-        <div role="alert" className="border-b-2 border-[#242426] bg-[#E8BAA8] px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs font-bold text-[#52291E]">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} aria-label="Закрыть" className="cursor-pointer">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
       <main className="flex-1">{content}</main>
 
       {results && me && roomState && (
@@ -134,8 +127,27 @@ export default function App() {
           onClose={actions.dismissGameResults}
         />
       )}
+      {confirming === 'leave' && (
+        <ConfirmDialog
+          title="Выйти из игры?"
+          text="Игра ещё идёт. Твои очки пропадут, а вернуться в эту игру уже не получится."
+          confirmLabel="Выйти"
+          onConfirm={confirmed}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {confirming === 'end_game' && (
+        <ConfirmDialog
+          title="Завершить игру?"
+          text="Игра закончится для всех игроков, и все увидят итоги."
+          confirmLabel="Завершить"
+          onConfirm={confirmed}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
       <DesignSpecsModal isOpen={showSpecs} onClose={() => setShowSpecs(false)} />
       <ConnectionIndicator />
+      <Toasts />
     </div>
   );
 }

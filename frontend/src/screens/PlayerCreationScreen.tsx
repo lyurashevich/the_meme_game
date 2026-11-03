@@ -2,7 +2,7 @@ import { Check, ChevronLeft, ChevronRight, Dices, Smile } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { AVATAR_OPTIONS } from '../avatars';
 import Avatar from '../components/Avatar';
-import { ActionError } from '../api/GameSocket';
+import { describeError } from '../api/errorMessages';
 import type { Session } from '../protocol';
 
 const FUN_NICKNAMES = [
@@ -52,9 +52,8 @@ export default function PlayerCreationScreen({ me, onSaveProfile, onConfirm }: P
       await onSaveProfile({ username: nickname.trim() || 'Анонимный_Мем', avatar_id: avatar.id });
       onConfirm();
     } catch (reason) {
-      // The server explains what's wrong; anything else is a bug worth seeing in the console
-      setError(reason instanceof ActionError ? reason.message : 'Не получилось сохранить профиль');
-      if (!(reason instanceof ActionError)) console.error(reason);
+      // Shown right under the field it's about, rather than in a toast
+      setError(describeError(reason));
     } finally {
       setIsSaving(false);
     }
