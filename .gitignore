@@ -77,3 +77,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# meme pictures copied by scripts/load_memes.py for local testing
+frontend/public/memes/

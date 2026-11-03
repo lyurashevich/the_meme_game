@@ -1,6 +1,12 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Both are found from the project root, wherever the app is started from (PyCharm, a script, tests).
+# Starting it from another folder used to miss .env and quietly create an empty SQLite file there.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SQLITE_URL = f"sqlite+aiosqlite:///{PROJECT_ROOT / 'test.db'}"
 
 
 def _is_invalid(value: str | None) -> bool:
@@ -8,7 +14,7 @@ def _is_invalid(value: str | None) -> bool:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 
     db_user: str | None = None
     db_password: str | None = None
@@ -24,13 +30,13 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if any(_is_invalid(v) for v in [self.db_user, self.db_password, self.db_host, self.db_port, self.db_name]):
-            return "sqlite+aiosqlite:///./test.db"
+            return SQLITE_URL
         return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     @property
     def test_database_url(self) -> str:
         if any(_is_invalid(v) for v in [self.db_user, self.db_password, self.db_host, self.db_port, self.test_db_name]):
-            return "sqlite+aiosqlite:///./test.db"
+            return SQLITE_URL
         return (
             f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.test_db_name}"
         )
