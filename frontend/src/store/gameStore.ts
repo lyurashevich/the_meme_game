@@ -2,6 +2,7 @@
 // the socket fills it with what the server sends, the screens read it and call the actions.
 import { create } from 'zustand';
 import { GameSocket, type ConnectionStatus } from '../api/GameSocket';
+import { createTokenStorage, type TokenStorage } from '../api/tokenStorage';
 import type {
   Actions,
   GameEnded,
@@ -13,9 +14,6 @@ import type {
   Session,
 } from '../protocol';
 
-// Per tab, not per browser (sessionStorage, not localStorage): two tabs are two players,
-// which is also handy for trying the game alone. Survives a reload of the tab.
-const TOKEN_KEY = 'reconnect_token';
 const CHAT_LIMIT = 100;
 
 export interface GameData {
@@ -68,7 +66,8 @@ export function applyServerMessage(data: GameData, message: ServerMessage): Part
     case 'game_ended':
       return { gameEnded: message.payload };
     case 'you_left_room':
-      return { roomState: null, roundWinner: null };
+      // Results are about the room just left; coming back later must not bring them up again
+      return { roomState: null, roundWinner: null, gameEnded: null };
     default:
       return {};
   }
@@ -76,6 +75,7 @@ export function applyServerMessage(data: GameData, message: ServerMessage): Part
 
 interface GameActions {
   connect: () => void;
+  simulateConnectionLoss: () => void;
   dismissGameResults: () => void;
   updateProfile: (changes: Actions['update_profile']['payload']) => Promise<Actions['update_profile']['result']>;
   createRoom: (options: Actions['create_room']['payload']) => Promise<Actions['create_room']['result']>;
@@ -92,17 +92,21 @@ interface GameActions {
 export type GameStore = GameData & GameActions;
 
 export const useGameStore = create<GameStore>()((set, get) => {
+  // One player per tab; see tokenStorage.ts. Created on first use, not on import,
+  // so the tests (no browser there) can import this module.
+  let tokenStorage: TokenStorage | null = null;
+  const tokens = () => (tokenStorage ??= createTokenStorage(sessionStorage, window));
   const socket = new GameSocket({
     url: () => {
       // Same host as the page: in development Vite passes /ws on to the backend
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const token = sessionStorage.getItem(TOKEN_KEY);
+      const token = tokens().get();
       const query = token ? `?reconnect_token=${encodeURIComponent(token)}` : '';
       return `${protocol}//${window.location.host}/ws${query}`;
     },
     onStatus: (connection) => set({ connection }),
     onMessage: (message) => {
-      if (message.event === 'session') sessionStorage.setItem(TOKEN_KEY, message.payload.reconnect_token);
+      if (message.event === 'session') tokens().set(message.payload.reconnect_token);
       set(applyServerMessage(get(), message));
     },
   });
@@ -111,9 +115,15 @@ export const useGameStore = create<GameStore>()((set, get) => {
     ...INITIAL_DATA,
 
     connect: () => socket.connect(),
+    simulateConnectionLoss: () => socket.simulateDrop(),
     dismissGameResults: () => set({ gameEnded: null }),
 
-    updateProfile: (changes) => socket.send('update_profile', changes),
+    updateProfile: async (changes) => {
+      const profile = await socket.send('update_profile', changes);
+      // The server answers with the saved profile but sends no new `session`, so update `me` here
+      set((state) => ({ me: state.me && { ...state.me, ...profile } }));
+      return profile;
+    },
     createRoom: (options) => socket.send('create_room', options),
     joinRoom: (roomId) => socket.send('join_room', { room_id: roomId }),
     leaveRoom: (confirm = false) => socket.send('leave_room', { confirm }),

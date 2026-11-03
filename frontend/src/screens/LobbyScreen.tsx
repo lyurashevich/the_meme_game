@@ -48,7 +48,7 @@ export default function LobbyScreen({
             <div className="flex items-center gap-2">
               <h2 className="font-black text-base sm:text-lg text-[#242426] tracking-tight">{room.name}</h2>
               <span className="text-[10px] bg-[#E4D976] border border-[#242426] px-2 py-0.5 rounded-full font-bold">
-                ЭКРАН 3: ЛОББИ
+                ЛОББИ
               </span>
             </div>
             <p className="text-[11px] text-[#6E6A61] font-medium">

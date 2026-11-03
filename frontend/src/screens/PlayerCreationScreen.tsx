@@ -2,6 +2,7 @@ import { Check, ChevronLeft, ChevronRight, Dices, Smile } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { AVATAR_OPTIONS } from '../avatars';
 import Avatar from '../components/Avatar';
+import { ActionError } from '../api/GameSocket';
 import type { Session } from '../protocol';
 
 const FUN_NICKNAMES = [
@@ -18,36 +19,45 @@ const FUN_NICKNAMES = [
 
 interface PlayerCreationScreenProps {
   me: Session;
-  onUpdateProfile: (changes: { username?: string; avatar_id?: string }) => void;
+  onSaveProfile: (profile: { username: string; avatar_id: string }) => Promise<unknown>;
   onConfirm: () => void;
 }
 
-export default function PlayerCreationScreen({ me, onUpdateProfile, onConfirm }: PlayerCreationScreenProps) {
-  // What is being typed lives here until the player confirms it
-  const [nickname, setNickname] = useState(me.username || 'Мемный чел');
-  const [isConfirming, setIsConfirming] = useState(false);
-
-  // Derived from props on every render, so it always matches the chosen avatar
-  const avatarIndex = Math.max(
-    0,
-    AVATAR_OPTIONS.findIndex((a) => a.id === me.avatar_id),
+export default function PlayerCreationScreen({ me, onSaveProfile, onConfirm }: PlayerCreationScreenProps) {
+  // The choice lives here until the player confirms it; then both go to the server in one action
+  const [nickname, setNickname] = useState(me.username);
+  const [avatarIndex, setAvatarIndex] = useState(() =>
+    Math.max(
+      0,
+      AVATAR_OPTIONS.findIndex((a) => a.id === me.avatar_id),
+    ),
   );
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const avatar = AVATAR_OPTIONS[avatarIndex];
 
   const selectAvatar = (step: number) => {
-    const next = (avatarIndex + step + AVATAR_OPTIONS.length) % AVATAR_OPTIONS.length;
-    onUpdateProfile({ avatar_id: AVATAR_OPTIONS[next].id });
+    setAvatarIndex((index) => (index + step + AVATAR_OPTIONS.length) % AVATAR_OPTIONS.length);
   };
 
   const pickRandomNickname = () => {
     setNickname(FUN_NICKNAMES[Math.floor(Math.random() * FUN_NICKNAMES.length)]);
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault(); // a form would otherwise reload the page
-    onUpdateProfile({ username: nickname.trim() || 'Анонимный_Мем' });
-    setIsConfirming(true);
-    setTimeout(onConfirm, 300); // let the "done" state show for a moment
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSaveProfile({ username: nickname.trim() || 'Анонимный_Мем', avatar_id: avatar.id });
+      onConfirm();
+    } catch (reason) {
+      // The server explains what's wrong; anything else is a bug worth seeing in the console
+      setError(reason instanceof ActionError ? reason.message : 'Не получилось сохранить профиль');
+      if (!(reason instanceof ActionError)) console.error(reason);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -60,7 +70,7 @@ export default function PlayerCreationScreen({ me, onUpdateProfile, onConfirm }:
       </div>
       <div className="absolute bottom-8 right-8 hidden lg:block opacity-40 select-none pointer-events-none rotate-3">
         <div className="border-2 border-dashed border-[#242426]/40 rounded-xl px-3 py-1.5 text-xs font-bold text-[#55524B] bg-[#ECE8DE]">
-          Экран 1: Профиль игрока
+          Ник и аватар можно сменить потом
         </div>
       </div>
 
@@ -77,7 +87,7 @@ export default function PlayerCreationScreen({ me, onUpdateProfile, onConfirm }:
         {/* Profile card */}
         <div className="w-full rounded-3xl border-2 border-[#242426] bg-[#FAF7F2] p-6 sm:p-8 shadow-[5px_5px_0px_#242426] flex flex-col items-center relative">
           <div className="absolute -top-3.5 bg-[#FAF7F2] border-2 border-[#242426] px-3 py-0.5 rounded-full text-[11px] font-bold text-[#44423E] shadow-[2px_2px_0px_#242426]">
-            ШАГ 1 ИЗ 4 • ВЫБОР АВАТАРА
+            ВЫБОР АВАТАРА
           </div>
 
           {/* Avatar selector */}
@@ -145,21 +155,23 @@ export default function PlayerCreationScreen({ me, onUpdateProfile, onConfirm }:
                 placeholder="Введи никнейм..."
                 className="w-full rounded-2xl border-2 border-[#242426] bg-[#F5F2EA] px-4 py-3 text-base font-bold text-[#242426] placeholder-[#9E988D] focus:outline-none focus:bg-[#FAF7F2] focus:ring-2 focus:ring-[#242426] shadow-[2px_2px_0px_#242426] transition-all"
               />
+              {error && <p className="mt-1.5 px-1 text-xs font-bold text-[#9A3B26]">{error}</p>}
             </div>
 
             <button
               type="submit"
               id="confirm-player-button"
+              disabled={isSaving}
               className={`w-full mt-2 rounded-2xl border-2 border-[#242426] py-3.5 px-6 font-black text-base text-[#242426] shadow-[4px_4px_0px_#242426] transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                isConfirming
+                isSaving
                   ? 'bg-[#C8D7C5] translate-y-1 shadow-[1px_1px_0px_#242426]'
                   : 'bg-[#E4D976] hover:bg-[#DDD166] active:translate-y-1 active:shadow-[1px_1px_0px_#242426]'
               }`}
             >
-              {isConfirming ? (
+              {isSaving ? (
                 <>
                   <Check className="w-5 h-5" />
-                  <span>ГОТОВО! ПЕРЕХОДИМ...</span>
+                  <span>СОХРАНЯЕМ...</span>
                 </>
               ) : (
                 <>
@@ -181,7 +193,7 @@ export default function PlayerCreationScreen({ me, onUpdateProfile, onConfirm }:
         </div>
 
         <p className="mt-4 text-xs text-[#7A766E] text-center max-w-xs">
-          Нажми <strong>«ОК»</strong>, чтобы подтвердить профиль и перейти к выбору комнаты (Экран 2).
+          Нажми <strong>«ОК»</strong>, чтобы подтвердить профиль и перейти к выбору комнаты.
         </p>
       </div>
     </div>

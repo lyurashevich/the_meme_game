@@ -91,6 +91,17 @@ describe('where the player is', () => {
     expect(after.roomState).toBeNull();
   });
 
+  it('leaving the room forgets the results of its last game', () => {
+    const before = data({
+      roomState: roomState('r1'),
+      gameEnded: { room_id: 'r1', reason: 'owner_ended', final_scores: {}, winner_ids: [] },
+    });
+
+    const after = apply(before, { event: 'you_left_room', payload: { room_id: 'r1' } });
+
+    expect(after.gameEnded).toBeNull();
+  });
+
   it('the room list on its own does not take the player out of the room', () => {
     const after = apply(data({ roomState: roomState('r1') }), { event: 'rooms_list', payload: ROOMS });
 

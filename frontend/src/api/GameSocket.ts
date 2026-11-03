@@ -74,6 +74,11 @@ export class GameSocket {
     };
   }
 
+  // For trying things out: break the connection the way a lost network would, so it reconnects
+  simulateDrop(): void {
+    this.socket?.close();
+  }
+
   close(): void {
     this.closedByUs = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);

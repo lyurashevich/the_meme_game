@@ -32,9 +32,6 @@ export default function RoomListScreen({ me, rooms, onJoinRoom, onCreateRoom, on
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#242426]">ВЫБОР КОМНАТЫ</h1>
-            <span className="bg-[#E4D976] border-2 border-[#242426] px-2.5 py-0.5 rounded-full text-xs font-bold text-[#242426] shadow-[2px_2px_0px_#242426]">
-              ЭКРАН 2
-            </span>
           </div>
           <p className="text-sm text-[#666259] font-medium mt-1">
             Выбери подходящую тусовку или создай свою комнату с блэкджеком и котами

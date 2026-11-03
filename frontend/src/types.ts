@@ -8,5 +8,3 @@ export interface AvatarOption {
   bgColor: string;
   accentColor: string;
 }
-
-export type ScreenId = 'screen1' | 'screen2' | 'screen3' | 'screen4';

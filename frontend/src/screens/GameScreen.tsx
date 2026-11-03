@@ -40,7 +40,8 @@ export default function GameScreen({
   const iAmLeader = game.leader_id === me.player_id;
   const iHavePlayed = game.submitted_player_ids.includes(me.player_id);
   const canPlayCard = phase === 'choosing_cards' && !iAmLeader && !iHavePlayed;
-  const canChooseWinner = phase === 'leader_choosing' && iAmLeader;
+  // The winner is shown while the phase is still leader_choosing: `winner` is set and the timer stops
+  const canChooseWinner = phase === 'leader_choosing' && iAmLeader && !game.winner;
 
   // A pick only counts while the card is still there: the hand and the table change with every snapshot
   const pickedHandCard = canPlayCard ? game.my_hand.find((card) => card.id === pickedHandCardId) : undefined;
@@ -65,7 +66,7 @@ export default function GameScreen({
             {room.settings.max_rounds !== null && ` ИЗ ${room.settings.max_rounds}`}
           </span>
           <span className="text-[10px] bg-[#E8BAA8] border border-[#242426] px-2 py-0.5 rounded-full font-extrabold text-[#471E14]">
-            ЭКРАН 4: ИГРА
+            ИДЁТ ИГРА
           </span>
           {iAmOwner && (
             <button
@@ -249,7 +250,10 @@ function StatusBanner({ game, iAmLeader, iHavePlayed, nameOf }: StatusBannerProp
   let text: string;
   let pulse = false;
 
-  if (game.round_state === 'choosing_cards') {
+  if (game.winner) {
+    icon = <Trophy className="w-4 h-4" />;
+    text = `Раунд забирает ${nameOf(game.winner.player_id)}!`;
+  } else if (game.round_state === 'choosing_cards') {
     if (iAmLeader) {
       icon = <Hourglass className="w-4 h-4" />;
       text = 'ТЫ ВЕДУЩИЙ: ждём, пока все сдадут мемы';
@@ -264,8 +268,7 @@ function StatusBanner({ game, iAmLeader, iHavePlayed, nameOf }: StatusBannerProp
     text = iAmLeader ? 'ВЫБЕРИ ЛУЧШИЙ МЕМ НА СТОЛЕ!' : `${nameOf(game.leader_id)} выбирает лучший мем`;
     pulse = iAmLeader;
   } else if (game.round_state === 'round_ended') {
-    icon = <Trophy className="w-4 h-4" />;
-    text = game.winner ? `Раунд забирает ${nameOf(game.winner.player_id)}!` : 'Раунд без победителя';
+    text = 'Раунд без победителя';
   } else {
     text = 'Раздаём карты...';
   }
