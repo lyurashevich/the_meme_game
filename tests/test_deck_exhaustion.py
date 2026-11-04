@@ -129,15 +129,17 @@ class TestSituationDeckRunsOut:
         assert endings == [GameEndReason.LIMIT_REACHED.value]
 
 
-class TestHandOutOneCard:
+class TestRefillHands:
     async def test_checks_before_dealing(self, prepared_game, game_service):
         await game_service.start_first_round(prepared_game.room_id)
         prepared_game.current_round.state = RoundState.ROUND_ENDED
+        for player in prepared_game.room.players[1:]:  # two players have played a card
+            player.hand_cards.pop()
         prepared_game.meme_deck[:] = extra_memes(1)
         hands_before = {p.id: len(p.hand_cards) for p in prepared_game.room.players}
 
         with pytest.raises(NotEnoughCardsException):
-            await game_service._hand_out_one_card(prepared_game)
+            await game_service._refill_hands(prepared_game)
 
         assert {p.id: len(p.hand_cards) for p in prepared_game.room.players} == hands_before
         assert len(prepared_game.meme_deck) == 1

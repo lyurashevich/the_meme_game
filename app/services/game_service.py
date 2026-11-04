@@ -314,7 +314,7 @@ class GameService:
         self._validate_game_state(game, GameState.ACTIVE)
 
         situation_card = await self._get_situation_card(game)
-        await self._hand_out_one_card(game)
+        await self._refill_hands(game)
 
         round_number = prev_round.round_number + 1
         new_leader = await self._choose_leader(game)
@@ -365,31 +365,36 @@ class GameService:
                 player.hand_cards.append(game.meme_deck.pop(0))
 
     @staticmethod
-    def _players_to_deal_to(game: Game) -> list[Player]:
-        """Who gets a new card between rounds: everyone except the leader of the round that just
-        ended - they didn't play a card, so their hand is still full."""
-        current_leader = game.room.players[game.leader_index]
-        return [player for player in game.room.players if player != current_leader]
+    def _missing_cards(game: Game) -> list[tuple[Player, int]]:
+        """Who is short of a full hand between rounds, and by how many cards. Whoever played a meme
+        is one short; the leader and whoever didn't play in time still have a full hand and get nothing."""
+        return [
+            (player, CARDS_PER_PLAYER - len(player.hand_cards))
+            for player in game.room.players
+            if len(player.hand_cards) < CARDS_PER_PLAYER
+        ]
 
     @classmethod
     def _can_start_new_round(cls, game: Game) -> bool:
-        """Whether the decks can cover one more round: a situation, and a meme for everyone who
-        played one. Run after _finalize_round, so cards back from their cooldown count."""
-        return bool(game.situation_deck) and len(game.meme_deck) >= len(cls._players_to_deal_to(game))
+        """Whether the decks can cover one more round: a situation, and the memes to fill every hand.
+        Run after _finalize_round, so cards back from their cooldown count."""
+        memes_needed = sum(count for _, count in cls._missing_cards(game))
+        return bool(game.situation_deck) and len(game.meme_deck) >= memes_needed
 
-    async def _hand_out_one_card(self, game: Game):
+    async def _refill_hands(self, game: Game):
 
         self._validate_game_state(game, GameState.ACTIVE)
         self._validate_game_round_state(game, RoundState.ROUND_ENDED)
 
-        players = self._players_to_deal_to(game)
+        missing = self._missing_cards(game)
 
         # check up front: running dry halfway would leave some players a card short
-        if len(game.meme_deck) < len(players):
+        if len(game.meme_deck) < sum(count for _, count in missing):
             raise NotEnoughCardsException()
 
-        for player in players:
-            player.hand_cards.append(game.meme_deck.pop(0))
+        for player, count in missing:
+            for _ in range(count):
+                player.hand_cards.append(game.meme_deck.pop(0))
 
     @staticmethod
     async def _get_situation_card(game: Game) -> SituationCard:
