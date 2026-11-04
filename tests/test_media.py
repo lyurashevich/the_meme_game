@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.config import Settings
+from app.config import PROJECT_ROOT, Settings
 from app.media import media_url
 
 
@@ -41,3 +41,9 @@ def test_by_default_pictures_come_from_the_same_site(monkeypatch):
     monkeypatch.delenv("MEDIA_BASE_URL", raising=False)
 
     assert Settings(_env_file=None).media_base_url == "/media"
+
+
+def test_by_default_pictures_are_kept_in_the_project(monkeypatch):
+    monkeypatch.delenv("MEDIA_DIR", raising=False)
+
+    assert Settings(_env_file=None).media_dir == PROJECT_ROOT / "media"

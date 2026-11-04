@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # Where the browser loads the meme pictures from; a card's address is this plus its image key.
     # Relative by default: the pictures come from the same site as the game, wherever it runs.
     media_base_url: str = "/media"
+    # Where the meme pictures are kept as files: media/ in the project root; /media in docker-compose.
+    # The card loading script copies the pictures here; Vite or nginx gives them out at MEDIA_BASE_URL.
+    media_dir: Path = PROJECT_ROOT / "media"
 
     @property
     def database_url(self) -> str:

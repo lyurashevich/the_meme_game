@@ -36,6 +36,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-/media}
     depends_on:
       postgres:
         condition: service_healthy

@@ -43,6 +43,20 @@ server {
         try_files $uri =404;
     }
 
+    # The meme pictures, from the "media" volume (docker-compose.prod.yml). Their names come from their
+    # content, so a picture never changes under its address and the browser may keep it for a month.
+    # Only pictures are given out (the ~* means: a regular expression, any letter case); $1 is the
+    # path after /media/. A missing one is a 404, not index.html as for the app's own paths below.
+    location ~* ^/media/(.+\.(?:jpe?g|png|gif|webp))$ {
+        alias /usr/share/nginx/media/$1;
+        add_header Cache-Control "public, max-age=2592000";
+    }
+
+    # anything else under /media/
+    location /media/ {
+        return 404;
+    }
+
     # index.html names the current assets, so the browser must check it for a new version every time
     location / {
         add_header Cache-Control "no-cache";

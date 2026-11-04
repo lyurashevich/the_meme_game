@@ -125,9 +125,19 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Only nginx is open to the outside (port `WEB_PORT`, 80 by default); the database and the backend are reachable by the other containers only, and everything restarts after a crash or a reboot.
 
-Not ready for real users yet: the meme pictures are served by the Vite dev server (see [Cards](#cards-)), so in production they won't load until there is a media storage.
+The meme pictures live in the `media` Docker volume, which nginx gives out at `/media/`; it outlives the containers, so rebuilding the app keeps them. Loading cards into it is still to come (see [Cards](#cards-)).
 
 ## Cards 🃏
+
+**Where the pictures are.** The database keeps only each picture's key, e.g. `memes/3f9a1c.jpg`; the browser loads it from `MEDIA_BASE_URL` plus the key (`/media/memes/3f9a1c.jpg`, the same site as the game). The files themselves:
+
+| Running | Folder | Given out at `/media/` by |
+|---|---|---|
+| on your machine (option A) | `media/` in the project root (`MEDIA_DIR`) | the Vite dev server |
+| Docker for development (option B) | the same `media/`, mounted into the containers | the Vite dev server |
+| production (option C) | the `media` Docker volume | nginx, cached by the browser for a month |
+
+Only pictures (`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`) are given out, nothing else from the folder.
 
 **Memes** are pictures. For local testing:
 ```bash
@@ -177,7 +187,7 @@ GitHub Actions runs all of it on every push to `dev` and every pull request to `
 | `pytest.UsageError: TEST_DB_NAME is the same as DB_NAME` | On purpose: the tests empty the tables of their database. Give them a separate one. |
 | The game shows "Нет связи, переподключаемся" | The backend isn't running, or not on port 8000. |
 | Every player suddenly became a new one | The backend restarted (with `--reload`, on any saved `.py` file): the game state lives in its memory. |
-| "Картинка не загрузилась" on the cards | The Vite dev server isn't running; it serves the test pictures. |
+| "Картинка не загрузилась" on the cards | Locally: the Vite dev server isn't running, it serves the pictures. Or the file isn't in the media folder (see [Cards](#cards-)). |
 | `Orphan containers` warning from compose | Containers left from older service names: `docker compose up --remove-orphans`. |
 
 ## Contributing (We Want Your Memes!) 🤝

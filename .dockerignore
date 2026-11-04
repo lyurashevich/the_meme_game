@@ -3,6 +3,7 @@
 .git
 .venv
 frontend
+media
 **/__pycache__
 *.db
 .env

@@ -4,6 +4,7 @@
 #
 #   http://localhost:5173  the game (Vite dev server)
 #   http://localhost:8000  the backend, /docs for Swagger
+#   ./media                the meme pictures, at http://localhost:5173/media/
 #   localhost:5433         the database, e.g. for the scripts:
 #                          DB_PORT=5433 python -m scripts.load_situations
 services:
@@ -15,6 +16,10 @@ services:
     volumes:
       - ./app:/app/app
       - ./migrations:/app/migrations
+      # the pictures: the same folder as without Docker
+      - ./media:/media
+    environment:
+      MEDIA_DIR: /media
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     command: >-
@@ -29,8 +34,11 @@ services:
       - ./frontend:/app
       # node_modules from the image, not the host's (built for another system)
       - /app/node_modules
+      # the dev server gives these out at /media/
+      - ./media:/media:ro
     environment:
       BACKEND_URL: http://backend:8000
+      MEDIA_DIR: /media
       # file change events don't always pass into Docker (macOS, Windows)
       CHOKIDAR_USEPOLLING: "true"
     ports:
