@@ -50,9 +50,9 @@ export default function GameScreen({
   const nameOf = (playerId: string | null | undefined) => players.find((p) => p.id === playerId)?.username ?? '???';
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 flex flex-col min-h-[calc(100vh-70px)]">
+    <div className="max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-3 flex flex-col gap-3 lg:h-[calc(100dvh-3.5rem)]">
       {/* HUD */}
-      <div className="rounded-2xl border-2 border-[#242426] bg-[#FAF7F2] px-4 py-2.5 shadow-[3px_3px_0px_#242426] mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="shrink-0 rounded-2xl border-2 border-[#242426] bg-[#FAF7F2] px-4 py-2 shadow-[3px_3px_0px_#242426] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onLeaveRoom}
@@ -64,9 +64,6 @@ export default function GameScreen({
           <span className="font-black text-base sm:text-lg text-[#242426] tracking-tight">
             РАУНД {game.round_number ?? '—'}
             {room.settings.max_rounds !== null && ` ИЗ ${room.settings.max_rounds}`}
-          </span>
-          <span className="text-[10px] bg-[#E8BAA8] border border-[#242426] px-2 py-0.5 rounded-full font-extrabold text-[#471E14]">
-            ИДЁТ ИГРА
           </span>
           {iAmOwner && (
             <button
@@ -84,13 +81,13 @@ export default function GameScreen({
         {game.ends_at && <RoundTimer endsAt={game.ends_at} serverTime={roomState.server_time} />}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 items-stretch mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:flex-1 lg:min-h-0">
         {/* Table */}
-        <div className="lg:col-span-8 xl:col-span-9 flex flex-col justify-between rounded-3xl border-2 border-[#242426] bg-[#DDD7C7] p-4 sm:p-6 shadow-[4px_4px_0px_#242426] relative overflow-hidden">
-          <div className="absolute inset-2.5 rounded-2xl border-2 border-dashed border-[#242426]/20 pointer-events-none" />
+        <div className="lg:col-span-9 2xl:col-span-10 flex flex-col gap-3 lg:min-h-0 rounded-3xl border-2 border-[#242426] bg-[#DDD7C7] p-3 sm:p-4 shadow-[4px_4px_0px_#242426] relative overflow-hidden">
+          <div className="absolute inset-2 rounded-2xl border-2 border-dashed border-[#242426]/20 pointer-events-none" />
 
           {/* Players with scores and what they are doing */}
-          <div className="relative z-10 flex items-center justify-around gap-2 pt-1 pb-3 flex-wrap">
+          <div className="relative z-10 shrink-0 flex items-center justify-center gap-2 flex-wrap">
             {players.map((player) => (
               <PlayerBadge
                 key={player.id}
@@ -102,105 +99,87 @@ export default function GameScreen({
             ))}
           </div>
 
-          <div className="relative z-10 my-auto py-4 flex flex-col items-center">
-            {/* Situation */}
-            <div className="w-full max-w-xl rounded-3xl border-3 border-[#242426] bg-[#FAF7F2] p-5 sm:p-6 shadow-[5px_5px_0px_#242426] mb-6">
-              <div className="flex items-center gap-2 mb-2.5 pb-2 border-b-2 border-[#242426]/15">
-                <span className="w-3 h-3 rounded-full bg-[#E8BAA8] border border-[#242426]" />
-                <span className="text-xs font-black uppercase tracking-widest text-[#59554E]">КАРТА СИТУАЦИИ</span>
-              </div>
-              <p className="my-2 text-base sm:text-lg font-black leading-snug text-[#242426] text-center px-2 sm:px-4">
-                {game.situation ? `«${game.situation.text}»` : 'Игра начинается...'}
-              </p>
-              <div className="mt-3 pt-2 border-t border-[#242426]/10 flex items-center justify-between text-[11px] text-[#716D64]">
-                <span>
-                  Сдано мемов: {game.submitted_player_ids.length} из {players.length - 1}
-                </span>
-                <span className="font-bold text-[#242426]">Ведущий: {nameOf(game.leader_id)} 👑</span>
-              </div>
-            </div>
-
-            {/* Cards on the table */}
-            <div className="w-full">
-              <div className="text-center mb-3">
-                <span className="text-[11px] font-black uppercase tracking-widest bg-[#FAF7F2] border border-[#242426] px-3 py-1 rounded-full text-[#38352F] shadow-[1.5px_1.5px_0px_#242426]">
-                  МЕМЫ ИГРОКОВ НА СТОЛЕ
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-3 sm:gap-4 justify-center min-h-44">
-                {phase === 'choosing_cards'
-                  ? // Only who has played is known so far, not what: show the backs
-                    game.submitted_player_ids.map((playerId, index) => (
-                      <MemeCard key={playerId} className={ROTATIONS[index % ROTATIONS.length]} />
-                    ))
-                  : game.table.map((card, index) => {
-                      const isWinner = game.winner?.card_id === card.id;
-                      return (
-                        <MemeCard
-                          key={card.id}
-                          card={card}
-                          className={ROTATIONS[index % ROTATIONS.length]}
-                          isSelected={card.id === pickedTableCard?.id}
-                          isWinner={isWinner}
-                          caption={
-                            isWinner
-                              ? `от ${nameOf(game.winner?.player_id)}`
-                              : card.id === game.my_selected_card_id
-                                ? 'твой мем'
-                                : undefined
-                          }
-                          onClick={canChooseWinner ? () => setPickedTableCardId(card.id) : undefined}
-                        />
-                      );
-                    })}
-                {phase === 'choosing_cards' && game.submitted_player_ids.length === 0 && (
-                  <p className="self-center text-xs font-bold text-[#69655C]">Пока никто не сдал мем</p>
-                )}
-              </div>
-
-              {pickedTableCard && (
-                <div className="flex justify-center mt-4">
-                  <button
-                    type="button"
-                    onClick={() => onChooseWinner(pickedTableCard.id)}
-                    className="px-4 py-2 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1.5 cursor-pointer active:translate-y-0.5"
-                  >
-                    <Trophy className="w-3.5 h-3.5" />
-                    ЭТОТ МЕМ ПОБЕЖДАЕТ
-                  </button>
-                </div>
-              )}
+          {/* Situation */}
+          <div className="relative z-10 shrink-0 self-center w-full max-w-3xl rounded-2xl border-3 border-[#242426] bg-[#FAF7F2] px-5 py-3 shadow-[4px_4px_0px_#242426]">
+            <p className="text-base sm:text-xl font-black leading-snug text-[#242426] text-center">
+              {game.situation ? `«${game.situation.text}»` : 'Игра начинается...'}
+            </p>
+            <div className="mt-2 pt-1.5 border-t border-[#242426]/10 flex items-center justify-between text-[11px] text-[#716D64]">
+              <span>
+                Сдано мемов: {game.submitted_player_ids.length} из {players.length - 1}
+              </span>
+              <span className="font-bold text-[#242426]">Ведущий: {nameOf(game.leader_id)} 👑</span>
             </div>
           </div>
 
-          <div className="relative z-10 flex items-center justify-between pt-2 border-t border-[#242426]/15 text-xs">
-            <span className="font-bold text-[#4F4B43]">
-              Раунд ведёт: <strong>{nameOf(game.leader_id)} 👑</strong>
-            </span>
-            <span className="text-[#6B665E] italic hidden sm:inline">«Победитель раунда получает +1 мемный балл»</span>
+          {/* Cards on the table: as tall as the space left; many of them scroll sideways */}
+          <div className="relative z-10 flex-1 min-h-44 lg:min-h-0 flex gap-3 sm:gap-4 justify-center-safe items-center overflow-x-auto px-2 py-2">
+            {phase === 'choosing_cards'
+              ? // Only who has played is known so far, not what: show the backs
+                game.submitted_player_ids.map((playerId, index) => (
+                  <MemeCard key={playerId} size="fill" className={ROTATIONS[index % ROTATIONS.length]} />
+                ))
+              : game.table.map((card, index) => {
+                  const isWinner = game.winner?.card_id === card.id;
+                  return (
+                    <MemeCard
+                      key={card.id}
+                      card={card}
+                      size="fill"
+                      className={ROTATIONS[index % ROTATIONS.length]}
+                      isSelected={card.id === pickedTableCard?.id}
+                      isWinner={isWinner}
+                      caption={
+                        isWinner
+                          ? `от ${nameOf(game.winner?.player_id)}`
+                          : card.id === game.my_selected_card_id
+                            ? 'твой мем'
+                            : undefined
+                      }
+                      onClick={canChooseWinner ? () => setPickedTableCardId(card.id) : undefined}
+                    />
+                  );
+                })}
+            {phase === 'choosing_cards' && game.submitted_player_ids.length === 0 && (
+              <p className="text-xs font-bold text-[#69655C]">Пока никто не сдал мем</p>
+            )}
           </div>
+
+          {pickedTableCard && (
+            <div className="absolute z-20 bottom-4 inset-x-0 flex justify-center pointer-events-none">
+              <button
+                type="button"
+                onClick={() => onChooseWinner(pickedTableCard.id)}
+                className="pointer-events-auto px-4 py-2 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1.5 cursor-pointer active:translate-y-0.5"
+              >
+                <Trophy className="w-3.5 h-3.5" />
+                ЭТОТ МЕМ ПОБЕЖДАЕТ
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Chat */}
-        <div className="lg:col-span-4 xl:col-span-3 flex flex-col">
-          <ChatPanel
-            title="Чат игры"
-            badge="Живое обсуждение"
-            messages={roomState.chat ?? []}
-            myId={me.player_id}
-            quickReplies={QUICK_REPLIES}
-            placeholder="Написать реакцию..."
-            onSend={onSendMessage}
-          />
+        {/* Chat: takes the height of the table, a long chat scrolls inside */}
+        <div className="lg:col-span-3 2xl:col-span-2 relative h-[380px] lg:h-auto">
+          <div className="absolute inset-0">
+            <ChatPanel
+              title="Чат игры"
+              badge="Живое обсуждение"
+              messages={roomState.chat ?? []}
+              myId={me.player_id}
+              quickReplies={QUICK_REPLIES}
+              placeholder="Написать реакцию..."
+              onSend={onSendMessage}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Hand */}
-      <div className="rounded-3xl border-2 border-[#242426] bg-[#FAF7F2] p-4 shadow-[4px_4px_0px_#242426]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 px-1">
+      {/* Hand: over a third of the window on a big screen */}
+      <div className="shrink-0 lg:h-[38%] flex flex-col rounded-3xl border-2 border-[#242426] bg-[#FAF7F2] px-4 pt-2.5 pb-3 shadow-[4px_4px_0px_#242426]">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 px-1 min-h-8">
           <div className="flex items-center gap-2">
-            <span className="font-black text-xs uppercase tracking-wider text-[#242426]">Твоя рука карт</span>
+            <span className="font-black text-xs uppercase tracking-wider text-[#242426]">Твоя рука</span>
             <span className="text-[11px] bg-[#EAE5D9] px-2 py-0.5 rounded-full font-bold text-[#555148]">
               {game.my_hand.length} карт
             </span>
@@ -213,7 +192,7 @@ export default function GameScreen({
             <button
               type="button"
               onClick={() => onSelectCard(pickedHandCard.id)}
-              className="self-end sm:self-auto px-3.5 py-1.5 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1 cursor-pointer transition-all active:translate-y-0.5"
+              className="px-3.5 py-1.5 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1 cursor-pointer transition-all active:translate-y-0.5"
             >
               <ArrowUpCircle className="w-3.5 h-3.5" />
               <span>СЫГРАТЬ ЭТОТ МЕМ</span>
@@ -221,11 +200,14 @@ export default function GameScreen({
           )}
         </div>
 
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 pt-4 px-1">
+        {/* pt-4: room for the picked card, which rises a little. justify-center-safe: centered, but
+            when the cards don't fit they start at the left edge, so none is cut off unreachable */}
+        <div className="flex-1 min-h-0 flex items-stretch justify-center-safe gap-4 overflow-x-auto pt-4 pb-1 px-1">
           {game.my_hand.map((card, index) => (
             <MemeCard
               key={card.id}
               card={card}
+              size="fill"
               className={`${ROTATIONS[index % ROTATIONS.length]} ${canPlayCard ? '' : 'opacity-70'}`}
               isSelected={card.id === pickedHandCard?.id}
               onClick={canPlayCard ? () => setPickedHandCardId(card.id) : undefined}

@@ -26,7 +26,7 @@ export default function RoomListScreen({ me, rooms, onJoinRoom, onCreateRoom, on
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
+    <div className="max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-6">
       {/* Title and profile */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>

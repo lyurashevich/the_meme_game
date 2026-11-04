@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { MemeCard as MemeCardData } from '../protocol';
 
-type CardSize = 'sm' | 'md';
+type CardSize = 'sm' | 'fill';
 
 const SIZE_CLASSES: Record<CardSize, string> = {
   sm: 'w-32 h-44',
-  md: 'w-40 h-56 sm:w-44 sm:h-60',
+  // On a big screen: as tall as the space it's given (the parent must have a height). Nearly square:
+  // most memes are square or wide, a taller card would only add empty stripes around them
+  fill: 'w-32 h-44 lg:h-full lg:w-auto lg:aspect-[4/5]',
 };
 
 interface MemeCardProps {
@@ -27,16 +29,12 @@ export default function MemeCard({
   onClick,
   className = '',
 }: MemeCardProps) {
-  const base = `relative shrink-0 flex flex-col rounded-2xl border-2 border-[#242426] p-2 select-none transition-all duration-200 ${SIZE_CLASSES[size]} ${className}`;
+  const base = `relative shrink-0 flex flex-col rounded-2xl border-2 border-[#242426] p-1.5 select-none transition-all duration-200 ${SIZE_CLASSES[size]} ${className}`;
 
   if (!card) {
     return (
       <div className={`${base} bg-[#D7D3C8] text-[#242426] shadow-[3px_3px_0px_#242426]`}>
-        <div className="flex items-center justify-between text-[10px] font-bold tracking-wider uppercase opacity-70 px-0.5">
-          <span>ЧТО ЗА МЕМ</span>
-          <span>✦</span>
-        </div>
-        <div className="flex-1 mt-1.5 rounded-xl border border-dashed border-[#242426]/30 bg-[#C8C2B4] flex flex-col items-center justify-center p-2 text-center relative overflow-hidden">
+        <div className="flex-1 rounded-xl border border-dashed border-[#242426]/30 bg-[#C8C2B4] flex flex-col items-center justify-center p-2 text-center relative overflow-hidden">
           <div className="text-3xl mb-1 opacity-80">🤫</div>
           <span className="text-[12px] font-bold text-[#3B3A36]">Карта рубашкой</span>
           {/* Subtle diagonal lines */}
@@ -62,12 +60,7 @@ export default function MemeCard({
       disabled={!onClick}
       className={`${base} ${highlight} bg-[#FAF7F2] text-left disabled:cursor-default`}
     >
-      <div className="flex items-center justify-between text-[10px] font-bold text-[#55524B] px-0.5">
-        <span className="uppercase tracking-wider">РЕАКЦИЯ</span>
-        <span className="px-1.5 py-0.5 rounded bg-[#EAE5D9] text-[#242426]">#МЕМ</span>
-      </div>
-
-      <div className="flex-1 mt-1.5 rounded-xl border border-[#242426] overflow-hidden bg-[#EBE7DF]">
+      <div className="flex-1 min-h-0 rounded-xl border border-[#242426] overflow-hidden bg-[#EBE7DF]">
         <MemeImage key={card.image_url} url={card.image_url} />
       </div>
 

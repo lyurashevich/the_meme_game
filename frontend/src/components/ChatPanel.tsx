@@ -39,7 +39,7 @@ export default function ChatPanel({ title, badge, messages, myId, quickReplies, 
   };
 
   return (
-    <div className="rounded-3xl border-2 border-[#242426] bg-[#FAF7F2] p-4 shadow-[4px_4px_0px_#242426] flex flex-col h-[380px] lg:h-auto lg:min-h-0">
+    <div className="rounded-3xl border-2 border-[#242426] bg-[#FAF7F2] p-4 shadow-[4px_4px_0px_#242426] flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between pb-2.5 border-b-2 border-[#242426]/15">
         <div className="flex items-center gap-2">
@@ -50,7 +50,7 @@ export default function ChatPanel({ title, badge, messages, myId, quickReplies, 
       </div>
 
       {/* Messages */}
-      <div ref={listRef} className="flex-1 overflow-y-auto my-2 space-y-2.5 pr-1 text-xs lg:max-h-[420px]">
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto my-2 space-y-2.5 pr-1 text-xs">
         {messages.length === 0 && (
           <p className="text-center text-[11px] text-[#88837A] italic mt-4">Пока тихо. Напиши первым!</p>
         )}

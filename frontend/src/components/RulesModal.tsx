@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { Clock, Flag, Info, Sparkles, Users, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 
 // The rules of the game, opened from the header. The numbers are the server's
 // (app/services/game_service.py, app/schemas/game.py): change them together.
@@ -10,19 +10,7 @@ interface RulesModalProps {
 }
 
 export default function RulesModal({ isOpen, onClose }: RulesModalProps) {
-  // Esc closes it, as any window would
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
+  useCloseOnEscape(isOpen, onClose);
 
   if (!isOpen) {
     return null;
