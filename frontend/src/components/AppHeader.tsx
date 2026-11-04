@@ -1,6 +1,6 @@
-import { Sparkles } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
-export default function AppHeader({ onShowSpecs }: { onShowSpecs: () => void }) {
+export default function AppHeader({ onShowRules }: { onShowRules: () => void }) {
   return (
     <header className="sticky top-0 z-40 border-b-2 border-[#242426] bg-[#ECE8DE] px-4 py-2.5 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
@@ -20,11 +20,12 @@ export default function AppHeader({ onShowSpecs }: { onShowSpecs: () => void }) 
         </div>
 
         <button
-          onClick={onShowSpecs}
+          onClick={onShowRules}
+          aria-label="Правила игры" // on a phone only the icon is shown
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border-2 border-[#242426] bg-[#FAF7F2] shadow-[2px_2px_0px_#242426] hover:bg-[#E4D976] transition-all cursor-pointer"
         >
-          <Sparkles className="w-3.5 h-3.5 text-[#242426]" />
-          <span className="hidden sm:inline">Концепт стиля</span>
+          <BookOpen className="w-3.5 h-3.5 text-[#242426]" />
+          <span className="hidden sm:inline">Правила игры</span>
         </button>
       </div>
     </header>

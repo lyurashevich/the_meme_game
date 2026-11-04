@@ -1,11 +1,11 @@
 import { Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { describeError } from './api/errorMessages';
 import AppHeader from './components/AppHeader';
 import ConfirmDialog from './components/ConfirmDialog';
 import ConnectionIndicator from './components/ConnectionIndicator';
-import DesignSpecsModal from './components/DesignSpecsModal';
 import GameResultsModal from './components/GameResultsModal';
+import RulesModal from './components/RulesModal';
 import GameScreen from './screens/GameScreen';
 import LobbyScreen from './screens/LobbyScreen';
 import PlayerCreationScreen from './screens/PlayerCreationScreen';
@@ -27,7 +27,9 @@ export default function App() {
   const actions = useGameStore.getState();
 
   const [profileConfirmed, setProfileConfirmed] = useState(() => sessionStorage.getItem(PROFILE_KEY) === 'yes');
-  const [showSpecs, setShowSpecs] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  // the same function on every render, so the window's Esc handler isn't set up again each time
+  const closeRules = useCallback(() => setShowRules(false), [setShowRules]);
   // Which "are you sure?" is open, if any
   const [confirming, setConfirming] = useState<'leave' | 'end_game' | null>(null);
 
@@ -115,7 +117,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F4F1EA] text-[#242426] flex flex-col font-['Rubik',sans-serif]">
-      <AppHeader onShowSpecs={() => setShowSpecs(true)} />
+      <AppHeader onShowRules={() => setShowRules(true)} />
 
       <main className="flex-1">{content}</main>
 
@@ -145,7 +147,7 @@ export default function App() {
           onCancel={() => setConfirming(null)}
         />
       )}
-      <DesignSpecsModal isOpen={showSpecs} onClose={() => setShowSpecs(false)} />
+      <RulesModal isOpen={showRules} onClose={closeRules} />
       <ConnectionIndicator />
       <Toasts />
     </div>
