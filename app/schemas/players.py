@@ -1,26 +1,14 @@
 from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 
-class PlayerCardsSchema(BaseModel):
-    id: int
-    image_url: str
+class BasePlayerProfileSchema(BaseModel):
+    username: str | None = ""
+    avatar_id: str | None = None
 
 
-class PlayerCreateSchema(BaseModel):
-    username: str | None = None
-
-
-class PlayerStateSchema(PlayerCreateSchema):
-    handed_cards: list[int]  # cards' ids
-    score: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PlayerSchema(PlayerStateSchema):
+class BasePlayerProfileResponseSchema(BasePlayerProfileSchema):
     id: str
-    is_host: bool
     is_connected: bool
-    connection_order: int
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)

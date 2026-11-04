@@ -1,15 +1,12 @@
-from contextlib import asynccontextmanager
-from pathlib import Path
+import logging
 
 from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import HTMLResponse
-from starlette.templating import Jinja2Templates
+from starlette.responses import JSONResponse
 
-from app.db import session_maker
-from app.services.memes_services import CardService as MemeService
-from app.services.situations_services import CardService as SituationService
+from app.config import get_settings
+from app.exceptions import CustomException
 from app.views.game import router as game_router
+from app.views.health import router as health_router
 from app.views.meme_cards_views import router as memes_router
 from app.views.players_views import router as players_router
 from app.views.room_views import router as rooms_router
@@ -17,20 +14,22 @@ from app.views.round import router as game_round_router
 from app.views.situation_cards_views import router as situations_router
 from app.websockets.views import router as ws_router
 
+logging.basicConfig(
+    level=get_settings().log_level.upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    with session_maker() as db:
-        MemeService(db)
-        SituationService(db)
-    yield
+app = FastAPI(title="The Meme Game", version="1.0.0")
 
 
-app = FastAPI(lifespan=lifespan)
-base_dir = Path(__file__).parent
-static_dir = base_dir / "static"
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+@app.exception_handler(CustomException)
+async def custom_exception_handler(request: Request, exception: CustomException):
+    return JSONResponse(
+        status_code=exception.status_code, content={"error": {"code": exception.code, "message": exception.message}}
+    )
 
+
+app.include_router(health_router)
 app.include_router(memes_router)
 app.include_router(situations_router)
 app.include_router(players_router)
@@ -39,15 +38,8 @@ app.include_router(ws_router)
 app.include_router(game_router)
 app.include_router(game_round_router)
 
-templates = Jinja2Templates(directory="templates")
-
-
-@app.get("/ws", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104

@@ -60,7 +60,7 @@ def main():
     if args.install_deps:
         print("Installing test dependencies...")
         if not run_command(
-            [sys.executable, "-m", "pip", "install", "-r", "requirements-test.txt"],
+            [sys.executable, "-m", "pip", "install", "-r", "requirements-dev.txt"],
             "Installing test dependencies",
         ):
             return 1

@@ -52,3 +52,35 @@ Thumbs.db
 .env
 **/.coverage
 postgres_data/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# meme pictures copied by the load_memes script (before media/)
+frontend/public/memes/
+# the meme pictures (see MEDIA_DIR in .env.example); the empty folder itself is kept, so that Docker
+# doesn't create it on its own, owned by root
+/media/*
+!/media/.gitkeep

@@ -4,173 +4,207 @@
 
 ## What's This All About? 🤔
 
-Welcome to the most chaotic, hilarious, and slightly unhinged meme card game you'll ever play! Think Cards Against Humanity, but with memes and your friends' questionable sense of humor. 
+Welcome to the most chaotic, hilarious, and slightly unhinged meme card game you'll ever play! Think Cards Against Humanity, but with memes and your friends' questionable sense of humor.
 
-Players take turns being the "judge" (we call them leaders because it sounds more important), while everyone else tries to match the perfect meme to a ridiculous situation. The best part? You get to roast your friends' choices in real-time! 🔥
+Players take turns being the "judge" (we call them leaders because it sounds more important), while everyone else tries to match the perfect meme to a ridiculous situation. The best part? You get to roast your friends' choices in the chat in real time! 🔥
 
 ## How to Play (The Rules That Matter) 🎮
 
-1. **Gather Your Squad** 👥
-   - Need at least 3 players (because 2 people judging each other gets awkward)
-   - Max 10 players (because more than that is just chaos)
+1. **Gather your squad** 👥 — 3 to 10 players in a room. The room owner sets the time per turn (60, 90 or 120 s) and, if they like, a limit of rounds or points.
+2. **Get your cards** 🃏 — everyone gets 6 meme cards. The room owner is the first leader.
+3. **The round begins** ⚡ — a situation card goes on the table, and everyone except the leader plays one meme from their hand before the time runs out.
+4. **The judgement** 👨‍⚖️ — the leader sees the memes without their authors and has 30 seconds to pick the best one. Its author gets +1 point.
+5. **Keep the party going** 🔄 — everyone who played a meme draws a new card, and the next player becomes the leader.
+6. **The end** 🏁 — the game ends when the owner says so, a round or point limit is reached, fewer than 3 players are left, or the deck runs out. Everyone sees the final scores.
 
-2. **Get Your Cards** 🃏
-   - Everyone starts with 6 random meme cards
-   - All cards are unique (no cheating!)
-   - The room host becomes the first leader
-
-3. **The Round Begins** ⚡
-   - Leader gets a random situation card
-   - Everyone else (except the leader) picks ONE meme card from their hand
-   - You have 60 seconds to decide (pressure makes it funnier!)
-   - Round ends when everyone picks or time runs out
-
-4. **The Judgement** 👨‍⚖️
-   - Leader picks the winner (prepare for bias and favoritism)
-   - Winner gets +1 point (congrats, you're officially funny!)
-   - Used meme cards go to the discard pile for 10 rounds
-   - Used situation cards are gone for 20 rounds (they need a longer break)
-
-5. **Keep the Party Going** 🔄
-   - Everyone gets +1 new meme card (except the leader, they're busy judging)
-   - New leader is chosen in connection order
-   - Repeat until you run out of situations or your friends get tired of your jokes
-
-6. **Clean Up** 🧹
-   - When everyone leaves, the room disappears into the digital void
-   - No permanent records of your terrible memes (your secret is safe!)
+The small print:
+- Played memes rest for 10 rounds and situations for 20 before they can come up again.
+- Names are unique within a room, ignoring case ("Neo" and "neo" are the same name).
+- Lost your connection? You have 60 seconds to come back and keep your place. A leader who is away doesn't hold the game up for longer than their 30 seconds.
+- When everyone has left, the room disappears.
 
 ## Tech Stuff (For the Nerds) 💻
 
-### What We Built
-- **FastAPI** backend (because we like things fast and async)
-- **WebSocket** real-time communication (no more waiting for page refreshes!)
-- **In-memory game state** (because databases are for boring stuff)
-- **PostgreSQL** for storing cards (the only thing we keep permanent)
+| | |
+|---|---|
+| Frontend | React 19 + TypeScript, Vite, Tailwind, Zustand (`frontend/`) |
+| Backend | FastAPI: every game action goes over one WebSocket (`/ws`); REST only for reading cards and editing them (`/api`) |
+| Database | PostgreSQL — the cards and nothing else |
+| Game state | In the backend's memory: rooms, players, games. One backend process (Redis is planned) |
+| Production | nginx serves the built frontend and passes `/api` and `/ws` on to the backend; all in Docker |
 
-### Architecture Highlights
-- All game logic lives in memory (faster than a caffeinated squirrel)
-- Username uniqueness per room (no "Player1" and "Player1" confusion)
-- Automatic cleanup when games end (like a digital Marie Kondo)
-- Real-time synchronization (everyone sees the same chaos)
+After every change, each player gets a full personal snapshot of their room (`room_state`), so the client never has to stitch updates together and reconnecting works the same way. The protocol is described in [docs/mvp-plan.md](docs/mvp-plan.md) ("WS-протокол").
 
-### The Stack
 ```
-Frontend: React (because we're not monsters)
-Backend: FastAPI + WebSockets
-Database: PostgreSQL (for the cards)
-Real-time: Redis (for the chaos)
-Deployment: Docker (because containers are cool)
+app/          backend: views (REST, /ws), websockets (actions), services (game logic), game (state)
+migrations/   database migrations (alembic)
+scripts/      loading test memes and situations
+tests/        backend tests (pytest)
+frontend/     the game: src/screens, src/components, src/store (Zustand), src/api (WebSocket client)
+docs/         the plan and the protocol
 ```
 
 ## Getting Started (The Not-So-Boring Part) 🚀
 
-### Prerequisites
-- Python 3.12+ (because we like shiny new things)
-- PostgreSQL (for storing our precious meme collection)
-- Redis (for the real-time magic)
-- Docker (optional, but recommended for the full experience)
+Two ways: run everything yourself (the quickest loop while coding) or everything in Docker.
 
-### Installation
+### Option A: on your machine
 
-1. **Clone this beautiful mess**
+You need Python 3.12, Node 22 (see `frontend/.nvmrc`) and PostgreSQL 15 or newer.
+
+1. **Install the dependencies**
    ```bash
-   git clone https://github.com/your-username/the_meme_game.git
-   cd the_meme_game
-   ```
-
-2. **Set up your environment**
-   ```bash
-   # Create virtual environment (because we're responsible adults)
    python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
+   source .venv/bin/activate          # Windows: .venv\Scripts\activate
+   pip install -r requirements-dev.txt
+
+   cd frontend && npm install && cd ..
    ```
 
-3. **Configure your database**
+2. **Settings**
    ```bash
-   # Copy the example env file
    cp .env.example .env
-   # Edit .env with your database credentials
    ```
+   Fill in the database part; every variable is explained in the file.
 
-4. **Initialize the database**
+3. **Two databases**: one for the game, one for the tests (the tests empty its tables). The user from `.env` must own both:
    ```bash
-   python app/init_db.py
+   sudo -u postgres psql -c "CREATE USER meme WITH PASSWORD 'change-me';"
+   sudo -u postgres createdb -O meme meme_game
+   sudo -u postgres createdb -O meme meme_game_test
    ```
 
-5. **Start the party**
+4. **Tables**
    ```bash
-   # Start the FastAPI server
-   uvicorn app.main:app --reload
-   
-   # In another terminal, start the WebSocket server
-   uvicorn websockets.main:app --reload --port 8001
+   alembic upgrade head
    ```
 
-6. **Open your browser and prepare for chaos**
+5. **Cards** (see [Cards](#cards-) below)
+   ```bash
+   python -m scripts.load_cards memes ~/path/to/folder/with/pictures
+   python -m scripts.load_cards situations
    ```
-   http://localhost:8000
+
+6. **Start the party**
+   ```bash
+   uvicorn app.main:app --reload --port 8000      # terminal 1, project root
+   cd frontend && npm run dev                     # terminal 2
    ```
+   Open http://localhost:5173. Every browser tab is a separate player, so three tabs are enough to play alone.
 
-## API Endpoints (For the Curious) 🔌
+Run everything from the project root (`frontend` only for `npm`); `.env` is always found there.
 
-### Cards
-- `GET /cards/meme_cards` - Get all meme cards
-- `GET /cards/situation_cards` - Get all situation cards
-- `POST /cards/meme_cards` - Add new meme card (admin only)
-- `POST /cards/situation_cards` - Add new situation card (admin only)
+### Option B: Docker for development
 
-### Game Logic (WebSocket)
-- Create room
-- Join room (with username validation)
-- Start game
-- Select cards
-- Choose winner
-- Leave room
+```bash
+cp .env.example .env               # and fill it in
+docker compose up --build
+```
 
-## Contributing (We Want Your Memes!) 🤝
+`docker-compose.yml` (database and backend) is combined with `docker-compose.override.yml`, which compose picks up on its own. The code is mounted from your machine, so both servers reload on changes.
 
-1. Fork this repository
-2. Create a feature branch (`git checkout -b feature/amazing-meme-addition`)
-3. Add your memes (I mean, code)
-4. Commit your changes (`git commit -m 'Add hilarious new feature'`)
-5. Push to the branch (`git push origin feature/amazing-meme-addition`)
-6. Open a Pull Request
+| Address | What |
+|---|---|
+| http://localhost:5173 | the game |
+| http://localhost:8000/docs | the backend's Swagger |
+| `localhost:5433` | the database |
 
-## Game Rules (The Serious Stuff) 📋
+To load cards into this database, point the script at its port (the pictures go to `media/`, which the containers share):
+```bash
+DB_PORT=5433 python -m scripts.load_cards memes ~/path/to/folder/with/pictures
+DB_PORT=5433 python -m scripts.load_cards situations
+```
 
-- **Minimum Players**: 3 (because 2 is just awkward)
-- **Maximum Players**: 10 (because more is chaos)
-- **Cards per Player**: 6 (start), +1 each round
-- **Round Time Limit**: 60 seconds
-- **Meme Card Cooldown**: 10 rounds
-- **Situation Card Cooldown**: 20 rounds
-- **Username Uniqueness**: Per room (global usernames are overrated)
+A port already taken? Change `DB_DOCKER_PORT`, `BACKEND_PORT` or `FRONTEND_PORT` in `.env`.
+
+### Option C: production
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Only nginx is open to the outside (port `WEB_PORT`, 80 by default); the database and the backend are reachable by the other containers only, and everything restarts after a crash or a reboot.
+
+The meme pictures live in the `media` Docker volume, which nginx gives out at `/media/`; it outlives the containers, so rebuilding the app keeps them. The cards are loaded by the same script, run in a one-off backend container that has the volume; the folder with the pictures is lent to it as `/import`:
+```bash
+PROD="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+$PROD run --rm -v ~/memes:/import:ro backend python -m scripts.load_cards memes /import
+$PROD run --rm backend python -m scripts.load_cards situations      # those from scripts/situations.txt
+$PROD run --rm -v ~/situations.txt:/import/situations.txt:ro backend python -m scripts.load_cards situations /import/situations.txt
+```
+
+## Cards 🃏
+
+**Where the pictures are.** The database keeps only each picture's key, e.g. `memes/3f9a1c.jpg`; the browser loads it from `MEDIA_BASE_URL` plus the key (`/media/memes/3f9a1c.jpg`, the same site as the game). The files themselves:
+
+| Running | Folder | Given out at `/media/` by |
+|---|---|---|
+| on your machine (option A) | `media/` in the project root (`MEDIA_DIR`) | the Vite dev server |
+| Docker for development (option B) | the same `media/`, mounted into the containers | the Vite dev server |
+| production (option C) | the `media` Docker volume | nginx, cached by the browser for a month |
+
+Only pictures (`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`) are given out, nothing else from the folder.
+
+Cards are loaded by one script (in production, inside a container: see [Option C](#option-c-production)):
+
+**Memes** are pictures:
+```bash
+python -m scripts.load_cards memes ~/path/to/folder/with/pictures
+```
+Every picture in the folder and its subfolders is copied to the media folder under a name made from its content (`memes/3f9a1c0b7d2e4a51.jpg`), and a card with that key is added. So the same picture under two names is one card, and the names have no spaces or other troublesome characters. What a file is comes from its first bytes, not its extension; files that aren't pictures are skipped and listed.
+
+**Situations** are texts, one per line in a file; empty lines and lines starting with `#` are skipped:
+```bash
+python -m scripts.load_cards situations                    # 25 test ones from scripts/situations.txt
+python -m scripts.load_cards situations my_situations.txt
+```
+
+The script prints which database it uses and can be run again: what is already there is skipped.
+
+Cards loaded before the media folder existed have whole addresses (`http://localhost:5173/memes/...`) and still work locally while the Vite dev server runs; they won't load in production. The script says how many there are; after loading the same pictures anew, remove them with `DELETE FROM meme_cards WHERE image_key LIKE 'http%';`.
+
+How many you need: a full room of 10 needs 150 memes to never run out (6 per player in hand plus those resting after being played), 4 players need 54; 21 situations are enough for any game.
+
+**Editing cards over HTTP**: `POST/PATCH/DELETE /api/memes/` and `/api/situations/` need the header `X-Admin-Token` equal to `ADMIN_TOKEN` from `.env`; with no token set, editing is off. Reading (`GET`) is open. Swagger (`/docs`) has an "Authorize" button for the token.
+
+## Tests and Checks 🧪
+
+**Backend** (needs the test database, `TEST_DB_NAME`):
+```bash
+pytest
+black --check --line-length=120 . && flake8 && isort --check-only --profile black .
+```
+
+**Frontend** (in `frontend/`):
+```bash
+npm test               # Vitest
+npm run lint           # ESLint
+npm run format:check   # Prettier (npm run format fixes it)
+npm run build          # type check and production build
+```
+
+GitHub Actions runs all of it on every push to `dev` and every pull request to `main`; the backend tests get a PostgreSQL of their own there.
 
 ## Troubleshooting (When Things Go Wrong) 🔧
 
-### "Room not found"
-- Check if the room ID is correct
-- Make sure the room hasn't been cleaned up
+| You see | Why, and what to do |
+|---|---|
+| `DatabaseNotConfiguredError: PostgreSQL is not configured: set ...` | `.env` is missing or lacks the variables named in the message. |
+| `database "..." does not exist` | Create it: `sudo -u postgres createdb -O <user> <name>`. |
+| `permission denied for schema public` | The database belongs to another user, and since PostgreSQL 15 only the owner may create tables: `ALTER DATABASE <name> OWNER TO <user>;` |
+| `template database "template1" has a collation version mismatch` | The system's libraries were updated. For the empty template it's safe: `sudo -u postgres psql -c "ALTER DATABASE template1 REFRESH COLLATION VERSION;"` |
+| The backend in Docker can't log in to the database | The `pgdata` volume was created with other credentials: PostgreSQL takes them only when the volume is new. `docker compose down -v` recreates it (and deletes the data in it). |
+| `pytest.UsageError: TEST_DB_NAME is the same as DB_NAME` | On purpose: the tests empty the tables of their database. Give them a separate one. |
+| The game shows "Нет связи, переподключаемся" | The backend isn't running, or not on port 8000. |
+| Every player suddenly became a new one | The backend restarted (with `--reload`, on any saved `.py` file): the game state lives in its memory. |
+| "Картинка не загрузилась" on the cards | Locally: the Vite dev server isn't running, it serves the pictures. Or the file isn't in the media folder (see [Cards](#cards-)). |
+| `Orphan containers` warning from compose | Containers left from older service names: `docker compose up --remove-orphans`. |
 
-### "Username already exists"
-- Pick a different username (be creative!)
-- Usernames are case-insensitive
+## Contributing (We Want Your Memes!) 🤝
 
-### "Not enough players"
-- Gather more friends (or make new ones)
-- Minimum 3 players required
-
-### "No situation cards available"
-- Game is over! Time to start a new one
-- Or add more situation cards to the database
-
-## License (The Legal Stuff) 📄
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. Create a branch from `dev`: `git checkout -b feature/amazing-meme-addition`
+2. Make sure the checks above pass
+3. Open a pull request (CI checks every push to `dev` and every pull request into `main`)
 
 ## Acknowledgments (Shoutouts!) 🙏
 

@@ -1,26 +1,29 @@
-from app.game.game_manager import get_game_manager
-from tests.conftest import test_room_with_players
-
-
 class TestGameViews:
 
     def setup_method(self):
-        self.manager = get_game_manager()
-        self.url = "/game"
+        self.url = "/api/game"
 
-    async def test_start_game(self, client_with_no_db, test_player, test_room_with_players):
-        response = client_with_no_db.post(f"{self.url}/start", json={"room_id": test_room_with_players.id})
+    async def test_get_game_settings(self, client_with_no_db, test_room):
+        response = client_with_no_db.get(f"{self.url}/{test_room.id}/game_settings")
 
-        game = await self.manager.get_game(room_id=test_room_with_players.id)
+        assert response.status_code == 200
+        assert response.json() == {"round_time_limit": 60, "max_rounds": None, "score_to_win": None}
 
-        expected_json = {
-            "id": game.id,
-            "room_id": test_room_with_players.id,
-            "leader_index": game.leader_index,
-            "players": [player.id for player in test_room_with_players.players],
-            "meme_deck_count": len(game.meme_deck),
-            "situation_deck_count": len(game.situation_deck),
-        }
+    async def test_get_game_settings__room_not_found(self, client_with_no_db):
+        response = client_with_no_db.get(f"{self.url}/12344/game_settings")
 
-        assert response.status_code == 201
-        assert response.json() == expected_json
+        assert response.status_code == 404
+
+    async def test_get_game_score(self, client_with_no_db, prepared_game):
+        prepared_game.room.players[1].score = 2
+
+        response = client_with_no_db.get(f"{self.url}/{prepared_game.room_id}/score")
+
+        assert response.status_code == 200
+        scores = {entry["id"]: entry["score"] for entry in response.json()}
+        assert scores == {player.id: player.score for player in prepared_game.room.players}
+
+    async def test_get_game_score__game_not_found(self, client_with_no_db):
+        response = client_with_no_db.get(f"{self.url}/12344/score")
+
+        assert response.status_code == 404

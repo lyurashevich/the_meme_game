@@ -1,0 +1,49 @@
+---
+name: Frontend checks
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          # keeps downloaded packages between runs,
+          # until package-lock.json changes
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        # installs exactly package-lock.json;
+        # fails if it doesn't match package.json
+        run: npm ci
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Type check and build
+        run: npm run build

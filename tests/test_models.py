@@ -15,7 +15,7 @@
 
 #         assert player.id == 1
 #         assert player.username == "Alice"
-#         assert player.handed_cards == []
+#         assert player.hand_cards == []
 #         assert player.is_host == False
 #         assert player.score == 0
 #         assert player.is_connected == True
@@ -23,11 +23,11 @@
 
 #     def test_player_with_cards(self):
 #         """Test player with handed cards"""
-#         cards = [MemeCard(id=i, image_url=f"test{i}.jpg") for i in range(1, 4)]
-#         player = Player(id=1, username="Alice", handed_cards=cards)
+#         cards = [MemeCard(id=i, image_key=f"test{i}.jpg") for i in range(1, 4)]
+#         player = Player(id=1, username="Alice", hand_cards=cards)
 
-#         assert len(player.handed_cards) == 3
-#         assert player.handed_cards[0].id == 1
+#         assert len(player.hand_cards) == 3
+#         assert player.hand_cards[0].id == 1
 
 #     def test_player_score_increment(self):
 #         """Test player score increment"""
@@ -107,8 +107,8 @@
 #         player1 = Player(id=2, username="Player1")
 #         player2 = Player(id=3, username="Player2")
 
-#         card1 = MemeCard(id=1, image_url="test1.jpg")
-#         card2 = MemeCard(id=2, image_url="test2.jpg")
+#         card1 = MemeCard(id=1, image_key="test1.jpg")
+#         card2 = MemeCard(id=2, image_key="test2.jpg")
 
 #         round_obj = GameRound(
 #             round_number=1,
@@ -172,7 +172,7 @@
 #     def test_game_with_decks(self):
 #         """Test Game with card decks"""
 #         room = Room(name="Test Room")
-#         meme_cards = [MemeCard(id=i, image_url=f"meme{i}.jpg") for i in range(1, 4)]
+#         meme_cards = [MemeCard(id=i, image_key=f"meme{i}.jpg") for i in range(1, 4)]
 #         situation_cards = [SituationCard(id=i, text=f"Situation {i}") for i in range(1, 3)]
 
 #         game = Game(

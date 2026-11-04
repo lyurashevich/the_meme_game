@@ -1,28 +1,53 @@
+import random
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 
+from faker.proxy import Faker
+
+from app.exceptions import (
+    AlreadyInARoomException,
+    PlayerNotInRoomException,
+    RoomIsFullException,
+)
 from app.game.enums import GameState, RoundState
+from app.game.game_settings import GameSettings
 from app.models import MemeCard, SituationCard
 from app.schemas.round import PlayerChoiceSchema
+
+AVATARS = ("cat", "frog", "capybara", "doge", "hamster", "pigeon")
+
+
+@dataclass
+class ReconnectToken:
+    player_id: str
+    expires_at: datetime | None
 
 
 @dataclass
 class Player:
+    username: str = ""
+    avatar_id: str | None = None
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    username: str | None = None
-    handed_cards: list[MemeCard] = field(default_factory=list)
+    hand_cards: list[MemeCard] = field(default_factory=list)
     is_host: bool = False  # Host is the first leader
     score: int = 0
     is_connected: bool = True
     connection_order: int = 0  # Order of connection for leader rotation
+    room_id: str | None = None
 
     def __post_init__(self):
         if not self.username:
-            self.username = f"user{self.id}"
+            self.username = Faker().name()
+
+        if not self.avatar_id:
+            self.avatar_id = random.choice(AVATARS)  # nosec B311 - game logic only, not cryptography
 
 
 @dataclass
 class Room:
+    settings: GameSettings = field(default_factory=GameSettings)
+
     name: str | None = None
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     max_players: int = 10
@@ -41,30 +66,72 @@ class Room:
         return self.owner.id
 
     @property
+    def owner_name(self) -> str:
+        if self.owner is None:
+            raise Exception("owner not found")
+        return self.owner.username
+
+    @property
+    def rounds_count(self) -> int | None:
+        """How many rounds a game in this room lasts; None means no limit."""
+        return self.settings.max_rounds
+
+    @property
+    def time_limit(self) -> int:
+        return self.settings.round_time_limit
+
+    @property
     def players_count(self) -> int:
         return len(self.players)
 
     def __post_init__(self) -> None:
         if self.name is None:
-            self.name = f"room{self.id[:8]}"
+            self.name = Faker().city()
 
         if self.owner and self.owner not in self.players:
             self.players.append(self.owner)
             self.players[0].is_host = True
 
-    async def add_player(self, player: Player) -> None:
-        if len(self.players) >= self.max_players:
-            raise Exception("The room is full")
+    @property
+    def is_full(self) -> bool:
+        return len(self.players) >= self.max_players
+
+    def add_player(self, player: Player) -> None:
         if player in self.players:
-            raise Exception("You have already joined the room!")
+            raise AlreadyInARoomException()
+        if self.is_full:
+            raise RoomIsFullException()
 
         self.players.append(player)
 
-    async def remove_player(self, player: Player) -> None:
+    def is_username_taken(self, username: str, by_other_than: Player | None = None) -> bool:
+        """Names are unique per room, ignoring case ("Neo" and "neo" look the same to players)."""
+        name = username.casefold()
+        return any(p.username.casefold() == name for p in self.players if p is not by_other_than)
+
+    def remove_player(self, player: Player) -> None:
         if player not in self.players:
-            raise Exception("User not found")
+            raise PlayerNotInRoomException()
 
         self.players.remove(player)
+
+    def reassign_owner(self) -> None:
+        """Promote the next player in join order to owner.
+
+        Callers are expected to have already removed the departing owner
+        from ``self.players``, so ``self.players[0]`` is the longest-standing
+        remaining player. Sets ``owner = None`` if no players are left.
+        """
+        if self.owner is not None:
+            self.owner.is_host = False
+
+        if not self.players:
+            self.owner = None
+            return
+
+        new_owner = self.players[0]
+        new_owner.is_host = True
+        self.owner = new_owner
 
 
 @dataclass
@@ -73,27 +140,20 @@ class GameRound:
     round_number: int
     leader: Player
     situation_card: SituationCard
-    player_choices: dict[str, MemeCard] = field(
-        default_factory=dict
-    )  # player_id -> selected_card
+    player_choices: dict[str, MemeCard] = field(default_factory=dict)  # player_id -> selected_card
     winner: Player | None = None
     state: RoundState = RoundState.CHOOSING_CARDS
     time_limit: int = 60  # seconds
+    finalized: bool = False
+    # when the current phase (choosing cards / leader choosing) times out; None while nothing is timed
+    phase_ends_at: datetime | None = None
 
     @property
     def player_choices_list(self):
         return [
-            PlayerChoiceSchema(
-                player_id=player.id, username=player.username, image_url=card.image_url
-            )
+            PlayerChoiceSchema(player_id=player.id, username=player.username, image_url=card.image_url)
             for player_id, card in self.player_choices.items()
-            for player in [
-                next(
-                    player
-                    for player in self.game.room.players
-                    if player.id == player_id
-                )
-            ]
+            for player in [next(player for player in self.game.room.players if player.id == player_id)]
         ]
 
     @property
@@ -116,6 +176,8 @@ class GameRound:
 @dataclass
 class Game:
     room: Room
+    settings: GameSettings
+
     current_round: GameRound | None = None
     state: GameState = GameState.STARTING
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

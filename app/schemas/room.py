@@ -1,33 +1,22 @@
 from pydantic import BaseModel, ConfigDict
-
-
-class RoomCreateSchema(BaseModel):
-    player_id: str
-    name: str | None = None
-    max_players: int = 10
-    is_private: bool = False
-
-
-class RoomResponseSchema(BaseModel):
-    id: str
-    name: str
-    max_players: int
-    is_private: bool
-    owner_id: str
-    players_count: int
-    invitation_link: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)
+from pydantic.alias_generators import to_camel
 
 
 class RoomStateSchema(BaseModel):
+    id: str
     name: str
-    max_players: int
-    is_private: bool
+    owner_name: str
     players_count: int
+    max_players: int
+    owner_id: str
+    invitation_link: str | None = None
+    rounds_count: int | None = None
+    time_limit: int
+    is_private: bool
+    # status: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, alias_generator=to_camel, populate_by_name=True)
 
 
-class JoinRoomSchema(BaseModel):
-    player_id: str
+class LeaveRoomResponseSchema(BaseModel):
+    requires_confirmation: bool

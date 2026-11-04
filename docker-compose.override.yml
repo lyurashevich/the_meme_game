@@ -1,0 +1,47 @@
+---
+# Development: added to docker-compose.yml automatically by `docker compose up`.
+# The code is mounted from the host, so both servers pick up changes at once.
+#
+#   http://localhost:5173  the game (Vite dev server)
+#   http://localhost:8000  the backend, /docs for Swagger
+#   ./media                the meme pictures, at http://localhost:5173/media/
+#   localhost:5433         the database, e.g. for the scripts:
+#                          DB_PORT=5433 python -m scripts.load_cards situations
+services:
+  postgres:
+    ports:
+      - "${DB_DOCKER_PORT:-5433}:5432"
+
+  backend:
+    volumes:
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+      # the pictures: the same folder as without Docker
+      - ./media:/media
+    environment:
+      MEDIA_DIR: /media
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    command: >-
+      sh -c "alembic upgrade head
+      && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: frontend
+      target: dev
+    volumes:
+      - ./frontend:/app
+      # node_modules from the image, not the host's (built for another system)
+      - /app/node_modules
+      # the dev server gives these out at /media/
+      - ./media:/media:ro
+    environment:
+      BACKEND_URL: http://backend:8000
+      MEDIA_DIR: /media
+      # file change events don't always pass into Docker (macOS, Windows)
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - backend

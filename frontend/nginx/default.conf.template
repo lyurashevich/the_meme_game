@@ -1,0 +1,65 @@
+# nginx in the prod image. A template: when the container starts, nginx's image replaces
+# ${BACKEND_URL} with the environment variable and writes the result to /etc/nginx/conf.d/.
+# Only variables that are set get replaced, so nginx's own ones ($host and so on) stay as they are.
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # REST API of the backend
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # The game's websocket: an ordinary HTTP request that asks to be "upgraded" to a socket.
+    # nginx has to pass that request on as it is, so the Upgrade/Connection headers are set explicitly.
+    location /ws {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # A game can be quiet for a while; by default nginx drops a connection after 60 s of silence
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
+    # Built JS and CSS have a hash of their content in the name (index-BdUDzFnd.js): a new build means
+    # new names, so the browser may keep these forever
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # The meme pictures, from the "media" volume (docker-compose.prod.yml). Their names come from their
+    # content, so a picture never changes under its address and the browser may keep it for a month.
+    # Only pictures are given out (the ~* means: a regular expression, any letter case); $1 is the
+    # path after /media/. A missing one is a 404, not index.html as for the app's own paths below.
+    location ~* ^/media/(.+\.(?:jpe?g|png|gif|webp))$ {
+        alias /usr/share/nginx/media/$1;
+        add_header Cache-Control "public, max-age=2592000";
+    }
+
+    # anything else under /media/
+    location /media/ {
+        return 404;
+    }
+
+    # index.html names the current assets, so the browser must check it for a new version every time
+    location / {
+        add_header Cache-Control "no-cache";
+        try_files $uri /index.html;
+    }
+}

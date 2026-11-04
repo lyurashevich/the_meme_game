@@ -1,0 +1,15 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ app/
+COPY avatars/ app/avatars/
+COPY migrations/ migrations/
+COPY alembic.ini .
+# the card loading script, run in the container: docker compose run --rm backend python -m scripts.load_cards
+COPY scripts/ scripts/
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

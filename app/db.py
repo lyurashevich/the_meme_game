@@ -1,36 +1,22 @@
-import os
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from app.config import get_settings
 
-load_dotenv()
+settings = get_settings()
+DATABASE_URL = settings.database_url  # raises DatabaseNotConfiguredError if PostgreSQL isn't set up
 
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-DB_NAME = os.getenv("DB_NAME")
-TEST_DB_NAME = os.getenv("TEST_DB_NAME")
+engine = create_async_engine(DATABASE_URL, echo=False)
+session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 
-def is_invalid(value):
-    return value is None or value == "None" or value == ""
+def get_session_factory() -> async_sessionmaker:
+    """For code that needs sessions outside a single request, e.g. websocket actions."""
+    return session_maker
 
 
-if any(is_invalid(v) for v in [DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, TEST_DB_NAME]):
-    DATABASE_URL = "sqlite:///./test.db"
-    TEST_DATABASE_URL = "sqlite:///./test.db"
-else:
-    DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    TEST_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
-
-engine = create_engine(DATABASE_URL, echo=True)
-session_maker = sessionmaker(engine, expire_on_commit=False)
-
-
-def get_db():
-    with session_maker() as session:
+async def get_db():
+    async with session_maker() as session:
         yield session
 
 
