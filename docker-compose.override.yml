@@ -6,7 +6,7 @@
 #   http://localhost:8000  the backend, /docs for Swagger
 #   ./media                the meme pictures, at http://localhost:5173/media/
 #   localhost:5433         the database, e.g. for the scripts:
-#                          DB_PORT=5433 python -m scripts.load_situations
+#                          DB_PORT=5433 python -m scripts.load_cards situations
 services:
   postgres:
     ports:

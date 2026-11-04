@@ -1,5 +1,5 @@
 # Not sent to Docker when building the image: installed inside the image instead (node_modules),
-# built inside it (dist), or not part of the app (pictures copied by scripts/load_memes.py)
+# built inside it (dist), or not part of the app (pictures copied by the load_memes script)
 node_modules
 dist
 public/memes

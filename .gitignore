@@ -78,7 +78,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# meme pictures copied by scripts/load_memes.py for local testing
+# meme pictures copied by the load_memes script (before media/)
 frontend/public/memes/
 # the meme pictures (see MEDIA_DIR in .env.example); the empty folder itself is kept, so that Docker
 # doesn't create it on its own, owned by root

@@ -1,4 +1,4 @@
-# The backend image only copies app/, migrations/, avatars/ and alembic.ini; without this list Docker
+# The backend image only copies app/, migrations/, avatars/, scripts/ and alembic.ini; without this list Docker
 # would still send everything else (the virtualenv, the frontend with node_modules) on every build
 .git
 .venv

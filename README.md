@@ -81,8 +81,8 @@ You need Python 3.12, Node 22 (see `frontend/.nvmrc`) and PostgreSQL 15 or newer
 
 5. **Cards** (see [Cards](#cards-) below)
    ```bash
-   python -m scripts.load_memes ~/path/to/folder/with/pictures
-   python -m scripts.load_situations
+   python -m scripts.load_cards memes ~/path/to/folder/with/pictures
+   python -m scripts.load_cards situations
    ```
 
 6. **Start the party**
@@ -109,10 +109,10 @@ docker compose up --build
 | http://localhost:8000/docs | the backend's Swagger |
 | `localhost:5433` | the database |
 
-To load cards into this database, point the scripts at its port:
+To load cards into this database, point the script at its port (the pictures go to `media/`, which the containers share):
 ```bash
-DB_PORT=5433 python -m scripts.load_memes ~/path/to/folder/with/pictures
-DB_PORT=5433 python -m scripts.load_situations
+DB_PORT=5433 python -m scripts.load_cards memes ~/path/to/folder/with/pictures
+DB_PORT=5433 python -m scripts.load_cards situations
 ```
 
 A port already taken? Change `DB_DOCKER_PORT`, `BACKEND_PORT` or `FRONTEND_PORT` in `.env`.
@@ -125,7 +125,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Only nginx is open to the outside (port `WEB_PORT`, 80 by default); the database and the backend are reachable by the other containers only, and everything restarts after a crash or a reboot.
 
-The meme pictures live in the `media` Docker volume, which nginx gives out at `/media/`; it outlives the containers, so rebuilding the app keeps them. Loading cards into it is still to come (see [Cards](#cards-)).
+The meme pictures live in the `media` Docker volume, which nginx gives out at `/media/`; it outlives the containers, so rebuilding the app keeps them. The cards are loaded by the same script, run in a one-off backend container that has the volume; the folder with the pictures is lent to it as `/import`:
+```bash
+PROD="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+$PROD run --rm -v ~/memes:/import:ro backend python -m scripts.load_cards memes /import
+$PROD run --rm backend python -m scripts.load_cards situations      # those from scripts/situations.txt
+$PROD run --rm -v ~/situations.txt:/import/situations.txt:ro backend python -m scripts.load_cards situations /import/situations.txt
+```
 
 ## Cards 🃏
 
@@ -139,19 +145,23 @@ The meme pictures live in the `media` Docker volume, which nginx gives out at `/
 
 Only pictures (`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`) are given out, nothing else from the folder.
 
-**Memes** are pictures. For local testing:
+Cards are loaded by one script (in production, inside a container: see [Option C](#option-c-production)):
+
+**Memes** are pictures:
 ```bash
-python -m scripts.load_memes ~/path/to/folder/with/pictures
+python -m scripts.load_cards memes ~/path/to/folder/with/pictures
 ```
-copies the pictures to `frontend/public/memes/` (not in git) and adds a card for each, with an address on the Vite dev server (`http://localhost:5173/memes/...`). The pictures load while `npm run dev` (or the `frontend` container) is running.
+Every picture in the folder and its subfolders is copied to the media folder under a name made from its content (`memes/3f9a1c0b7d2e4a51.jpg`), and a card with that key is added. So the same picture under two names is one card, and the names have no spaces or other troublesome characters. What a file is comes from its first bytes, not its extension; files that aren't pictures are skipped and listed.
 
 **Situations** are texts, one per line in a file; empty lines and lines starting with `#` are skipped:
 ```bash
-python -m scripts.load_situations                  # 25 test ones from scripts/situations.txt
-python -m scripts.load_situations my_situations.txt
+python -m scripts.load_cards situations                    # 25 test ones from scripts/situations.txt
+python -m scripts.load_cards situations my_situations.txt
 ```
 
-Both scripts print which database they use and can be run again: what is already there is skipped.
+The script prints which database it uses and can be run again: what is already there is skipped.
+
+Cards loaded before the media folder existed have whole addresses (`http://localhost:5173/memes/...`) and still work locally while the Vite dev server runs; they won't load in production. The script says how many there are; after loading the same pictures anew, remove them with `DELETE FROM meme_cards WHERE image_key LIKE 'http%';`.
 
 How many you need: a full room of 10 needs 150 memes to never run out (6 per player in hand plus those resting after being played), 4 players need 54; 21 situations are enough for any game.
 
