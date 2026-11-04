@@ -21,7 +21,7 @@ from app.services.game_service import (
 async def big_game(prepared_game, game_service, player_service):
     """5 players and enough cards for a long game, already in round 1."""
     game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
-    prepared_game.meme_deck.extend(MemeCard(id=1000 + i, image_url=f"http://memes.org/extra/{i}") for i in range(80))
+    prepared_game.meme_deck.extend(MemeCard(id=1000 + i, image_key=f"http://memes.org/extra/{i}") for i in range(80))
     prepared_game.situation_deck.extend(SituationCard(id=1000 + i, text=f"extra {i}") for i in range(30))
 
     fifth = Player(username="Fifth")

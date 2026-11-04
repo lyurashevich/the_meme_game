@@ -1,22 +1,23 @@
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models import MemeCard, SituationCard
 
 
 class TestCardModels:
     async def test_meme_card_creation(self, db_session):
-        card = MemeCard(image_url="https://example.com/meme.jpg")
+        card = MemeCard(image_key="memes/meme.jpg")
         db_session.add(card)
         await db_session.commit()
 
         cards = await db_session.execute(select(MemeCard))
         assert len(cards.scalars().all()) == 1
         assert card.id is not None
-        assert card.image_url == "https://example.com/meme.jpg"
+        assert card.image_key == "memes/meme.jpg"
 
     async def test_delete_meme_card(self, db_session):
-        card = MemeCard(image_url="https://example.com/meme.jpg")
+        card = MemeCard(image_key="memes/meme.jpg")
         db_session.add(card)
         await db_session.commit()
 
@@ -28,19 +29,26 @@ class TestCardModels:
         assert await db_session.get(MemeCard, 1) is None
 
     async def test_meme_card_update(self, db_session):
-        card = MemeCard(image_url="https://example.com/meme.jpg")
+        card = MemeCard(image_key="memes/meme.jpg")
         db_session.add(card)
         await db_session.commit()
 
-        card.image_url = "https://example.com/meme2.jpg"
+        card.image_key = "memes/meme2.jpg"
         await db_session.commit()
         await db_session.refresh(card)
 
-        assert card.image_url == "https://example.com/meme2.jpg"
+        assert card.image_key == "memes/meme2.jpg"
         cards = await db_session.execute(select(MemeCard))
         assert len(cards.scalars().all()) == 1
-        assert card.id is not None
-        assert card.image_url == "https://example.com/meme2.jpg"
+
+    async def test_the_same_picture_cant_be_added_twice(self, db_session):
+        db_session.add_all([MemeCard(image_key="memes/meme.jpg"), MemeCard(image_key="memes/meme.jpg")])
+
+        with pytest.raises(IntegrityError):
+            await db_session.commit()
+
+    def test_image_url_is_the_media_address_plus_the_key(self):
+        assert MemeCard(image_key="memes/meme.jpg").image_url == "/media/memes/meme.jpg"
 
 
 class TestSituationCardModels:

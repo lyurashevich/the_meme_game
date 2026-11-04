@@ -13,8 +13,8 @@ from app.models import MemeCard, SituationCard
 from tests.helpers import TEST_ADMIN_TOKEN
 
 WRITE_REQUESTS = [
-    ("post", "/api/memes/", {"image_url": "http://memes.org/new"}),
-    ("patch", "/api/memes/{meme_id}", {"image_url": "http://memes.org/changed"}),
+    ("post", "/api/memes/", {"image_key": "memes/new.jpg"}),
+    ("patch", "/api/memes/{meme_id}", {"image_key": "memes/changed.jpg"}),
     ("delete", "/api/memes/{meme_id}", None),
     ("post", "/api/situations/", {"text": "new situation"}),
     ("patch", "/api/situations/{situation_id}", {"text": "changed situation"}),
@@ -24,7 +24,7 @@ WRITE_REQUESTS = [
 
 @pytest.fixture
 async def cards(db_session):
-    meme = MemeCard(image_url="http://memes.org/original")
+    meme = MemeCard(image_key="memes/original.jpg")
     situation = SituationCard(text="original situation")
     db_session.add_all([meme, situation])
     await db_session.commit()
@@ -51,12 +51,12 @@ async def send(client, method, url, body, cards, headers=None):
 
 async def card_database(db_session):
     db_session.expire_all()
-    memes = (await db_session.execute(select(MemeCard.image_url))).scalars().all()
+    memes = (await db_session.execute(select(MemeCard.image_key))).scalars().all()
     situations = (await db_session.execute(select(SituationCard.text))).scalars().all()
     return sorted(memes), sorted(situations)
 
 
-UNCHANGED = (["http://memes.org/original"], ["original situation"])
+UNCHANGED = (["memes/original.jpg"], ["original situation"])
 
 
 @pytest.mark.parametrize("method, url, body", WRITE_REQUESTS)

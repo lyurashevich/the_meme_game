@@ -208,7 +208,7 @@ def test_game(test_room):
 
 @pytest.fixture
 def mock_meme_cards():
-    meme_cards = [MemeCard(id=i, image_url=f"http://memes.org/{i}") for i in range(30)]
+    meme_cards = [MemeCard(id=i, image_key=f"http://memes.org/{i}") for i in range(30)]
 
     from app.services.memes_services import CardService
 

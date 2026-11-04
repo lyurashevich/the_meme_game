@@ -23,8 +23,12 @@ from tests.helpers import last_room_state
 
 @pytest.fixture
 def add_cards(db_session):
+    added = 0  # image keys are unique, so every call adds new pictures
+
     async def add_cards(memes, situations):
-        db_session.add_all([MemeCard(image_url=f"http://memes.org/{i}") for i in range(memes)])
+        nonlocal added
+        db_session.add_all([MemeCard(image_key=f"memes/{added + i}.jpg") for i in range(memes)])
+        added += memes
         db_session.add_all([SituationCard(text=f"situation {i}") for i in range(situations)])
         await db_session.commit()
 

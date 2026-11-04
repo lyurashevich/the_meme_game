@@ -31,13 +31,13 @@ async def load_memes(source: Path, target: Path, base_url: str) -> tuple[int, in
     target.mkdir(parents=True, exist_ok=True)
 
     async with session_maker() as db:
-        existing = set((await db.scalars(select(MemeCard.image_url))).all())
+        existing = set((await db.scalars(select(MemeCard.image_key))).all())
         added = 0
         for picture in pictures:
             url = f"{base_url.rstrip('/')}/{quote(picture.name)}"  # names have spaces and the like
             shutil.copy2(picture, target / picture.name)
             if url not in existing:
-                db.add(MemeCard(image_url=url))
+                db.add(MemeCard(image_key=url))  # a whole address: given out as it is
                 added += 1
         await db.commit()
 

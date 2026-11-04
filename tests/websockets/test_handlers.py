@@ -229,7 +229,7 @@ class TestSettingsDuringGame:
 class TestStartGame:
     @pytest.fixture
     async def cards_in_db(self, db_session):
-        db_session.add_all([MemeCard(image_url=f"http://memes.org/{i}") for i in range(30)])
+        db_session.add_all([MemeCard(image_key=f"http://memes.org/{i}") for i in range(30)])
         db_session.add_all([SituationCard(text=f"situation {i}") for i in range(5)])
         await db_session.commit()
 

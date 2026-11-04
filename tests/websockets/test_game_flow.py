@@ -22,7 +22,7 @@ def in_round(number, round_state=None):
 
 
 async def test_full_round_over_websockets(client_with_no_db, db_session, game_service):
-    db_session.add_all([MemeCard(image_url=f"http://memes.org/{i}") for i in range(30)])
+    db_session.add_all([MemeCard(image_key=f"http://memes.org/{i}") for i in range(30)])
     db_session.add_all([SituationCard(text=f"situation {i}") for i in range(5)])
     await db_session.commit()
     game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0.05

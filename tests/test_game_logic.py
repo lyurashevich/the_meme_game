@@ -650,7 +650,7 @@ class TestGameLogic:
         # (5 cards, matching max_rounds below) — the meme deck's own cooldown/
         # recycling mechanics are unrelated to the behavior under test.
         prepared_game.meme_deck.extend(
-            MemeCard(id=1000 + i, image_url=f"http://memes.org/extra/{i}") for i in range(50)
+            MemeCard(id=1000 + i, image_key=f"http://memes.org/extra/{i}") for i in range(50)
         )
 
         game_service.WINNER_ANNOUNCEMENT_DELAY_SECONDS = 0
@@ -832,9 +832,9 @@ class TestGameLogic:
 #         """Test getting available meme cards with no cooldown"""
 #         game_with_cards.round_number = 5
 #         game_with_cards.meme_deck = [
-#             MemeCard(id=1, image_url="test1.jpg", round_to_return=3),  # Available
-#             MemeCard(id=2, image_url="test2.jpg", round_to_return=6),  # Not available
-#             MemeCard(id=3, image_url="test3.jpg", round_to_return=None),  # Never used
+#             MemeCard(id=1, image_key="test1.jpg", round_to_return=3),  # Available
+#             MemeCard(id=2, image_key="test2.jpg", round_to_return=6),  # Not available
+#             MemeCard(id=3, image_key="test3.jpg", round_to_return=None),  # Never used
 #         ]
 
 #         available = await game_logic.get_available_meme_cards(game_with_cards)
@@ -909,7 +909,7 @@ class TestGameLogic:
 
 #         # Simulate all non-leader players choosing cards
 #         for player in players[1:3]:
-#             game_with_cards.current_round.player_choices[player.id] = MemeCard(id=1, image_url="test.jpg")
+#             game_with_cards.current_round.player_choices[player.id] = MemeCard(id=1, image_key="test.jpg")
 
 #         # This should trigger automatic end of card selection
 #         await game_logic.end_card_selection_phase(game_with_cards)
@@ -964,7 +964,7 @@ class TestGameLogic:
 
 #         # Give players cards
 #         for i, player in enumerate(players[1:3]):
-#             player.hand_cards = [MemeCard(id=i+1, image_url=f"test{i+1}.jpg")]
+#             player.hand_cards = [MemeCard(id=i+1, image_key=f"test{i+1}.jpg")]
 
 #         # Simulate concurrent card selections
 #         tasks = [

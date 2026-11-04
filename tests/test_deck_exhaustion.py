@@ -43,7 +43,7 @@ async def play_until_game_ends(game_service, game, max_rounds=50):
 
 
 def extra_memes(count):
-    return [MemeCard(id=1000 + i, image_url=f"http://memes.org/extra/{i}") for i in range(count)]
+    return [MemeCard(id=1000 + i, image_key=f"http://memes.org/extra/{i}") for i in range(count)]
 
 
 def extra_situations(count):

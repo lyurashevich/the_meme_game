@@ -122,7 +122,7 @@
 
 #     def test_card_cooldown_tracking(self):
 #         """Test card cooldown tracking"""
-#         meme_card = MemeCard(id=1, image_url="test.jpg", round_to_return=5)
+#         meme_card = MemeCard(id=1, image_key="test.jpg", round_to_return=5)
 #         situation_card = SituationCard(id=1, text="test", round_to_return=10)
 
 #         assert meme_card.round_to_return == 5
@@ -133,11 +133,11 @@
 #         current_round = 8
 
 #         # Card with cooldown that has passed
-#         available_card = MemeCard(id=1, image_url="test.jpg", round_to_return=5)
+#         available_card = MemeCard(id=1, image_key="test.jpg", round_to_return=5)
 #         assert available_card.round_to_return <= current_round
 
 #         # Card with cooldown that hasn't passed
-#         unavailable_card = MemeCard(id=2, image_url="test2.jpg", round_to_return=10)
+#         unavailable_card = MemeCard(id=2, image_key="test2.jpg", round_to_return=10)
 #         assert unavailable_card.round_to_return > current_round
 
 

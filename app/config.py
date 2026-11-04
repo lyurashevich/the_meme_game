@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Enables the card editing endpoints (POST/PATCH/DELETE /api/memes, /api/situations) for requests
     # with a matching X-Admin-Token header. Not set: those endpoints are disabled.
     admin_token: str | None = None
+    # Where the browser loads the meme pictures from; a card's address is this plus its image key.
+    # Relative by default: the pictures come from the same site as the game, wherever it runs.
+    media_base_url: str = "/media"
 
     @property
     def database_url(self) -> str:

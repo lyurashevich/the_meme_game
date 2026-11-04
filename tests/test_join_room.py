@@ -39,7 +39,7 @@ def error_code(reply):
 
 @pytest.fixture
 async def cards_in_db(db_session):
-    db_session.add_all([MemeCard(image_url=f"http://memes.org/{i}") for i in range(60)])
+    db_session.add_all([MemeCard(image_key=f"http://memes.org/{i}") for i in range(60)])
     db_session.add_all([SituationCard(text=f"situation {i}") for i in range(10)])
     await db_session.commit()
 

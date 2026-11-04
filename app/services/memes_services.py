@@ -25,28 +25,30 @@ class CardService:
         return card
 
     async def create_meme_card(self, card_data: MemeCardCreate) -> MemeCard:
-        try:
-            card = MemeCard(image_url=str(card_data.image_url))
-            self.db.add(card)
-            await self.db.commit()
-            await self.db.refresh(card)
-            return card
-        except IntegrityError:
-            await self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to create meme card",
-            )
+        card = MemeCard(image_key=card_data.image_key)
+        self.db.add(card)
+        await self._commit(card)
+        return card
 
     async def update_meme_card(self, card_id: int, card_data: MemeCardUpdate) -> MemeCard:
         card = await self.get_meme_card(card_id)
 
-        if card_data.image_url is not None:
-            card.image_url = str(card_data.image_url)
+        if card_data.image_key is not None:
+            card.image_key = card_data.image_key
 
-        await self.db.commit()
-        await self.db.refresh(card)
+        await self._commit(card)
         return card
+
+    async def _commit(self, card: MemeCard) -> None:
+        try:
+            await self.db.commit()
+        except IntegrityError:  # the only constraint that can fail: image_key is unique
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A meme card with this image already exists",
+            )
+        await self.db.refresh(card)
 
     async def delete_meme_card(self, card_id: int) -> None:
         card = await self.get_meme_card(card_id)
