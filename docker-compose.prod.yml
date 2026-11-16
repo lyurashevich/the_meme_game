@@ -3,9 +3,9 @@
 #   docker compose -f docker-compose.yml \
 #     -f docker-compose.prod.yml up -d --build
 #
-# Only nginx is reachable from outside; the database and the backend are
-# seen by the other containers only. Everything restarts after a crash or
-# a reboot of the server.
+# Only Caddy is reachable from outside, on ports 80 and 443; nginx, the database
+# and the backend are seen by the other containers only. Everything restarts
+# after a crash or a reboot of the server.
 services:
   postgres:
     restart: unless-stopped
@@ -27,13 +27,34 @@ services:
     # gives the pictures out at /media/; read only, nginx has no business changing them
     volumes:
       - media:/usr/share/nginx/media:ro
-    ports:
-      - "${WEB_PORT:-80}:80"
     depends_on:
       backend:
         condition: service_healthy
+
+  # HTTPS for the address in SITE_ADDRESS (.env), see caddy/Caddyfile. Port 80 stays open:
+  # Let's Encrypt checks the name through it, and Caddy sends http:// visitors on to https://.
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      # without it Caddy wouldn't know which name to get a certificate for: stop right away
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env, see .env.example}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # the certificates and the Let's Encrypt account: kept, or every restart would ask
+      # for a new certificate and soon hit Let's Encrypt's limits
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
 
 # The meme pictures. Kept by Docker on the server's disk, so they outlive the containers:
 # rebuilding or updating the app doesn't touch them (unlike `docker compose down -v`).
 volumes:
   media:
+  # Caddy's certificates and settings, kept the same way
+  caddy_data:
+  caddy_config:
