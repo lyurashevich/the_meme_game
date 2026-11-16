@@ -1,0 +1,7 @@
+# Caddy in production, in front of nginx (docker-compose.prod.yml).
+# For a name in SITE_ADDRESS Caddy gets a Let's Encrypt certificate by itself, renews it
+# and sends plain http:// visitors over to https://. With http://localhost it serves plain HTTP.
+# Everything goes on to nginx as it is: websockets included, no settings needed for them.
+{$SITE_ADDRESS} {
+	reverse_proxy web:80
+}

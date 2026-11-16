@@ -2,6 +2,11 @@
 
 What changed from version to version. Versions follow [semantic versioning](https://semver.org/): the first number grows with changes that break something for players or for whoever runs the game, the second with new features, the third with fixes.
 
+## [Unreleased]
+
+### Running the game
+- Production is served over HTTPS: Caddy in front of nginx gets and renews a Let's Encrypt certificate for `SITE_ADDRESS` from `.env`. It replaces `WEB_PORT`; ports 80 and 443 are used.
+
 ## [1.0.0] - 2026-11-05
 
 The first playable version: from creating a profile to the final scores, for 3 to 10 players.
