@@ -5,6 +5,9 @@ export type RoundTimeLimit = 60 | 90 | 120;
 
 export const ROUND_TIME_LIMITS: RoundTimeLimit[] = [60, 90, 120];
 
+// The server won't start a game with fewer players in the room (MIN_PLAYERS)
+export const MIN_PLAYERS_TO_START = 3;
+
 // `session` event: who this browser tab is
 export interface Session {
   player_id: string;

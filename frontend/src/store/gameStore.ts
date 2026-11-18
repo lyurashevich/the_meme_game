@@ -54,7 +54,9 @@ export function applyServerMessage(data: GameData, message: ServerMessage): Part
       // The history comes only with the first snapshot; later snapshots keep the chat we have
       const sameRoom = data.roomState?.room.id === message.payload.room.id;
       const chat = message.payload.chat ?? (sameRoom ? data.roomState?.chat : undefined) ?? [];
-      return { roomState: { ...message.payload, chat }, syncing: false };
+      const roomState = { ...message.payload, chat };
+      // A new game has started (say, the owner pressed "play again"): the last game's results are over
+      return message.payload.game ? { roomState, gameEnded: null, syncing: false } : { roomState, syncing: false };
     }
     case 'chat_message': {
       if (!data.roomState) return {};

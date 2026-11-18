@@ -126,6 +126,8 @@ export default function App() {
           results={results}
           players={roomState.players}
           myId={me.player_id}
+          isOwner={roomState.room.owner_id === me.player_id}
+          onPlayAgain={run(actions.startGame)}
           onClose={actions.dismissGameResults}
         />
       )}
