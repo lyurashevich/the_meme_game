@@ -108,12 +108,6 @@ export default function GameScreen({
             ))}
           </div>
 
-          {canChooseWinner && (
-            <p className="relative z-10 shrink-0 self-center px-3 py-1 rounded-xl bg-[#FAF7F2] border-2 border-[#242426] text-xs sm:text-sm font-bold text-[#242426]">
-              Нажми на лучший мем, а потом «{WINNER_LABEL}» на нём
-            </p>
-          )}
-
           {/* Cards on the table: as tall as the space left; many of them scroll sideways */}
           <div className="relative z-10 flex-1 min-h-44 lg:min-h-0 flex gap-3 sm:gap-4 justify-center-safe items-center overflow-x-auto px-2 py-2">
             {phase === 'choosing_cards'
