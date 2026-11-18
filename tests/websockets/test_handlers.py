@@ -126,8 +126,8 @@ class TestCreateRoom:
     async def test_without_settings_the_room_gets_the_defaults(self, act, lone_player, room_service):
         reply = await act(lone_player, "create_room")
 
-        room = await room_service.get_room(reply["payload"]["room_id"])
-        assert (room.settings.round_time_limit, room.settings.max_rounds, room.settings.score_to_win) == (60, None, None)
+        settings = (await room_service.get_room(reply["payload"]["room_id"])).settings
+        assert (settings.round_time_limit, settings.max_rounds, settings.score_to_win) == (60, None, None)
 
     @pytest.mark.parametrize(
         "settings",
