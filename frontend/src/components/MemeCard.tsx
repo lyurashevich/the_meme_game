@@ -37,13 +37,15 @@ export default function MemeCard({
   const base = `relative shrink-0 flex flex-col rounded-2xl border-2 border-[#242426] p-1.5 select-none transition-all duration-200 ${SIZE_CLASSES[size]} ${className}`;
 
   if (!card) {
+    // The back of a card: dots in the game's colors and a "?" in the middle, like a real deck. No text on it,
+    // so screen readers get the label instead
     return (
-      <div className={`${base} bg-[#D7D3C8] text-[#242426] shadow-[3px_3px_0px_#242426]`}>
-        <div className="flex-1 rounded-xl border border-dashed border-[#242426]/30 bg-[#C8C2B4] flex flex-col items-center justify-center p-2 text-center relative overflow-hidden">
-          <div className="text-3xl mb-1 opacity-80">🤫</div>
-          <span className="text-[12px] font-bold text-[#3B3A36]">Карта рубашкой</span>
-          {/* Subtle diagonal lines */}
-          <div className="absolute inset-0 opacity-5 pointer-events-none bg-[repeating-linear-gradient(45deg,#000,#000_2px,transparent_2px,transparent_8px)]" />
+      <div role="img" aria-label="Карта рубашкой вверх" className={`${base} bg-[#242426] shadow-[3px_3px_0px_#242426]`}>
+        <div className="flex-1 rounded-xl border-2 border-[#E4D976]/60 relative overflow-hidden flex items-center justify-center">
+          <div className="absolute inset-0 opacity-35 pointer-events-none bg-[radial-gradient(circle,#E4D976_1.5px,transparent_2px)] [background-size:12px_12px]" />
+          <div className="relative w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-[#E4D976] border-2 border-[#FAF7F2] flex items-center justify-center text-2xl lg:text-4xl font-black text-[#242426] shadow-[2px_2px_0px_#000]">
+            ?
+          </div>
         </div>
       </div>
     );

@@ -4,6 +4,17 @@ import MemeCard from './MemeCard';
 
 const CARD = { id: 1, image_url: '/media/memes/1.jpg' };
 
+describe('MemeCard face down', () => {
+  it('has no caption on the back, only a label for screen readers', () => {
+    const html = renderToStaticMarkup(<MemeCard />);
+    const visibleText = html.replace(/<[^>]*>/g, ''); // what is left without the tags and their attributes
+
+    expect(visibleText).toBe('?');
+    expect(html).toContain('role="img"');
+    expect(html).toContain('aria-label="Карта рубашкой вверх"');
+  });
+});
+
 describe('MemeCard confirm button', () => {
   const render = (isSelected: boolean) =>
     renderToStaticMarkup(
