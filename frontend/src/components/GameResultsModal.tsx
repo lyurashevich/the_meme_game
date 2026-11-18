@@ -1,5 +1,5 @@
-import { Trophy } from 'lucide-react';
-import type { GameEnded, RoomPlayer } from '../protocol';
+import { Play, Trophy } from 'lucide-react';
+import { MIN_PLAYERS_TO_START, type GameEnded, type RoomPlayer } from '../protocol';
 import Avatar from './Avatar';
 
 const REASONS: Record<GameEnded['reason'], string> = {
@@ -13,15 +13,26 @@ interface GameResultsModalProps {
   results: GameEnded;
   players: RoomPlayer[]; // for names and avatars; scores are taken from the results
   myId: string;
+  isOwner: boolean; // only the owner can start the next game
+  onPlayAgain: () => void;
   onClose: () => void;
 }
 
-export default function GameResultsModal({ results, players, myId, onClose }: GameResultsModalProps) {
+export default function GameResultsModal({
+  results,
+  players,
+  myId,
+  isOwner,
+  onPlayAgain,
+  onClose,
+}: GameResultsModalProps) {
   // Object.entries turns { id: score } into [[id, score], ...]; sort by score, best first
   const rows = Object.entries(results.final_scores)
     .map(([playerId, score]) => ({ playerId, score, player: players.find((p) => p.id === playerId) }))
     .sort((a, b) => b.score - a.score);
   const iWon = results.winner_ids.includes(myId);
+  // Counted like the server does: everyone in the room, connected or not
+  const canPlayAgain = players.length >= MIN_PLAYERS_TO_START;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#242426]/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -57,13 +68,40 @@ export default function GameResultsModal({ results, players, myId, onClose }: Ga
           })}
         </ol>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full py-2.5 rounded-xl border-2 border-[#242426] bg-[#E4D976] font-black text-sm text-[#242426] shadow-[2px_2px_0px_#242426] hover:bg-[#DDD166] cursor-pointer"
-        >
-          В ЛОББИ →
-        </button>
+        {isOwner ? (
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={onPlayAgain}
+              disabled={!canPlayAgain}
+              className="w-full py-2.5 rounded-xl border-2 border-[#242426] bg-[#E4D976] font-black text-sm text-[#242426] shadow-[2px_2px_0px_#242426] hover:bg-[#DDD166] cursor-pointer flex items-center justify-center gap-2 disabled:bg-[#DDD9CE] disabled:text-[#868278] disabled:shadow-none disabled:cursor-not-allowed"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              СЫГРАТЬ ЕЩЁ →
+            </button>
+            {!canPlayAgain && (
+              <p className="text-center text-xs text-[#66625A]">Нужно хотя бы {MIN_PLAYERS_TO_START} игрока</p>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2 rounded-xl border-2 border-[#242426] bg-[#FAF7F2] font-bold text-sm text-[#242426] hover:bg-[#ECE8DE] cursor-pointer"
+            >
+              В лобби
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-center text-xs text-[#66625A]">Владелец может начать новую игру</p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl border-2 border-[#242426] bg-[#E4D976] font-black text-sm text-[#242426] shadow-[2px_2px_0px_#242426] hover:bg-[#DDD166] cursor-pointer"
+            >
+              В ЛОББИ →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

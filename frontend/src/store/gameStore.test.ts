@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage, RoomState, RoomSummary, Session } from '../protocol';
+import type { ChatMessage, GameEnded, GameView, RoomState, RoomSummary, Session } from '../protocol';
 import { applyServerMessage, type GameData } from './gameStore';
 
 const session = (player_id = 'p1'): Session => ({
@@ -31,6 +31,22 @@ const roomState = (roomId: string, chat?: ChatMessage[]): RoomState => ({
 });
 
 const ROOMS: RoomSummary[] = [];
+
+const GAME_ENDED: GameEnded = { room_id: 'r1', reason: 'limit_reached', final_scores: { p1: 5 }, winner_ids: ['p1'] };
+
+const RUNNING_GAME: GameView = {
+  state: 'active',
+  round_number: 1,
+  round_state: 'choosing_cards',
+  leader_id: 'p1',
+  situation: { id: 1, text: 'Когда...' },
+  my_hand: [],
+  my_selected_card_id: null,
+  submitted_player_ids: [],
+  table: [],
+  winner: null,
+  ends_at: null,
+};
 
 const data = (changes: Partial<GameData> = {}): GameData => ({
   connection: 'online',
@@ -81,6 +97,26 @@ describe('room_state and the chat', () => {
     expect(state.roomState?.chat).toHaveLength(100);
     expect(state.roomState?.chat?.at(-1)?.text).toBe('m104');
     expect(state.roomState?.chat?.[0].text).toBe('m5');
+  });
+});
+
+describe('the results of the last game', () => {
+  it('stay while the room is back in the lobby', () => {
+    // The server sends game_ended first and then the room without a game: the results must survive it
+    let state = data({ roomState: { ...roomState('r1'), game: RUNNING_GAME } });
+
+    state = apply(state, { event: 'game_ended', payload: GAME_ENDED });
+    state = apply(state, { event: 'room_state', payload: roomState('r1') });
+
+    expect(state.gameEnded).toEqual(GAME_ENDED);
+  });
+
+  it('are cleared when the next game starts', () => {
+    const before = data({ roomState: roomState('r1'), gameEnded: GAME_ENDED });
+
+    const after = apply(before, { event: 'room_state', payload: { ...roomState('r1'), game: RUNNING_GAME } });
+
+    expect(after.gameEnded).toBeNull();
   });
 });
 

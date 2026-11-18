@@ -3,9 +3,15 @@ import { useCallback, useState, type ReactNode } from 'react';
 import Avatar from '../components/Avatar';
 import ChatPanel from '../components/ChatPanel';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
-import { ROUND_TIME_LIMITS, type GameSettings, type RoomPlayer, type RoomState, type Session } from '../protocol';
+import {
+  MIN_PLAYERS_TO_START,
+  ROUND_TIME_LIMITS,
+  type GameSettings,
+  type RoomPlayer,
+  type RoomState,
+  type Session,
+} from '../protocol';
 
-const MIN_PLAYERS_TO_START = 3; // the server's rule
 const MAX_ROUNDS_OPTIONS = [null, 5, 10, 15, 20];
 const SCORE_TO_WIN_OPTIONS = [null, 3, 5, 10];
 const QUICK_REPLIES = ['🗿', '🤡', '💀', '🍿', '📉', '🔥'];
