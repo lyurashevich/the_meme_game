@@ -94,10 +94,13 @@ interface GameActions {
 export type GameStore = GameData & GameActions;
 
 export const useGameStore = create<GameStore>()((set, get) => {
-  // One player per tab; see tokenStorage.ts. Created on first use, not on import,
+  // One player per open tab; see tokenStorage.ts. Created on first use, not on import,
   // so the tests (no browser there) can import this module.
   let tokenStorage: TokenStorage | null = null;
-  const tokens = () => (tokenStorage ??= createTokenStorage(sessionStorage, window));
+  // In production a closed tab comes back as the same player. In development every tab stays its own
+  // player, so a game for several players can be tried out in one browser.
+  const tokenStore = () => (import.meta.env.DEV ? sessionStorage : localStorage);
+  const tokens = () => (tokenStorage ??= createTokenStorage(tokenStore(), window));
   const socket = new GameSocket({
     url: () => {
       // Same host as the page: in development Vite passes /ws on to the backend
