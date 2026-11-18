@@ -99,7 +99,56 @@ export default function GameScreen({
             ))}
           </div>
 
-          {/* Situation */}
+          {/* Cards on the table: as tall as the space left; many of them scroll sideways. The wrapper holds
+              the leader's button in place over them, while the cards scroll inside */}
+          <div className="relative z-10 flex-1 min-h-44 lg:min-h-0 flex">
+            <div className="flex-1 min-w-0 flex gap-3 sm:gap-4 justify-center-safe items-center overflow-x-auto px-2 py-2">
+              {phase === 'choosing_cards'
+                ? // Only who has played is known so far, not what: show the backs
+                  game.submitted_player_ids.map((playerId, index) => (
+                    <MemeCard key={playerId} size="fill" className={ROTATIONS[index % ROTATIONS.length]} />
+                  ))
+                : game.table.map((card, index) => {
+                    const isWinner = game.winner?.card_id === card.id;
+                    return (
+                      <MemeCard
+                        key={card.id}
+                        card={card}
+                        size="fill"
+                        className={ROTATIONS[index % ROTATIONS.length]}
+                        isSelected={card.id === pickedTableCard?.id}
+                        isWinner={isWinner}
+                        caption={
+                          isWinner
+                            ? `от ${nameOf(game.winner?.player_id)}`
+                            : card.id === game.my_selected_card_id
+                              ? 'твой мем'
+                              : undefined
+                        }
+                        onClick={canChooseWinner ? () => setPickedTableCardId(card.id) : undefined}
+                      />
+                    );
+                  })}
+              {phase === 'choosing_cards' && game.submitted_player_ids.length === 0 && (
+                <p className="text-xs font-bold text-[#69655C]">Пока никто не сдал мем</p>
+              )}
+            </div>
+
+            {pickedTableCard && (
+              <div className="absolute z-20 bottom-2 inset-x-0 flex justify-center pointer-events-none">
+                <button
+                  type="button"
+                  onClick={() => onChooseWinner(pickedTableCard.id)}
+                  className="pointer-events-auto px-4 py-2 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1.5 cursor-pointer active:translate-y-0.5"
+                >
+                  <Trophy className="w-3.5 h-3.5" />
+                  ЭТОТ МЕМ ПОБЕЖДАЕТ
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Situation: right above the hand, so it's read while picking a meme */}
           <div className="relative z-10 shrink-0 self-center w-full max-w-3xl rounded-2xl border-3 border-[#242426] bg-[#FAF7F2] px-5 py-3 shadow-[4px_4px_0px_#242426]">
             <p className="text-base sm:text-xl font-black leading-snug text-[#242426] text-center">
               {game.situation ? `«${game.situation.text}»` : 'Игра начинается...'}
@@ -111,52 +160,6 @@ export default function GameScreen({
               <span className="font-bold text-[#242426]">Ведущий: {nameOf(game.leader_id)} 👑</span>
             </div>
           </div>
-
-          {/* Cards on the table: as tall as the space left; many of them scroll sideways */}
-          <div className="relative z-10 flex-1 min-h-44 lg:min-h-0 flex gap-3 sm:gap-4 justify-center-safe items-center overflow-x-auto px-2 py-2">
-            {phase === 'choosing_cards'
-              ? // Only who has played is known so far, not what: show the backs
-                game.submitted_player_ids.map((playerId, index) => (
-                  <MemeCard key={playerId} size="fill" className={ROTATIONS[index % ROTATIONS.length]} />
-                ))
-              : game.table.map((card, index) => {
-                  const isWinner = game.winner?.card_id === card.id;
-                  return (
-                    <MemeCard
-                      key={card.id}
-                      card={card}
-                      size="fill"
-                      className={ROTATIONS[index % ROTATIONS.length]}
-                      isSelected={card.id === pickedTableCard?.id}
-                      isWinner={isWinner}
-                      caption={
-                        isWinner
-                          ? `от ${nameOf(game.winner?.player_id)}`
-                          : card.id === game.my_selected_card_id
-                            ? 'твой мем'
-                            : undefined
-                      }
-                      onClick={canChooseWinner ? () => setPickedTableCardId(card.id) : undefined}
-                    />
-                  );
-                })}
-            {phase === 'choosing_cards' && game.submitted_player_ids.length === 0 && (
-              <p className="text-xs font-bold text-[#69655C]">Пока никто не сдал мем</p>
-            )}
-          </div>
-
-          {pickedTableCard && (
-            <div className="absolute z-20 bottom-4 inset-x-0 flex justify-center pointer-events-none">
-              <button
-                type="button"
-                onClick={() => onChooseWinner(pickedTableCard.id)}
-                className="pointer-events-auto px-4 py-2 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1.5 cursor-pointer active:translate-y-0.5"
-              >
-                <Trophy className="w-3.5 h-3.5" />
-                ЭТОТ МЕМ ПОБЕЖДАЕТ
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Chat: takes the height of the table, a long chat scrolls inside */}
