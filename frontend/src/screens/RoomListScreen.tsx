@@ -1,7 +1,10 @@
 import { ArrowRight, Clock, Flame, Plus, RefreshCw, Search, Sparkles, Users } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import Avatar from '../components/Avatar';
-import type { RoomSummary, Session } from '../protocol';
+import GameSettingsFields from '../components/GameSettingsFields';
+import { DEFAULT_GAME_SETTINGS, type Actions, type RoomSummary, type Session } from '../protocol';
+
+type CreateRoomOptions = Actions['create_room']['payload'];
 
 const MIN_PLAYERS = 3; // the server's limits for max_players
 const MAX_PLAYERS = 10;
@@ -11,7 +14,7 @@ interface RoomListScreenProps {
   me: Session;
   rooms: RoomSummary[];
   onJoinRoom: (roomId: string) => void;
-  onCreateRoom: (options: { name?: string; max_players: number }) => void;
+  onCreateRoom: (options: CreateRoomOptions) => void;
   onEditProfile: () => void;
 }
 
@@ -210,17 +213,18 @@ function RoomRow({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
 interface CreateRoomModalProps {
   defaultName: string;
   onCancel: () => void;
-  onCreate: (options: { name?: string; max_players: number }) => void;
+  onCreate: (options: CreateRoomOptions) => void;
 }
 
 function CreateRoomModal({ defaultName, onCancel, onCreate }: CreateRoomModalProps) {
   const [name, setName] = useState(defaultName);
   const [maxPlayers, setMaxPlayers] = useState(6);
+  const [settings, setSettings] = useState(DEFAULT_GAME_SETTINGS);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     // An empty name is fine: the server makes one up
-    onCreate({ name: name.trim() || undefined, max_players: maxPlayers });
+    onCreate({ name: name.trim() || undefined, max_players: maxPlayers, settings });
   };
 
   // [3, 4, ..., 10]
@@ -228,9 +232,8 @@ function CreateRoomModal({ defaultName, onCancel, onCreate }: CreateRoomModalPro
 
   return (
     <div className="fixed inset-0 z-50 bg-[#242426]/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-[#FAF7F2] border-2 border-[#242426] rounded-3xl p-6 shadow-[6px_6px_0px_#242426]">
-        <h3 className="text-xl font-black text-[#242426] mb-1">Создать новую комнату</h3>
-        <p className="text-xs text-[#66625A] mb-4">Время на ход и число раундов настроишь в лобби</p>
+      <div className="w-full max-w-md max-h-full overflow-y-auto bg-[#FAF7F2] border-2 border-[#242426] rounded-3xl p-6 shadow-[6px_6px_0px_#242426]">
+        <h3 className="text-xl font-black text-[#242426] mb-4">Создать новую комнату</h3>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -268,6 +271,12 @@ function CreateRoomModal({ defaultName, onCancel, onCreate }: CreateRoomModalPro
               ))}
             </select>
           </div>
+
+          <fieldset className="pt-4 border-t border-[#242426]/15">
+            <legend className="text-xs font-bold text-[#44413A] uppercase tracking-wide mb-3">Настройки игры:</legend>
+            <GameSettingsFields settings={settings} onChange={setSettings} />
+            <p className="text-[11px] text-[#6E6A61] mt-3">Поменять их можно и потом, в лобби, до начала игры.</p>
+          </fieldset>
 
           <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#242426]/15">
             <button

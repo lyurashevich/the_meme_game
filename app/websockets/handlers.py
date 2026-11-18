@@ -4,6 +4,7 @@ from pydantic import ConfigDict, Field, StringConstraints
 
 from app.exceptions import PlayerNotInRoomException, TooManyMessagesException
 from app.game.enums import WebsocketEvents
+from app.game.game_settings import GameSettings
 from app.schemas.game import GameSettingsSchema
 from app.schemas.players import BasePlayerProfileSchema
 from app.websockets.dispatcher import ActionContext, Dispatcher
@@ -44,9 +45,14 @@ async def update_profile(ctx: ActionContext, payload: UpdateProfilePayload) -> d
 # --- rooms ---
 
 
+class UpdateSettingsPayload(GameSettingsSchema):
+    model_config = ConfigDict(extra="forbid")
+
+
 class CreateRoomPayload(ActionPayload):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)] | None = None
     max_players: int = Field(default=10, ge=3, le=10)
+    settings: UpdateSettingsPayload | None = None  # None: the defaults
 
 
 @dispatcher.action("create_room", CreateRoomPayload)
@@ -55,7 +61,10 @@ async def create_room(ctx: ActionContext, payload: CreateRoomPayload) -> dict:
     services.game_manager.validate_player_can_join_room(ctx.player)
 
     room = await services.room_service.create_room(
-        owner=ctx.player, room_name=payload.name, max_players=payload.max_players
+        owner=ctx.player,
+        room_name=payload.name,
+        max_players=payload.max_players,
+        settings=GameSettings(**payload.settings.model_dump()) if payload.settings else None,
     )
 
     await services.notifier.broadcast_room_state(room.id, with_chat_for=ctx.player.id)
@@ -89,10 +98,6 @@ async def leave_room(ctx: ActionContext, payload: LeaveRoomPayload) -> dict:
     result = await ctx.services.game_service.process_leave(ctx.player, _current_room_id(ctx), payload.confirm)
 
     return result.model_dump()
-
-
-class UpdateSettingsPayload(GameSettingsSchema):
-    model_config = ConfigDict(extra="forbid")
 
 
 @dispatcher.action("update_settings", UpdateSettingsPayload)

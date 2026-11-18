@@ -113,6 +113,39 @@ class TestCreateRoom:
         assert error_code(reply) == "validation_error"
         assert lone_player.room_id is None
 
+    async def test_creates_room_with_settings(self, act, lone_player, room_service, connection_manager, outbox):
+        connection_manager.player_sockets = {lone_player.id: object()}
+        settings = {"round_time_limit": 90, "max_rounds": 10, "score_to_win": 5}
+
+        reply = await act(lone_player, "create_room", {"settings": settings})
+
+        room = await room_service.get_room(reply["payload"]["room_id"])
+        assert (room.settings.round_time_limit, room.settings.max_rounds, room.settings.score_to_win) == (90, 10, 5)
+        assert last_room_state(outbox, lone_player.id)["room"]["settings"] == settings
+
+    async def test_without_settings_the_room_gets_the_defaults(self, act, lone_player, room_service):
+        reply = await act(lone_player, "create_room")
+
+        room = await room_service.get_room(reply["payload"]["room_id"])
+        assert (room.settings.round_time_limit, room.settings.max_rounds, room.settings.score_to_win) == (60, None, None)
+
+    @pytest.mark.parametrize(
+        "settings",
+        [
+            {"round_time_limit": 45},
+            {"round_time_limit": 60, "max_rounds": 0},
+            {"round_time_limit": 60, "score_to_win": -1},
+            {"max_rounds": 5},
+            {"round_time_limit": 60, "unknown": 1},
+        ],
+    )
+    async def test_invalid_settings_create_no_room(self, act, lone_player, room_service, settings):
+        reply = await act(lone_player, "create_room", {"settings": settings})
+
+        assert error_code(reply) == "validation_error"
+        assert lone_player.room_id is None
+        assert await room_service.get_rooms_list() == []
+
 
 class TestJoinRoom:
     async def test_joins_room_and_notifies_players(self, act, test_room, test_player, lone_player, outbox):

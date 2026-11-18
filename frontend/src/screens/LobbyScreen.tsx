@@ -1,19 +1,11 @@
-import { Clock, Crown, LogOut, Play, Settings, Sparkles, Trophy, Users, WifiOff, X } from 'lucide-react';
-import { useCallback, useState, type ReactNode } from 'react';
+import { Crown, LogOut, Play, Settings, Sparkles, Users, WifiOff, X } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import Avatar from '../components/Avatar';
 import ChatPanel from '../components/ChatPanel';
+import GameSettingsFields from '../components/GameSettingsFields';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
-import {
-  MIN_PLAYERS_TO_START,
-  ROUND_TIME_LIMITS,
-  type GameSettings,
-  type RoomPlayer,
-  type RoomState,
-  type Session,
-} from '../protocol';
+import { MIN_PLAYERS_TO_START, type GameSettings, type RoomPlayer, type RoomState, type Session } from '../protocol';
 
-const MAX_ROUNDS_OPTIONS = [null, 5, 10, 15, 20];
-const SCORE_TO_WIN_OPTIONS = [null, 3, 5, 10];
 const QUICK_REPLIES = ['🗿', '🤡', '💀', '🍿', '📉', '🔥'];
 
 interface LobbyScreenProps {
@@ -235,9 +227,6 @@ interface SettingsDialogProps {
 function SettingsDialog({ settings, canEdit, onChange, onClose }: SettingsDialogProps) {
   useCloseOnEscape(true, onClose);
 
-  // The server expects all the settings at once, so send the current ones with one value replaced
-  const change = (changes: Partial<GameSettings>) => onChange({ ...settings, ...changes });
-
   return (
     <div
       className="fixed inset-0 z-50 bg-[#242426]/60 backdrop-blur-sm flex items-center justify-center p-4"
@@ -247,12 +236,12 @@ function SettingsDialog({ settings, canEdit, onChange, onClose }: SettingsDialog
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className="w-full max-w-sm bg-[#FAF7F2] border-[3px] border-[#242426] rounded-3xl p-5 shadow-[6px_6px_0px_#242426] text-xs"
+        className="w-full max-w-sm sm:max-w-lg bg-[#FAF7F2] border-[3px] border-[#242426] rounded-3xl p-5 sm:p-7 shadow-[6px_6px_0px_#242426]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between pb-3 mb-3 border-b-2 border-[#242426]/15">
-          <h2 id="settings-title" className="flex items-center gap-1.5 font-black text-base text-[#242426]">
-            <Settings className="w-4 h-4" />
+        <div className="flex items-center justify-between pb-3 mb-4 border-b-2 border-[#242426]/15">
+          <h2 id="settings-title" className="flex items-center gap-2 font-black text-lg text-[#242426]">
+            <Settings className="w-5 h-5" />
             Настройки игры
           </h2>
           <button
@@ -264,87 +253,12 @@ function SettingsDialog({ settings, canEdit, onChange, onClose }: SettingsDialog
           </button>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-1 font-bold text-[#55524B]">
-              <Clock className="w-3.5 h-3.5" /> Время на ход
-            </span>
-            <div className="flex gap-1">
-              {ROUND_TIME_LIMITS.map((seconds) => (
-                <button
-                  key={seconds}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() => change({ round_time_limit: seconds })}
-                  className={`px-2 py-0.5 rounded-lg border font-bold transition-all ${
-                    settings.round_time_limit === seconds
-                      ? 'bg-[#E4D976] border-[#242426] text-[#242426]'
-                      : 'bg-[#ECE8DE] border-[#242426]/30 text-[#55524B]'
-                  } ${canEdit ? 'cursor-pointer hover:border-[#242426]' : 'cursor-default'}`}
-                >
-                  {seconds}с
-                </button>
-              ))}
-            </div>
-          </div>
+        <GameSettingsFields settings={settings} disabled={!canEdit} onChange={onChange} />
 
-          <LimitSelect
-            label="Раундов"
-            icon={<Sparkles className="w-3.5 h-3.5" />}
-            value={settings.max_rounds}
-            options={MAX_ROUNDS_OPTIONS}
-            disabled={!canEdit}
-            onChange={(max_rounds) => change({ max_rounds })}
-          />
-          <LimitSelect
-            label="Очков до победы"
-            icon={<Trophy className="w-3.5 h-3.5" />}
-            value={settings.score_to_win}
-            options={SCORE_TO_WIN_OPTIONS}
-            disabled={!canEdit}
-            onChange={(score_to_win) => change({ score_to_win })}
-          />
-        </div>
-
-        <p className="mt-4 text-[11px] text-[#6E6A61]">
+        <p className="mt-5 text-xs text-[#6E6A61]">
           {canEdit ? 'Изменения сразу видят все в комнате.' : 'Менять настройки может только владелец комнаты.'}
         </p>
       </div>
     </div>
-  );
-}
-
-interface LimitSelectProps {
-  label: string;
-  icon: ReactNode;
-  value: number | null;
-  options: (number | null)[];
-  disabled: boolean;
-  onChange: (value: number | null) => void;
-}
-
-// A dropdown for an optional limit; "" in the <select> stands for "no limit" (null)
-function LimitSelect({ label, icon, value, options, disabled, onChange }: LimitSelectProps) {
-  // The server may hold a value that isn't in our list - still show it
-  const values = options.includes(value) ? options : [...options, value];
-
-  return (
-    <label className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-1 font-bold text-[#55524B]">
-        {icon} {label}
-      </span>
-      <select
-        value={value ?? ''}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
-        className="rounded-lg border border-[#242426]/40 bg-[#ECE8DE] px-1.5 py-0.5 font-bold text-[#242426] disabled:opacity-100 disabled:appearance-none"
-      >
-        {values.map((option) => (
-          <option key={option ?? 'none'} value={option ?? ''}>
-            {option ?? 'без лимита'}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
