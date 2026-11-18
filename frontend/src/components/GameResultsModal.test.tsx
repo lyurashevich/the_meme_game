@@ -33,18 +33,21 @@ const buttonTag = (html: string, text: string): string | undefined => {
   return button && `<button${button.split('>')[0]}>`;
 };
 
+// The attribute itself: the word alone also appears in Tailwind classes such as `disabled:bg-...`
+const DISABLED = ' disabled=""';
+
 describe('GameResultsModal', () => {
   it('lets the owner play again when there are enough players', () => {
     const html = render({ isOwner: true, playersCount: 3 });
 
-    expect(buttonTag(html, PLAY_AGAIN)).not.toContain('disabled');
+    expect(buttonTag(html, PLAY_AGAIN)).not.toContain(DISABLED);
     expect(html).toContain('В лобби');
   });
 
   it('turns "play again" off for the owner when there are too few players, and says why', () => {
     const html = render({ isOwner: true, playersCount: 2 });
 
-    expect(buttonTag(html, PLAY_AGAIN)).toContain('disabled');
+    expect(buttonTag(html, PLAY_AGAIN)).toContain(DISABLED);
     expect(html).toContain('Нужно хотя бы 3 игрока');
   });
 
