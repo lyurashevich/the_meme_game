@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from app.exceptions import PlayerNotInRoomException, RoomNotFoundException
 from app.game.dataclasses import Player, Room
+from app.game.game_settings import GameSettings
 from app.repositories.base import RoomRepository
 from app.services.snapshots import CHAT_HISTORY_LIMIT
 
@@ -44,9 +45,20 @@ class RoomService:
         return self.room_locks[room_id]
 
     async def create_room(
-        self, owner: Player, room_name: str | None = None, max_players: int = 10, is_private: bool = False
+        self,
+        owner: Player,
+        room_name: str | None = None,
+        max_players: int = 10,
+        is_private: bool = False,
+        settings: GameSettings | None = None,
     ) -> Room:
-        room = Room(owner=owner, name=room_name, max_players=max_players, is_private=is_private)
+        room = Room(
+            owner=owner,
+            name=room_name,
+            max_players=max_players,
+            is_private=is_private,
+            settings=settings or GameSettings(),
+        )
 
         await self.rooms.add(room)
         self.room_locks[room.id] = Lock()
