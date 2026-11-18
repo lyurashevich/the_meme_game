@@ -1,10 +1,13 @@
 // Where the reconnect token lives between page loads.
 //
-// sessionStorage belongs to one tab, so every tab is its own player, and a reload keeps the player.
-// One catch: "Duplicate tab" copies sessionStorage, and two tabs with one token would be one player
-// fighting over a single connection. So while the page is open the token is kept only in memory and
-// written to the storage just as the page goes away (reload, close, navigating off). A duplicate of a
-// live tab then finds nothing and becomes a new player.
+// The storage is given by the caller: localStorage (shared by the site's tabs, so a closed tab can be
+// opened again as the same player) or sessionStorage (one per tab, so every tab is its own player).
+//
+// Either way two open tabs must never share a token: they would be one player fighting over a single
+// connection. A second tab sees the shared localStorage, and "Duplicate tab" copies sessionStorage.
+// So while the page is open the token is kept only in memory and written to the storage just as the
+// page goes away (reload, close, navigating off). A tab opened meanwhile finds nothing and becomes a
+// new player.
 
 const TOKEN_KEY = 'reconnect_token';
 
