@@ -4,6 +4,7 @@ import type { GameEnded, RoomPlayer } from '../protocol';
 import GameResultsModal from './GameResultsModal';
 
 const PLAY_AGAIN = 'СЫГРАТЬ ЕЩЁ';
+const CONFETTI = 'animate-confetti-fall';
 
 const player = (id: string): RoomPlayer => ({ id, username: id, avatar_id: 'cat', score: 0, is_connected: true });
 
@@ -15,12 +16,20 @@ const RESULTS: GameEnded = {
 };
 
 // The window as HTML: enough to check what it shows, with no browser emulation
-const render = ({ isOwner, playersCount }: { isOwner: boolean; playersCount: number }): string =>
+const render = ({
+  isOwner,
+  playersCount,
+  myId = 'p1', // the winner
+}: {
+  isOwner: boolean;
+  playersCount: number;
+  myId?: string;
+}): string =>
   renderToStaticMarkup(
     <GameResultsModal
       results={RESULTS}
       players={Array.from({ length: playersCount }, (_, index) => player(`p${index + 1}`))}
-      myId="p1"
+      myId={myId}
       isOwner={isOwner}
       onPlayAgain={() => {}}
       onClose={() => {}}
@@ -57,5 +66,13 @@ describe('GameResultsModal', () => {
     expect(html).not.toContain(PLAY_AGAIN);
     expect(html).toContain('В ЛОББИ');
     expect(html).toContain('Владелец может начать новую игру');
+  });
+
+  it('throws confetti for the winner', () => {
+    expect(render({ isOwner: false, playersCount: 3 })).toContain(CONFETTI);
+  });
+
+  it('throws no confetti for the others', () => {
+    expect(render({ isOwner: false, playersCount: 3, myId: 'p2' })).not.toContain(CONFETTI);
   });
 });

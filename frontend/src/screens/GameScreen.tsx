@@ -2,6 +2,7 @@ import { CheckCircle, Crown, Flag, Hourglass, LogOut, Sparkles, Trophy, WifiOff 
 import { useState } from 'react';
 import Avatar from '../components/Avatar';
 import ChatPanel from '../components/ChatPanel';
+import Confetti from '../components/Confetti';
 import MemeCard from '../components/MemeCard';
 import RoundTimer from '../components/RoundTimer';
 import type { GameView, RoomPlayer, RoomState, Session } from '../protocol';
@@ -11,6 +12,8 @@ const ROTATIONS = ['-rotate-2', 'rotate-1', '-rotate-1', 'rotate-2'];
 // The confirm buttons on a picked card; the hints name them, so they are kept in one place
 const PLAY_LABEL = 'Сыграть';
 const WINNER_LABEL = 'Победитель';
+// A short burst for a won round: the winner is shown for only a couple of seconds
+const ROUND_CONFETTI = { count: 40, spreadSeconds: 0.3 };
 
 interface GameScreenProps {
   me: Session;
@@ -54,6 +57,9 @@ export default function GameScreen({
 
   return (
     <div className="max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-3 flex flex-col gap-3 lg:h-[calc(100dvh-3.5rem)]">
+      {/* Shown while this round's winner is me; the next round clears `winner` and takes it away */}
+      {game.winner?.player_id === me.player_id && <Confetti {...ROUND_CONFETTI} />}
+
       {/* HUD */}
       <div className="shrink-0 rounded-2xl border-2 border-[#242426] bg-[#FAF7F2] px-4 py-2 shadow-[3px_3px_0px_#242426] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -117,12 +123,14 @@ export default function GameScreen({
                 ))
               : game.table.map((card, index) => {
                   const isWinner = game.winner?.card_id === card.id;
+                  // Once the winner is known, the other memes step back
+                  const dimmed = game.winner && !isWinner ? 'opacity-50' : '';
                   return (
                     <MemeCard
                       key={card.id}
                       card={card}
                       size="fill"
-                      className={ROTATIONS[index % ROTATIONS.length]}
+                      className={`${ROTATIONS[index % ROTATIONS.length]} ${dimmed}`}
                       isSelected={card.id === pickedTableCard?.id}
                       isWinner={isWinner}
                       caption={

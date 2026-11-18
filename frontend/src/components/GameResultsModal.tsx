@@ -1,6 +1,10 @@
 import { Play, Trophy } from 'lucide-react';
 import { MIN_PLAYERS_TO_START, type GameEnded, type RoomPlayer } from '../protocol';
 import Avatar from './Avatar';
+import Confetti from './Confetti';
+
+// A long rain for the game's winner: the window stays until it's closed
+const GAME_CONFETTI = { count: 120, spreadSeconds: 2.5 };
 
 const REASONS: Record<GameEnded['reason'], string> = {
   owner_ended: 'Владелец завершил игру',
@@ -36,9 +40,13 @@ export default function GameResultsModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#242426]/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-[#FAF7F2] border-2 border-[#242426] rounded-3xl p-6 shadow-[6px_6px_0px_#242426]">
+      {iWon && <Confetti {...GAME_CONFETTI} />}
+      <div className="w-full max-w-md bg-[#FAF7F2] border-2 border-[#242426] rounded-3xl p-6 shadow-[6px_6px_0px_#242426] motion-safe:animate-pop-in">
         <div className="text-center mb-4">
-          <div className="text-4xl mb-1">{iWon ? '🏆' : '🎬'}</div>
+          {/* inline-block: the trophy turns around its own center, not the middle of the line */}
+          <div className={`inline-block text-4xl mb-1 ${iWon ? 'motion-safe:animate-wiggle' : ''}`}>
+            {iWon ? '🏆' : '🎬'}
+          </div>
           <h3 className="text-xl font-black text-[#242426]">{iWon ? 'ТЫ ПОБЕДИЛ!' : 'ИГРА ОКОНЧЕНА'}</h3>
           <p className="text-xs text-[#66625A] mt-1">{REASONS[results.reason]}</p>
         </div>

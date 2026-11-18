@@ -52,7 +52,7 @@ export default function MemeCard({
   }
 
   const highlight = isWinner
-    ? 'ring-4 ring-[#C8D7C5] shadow-[5px_5px_0px_#242426]'
+    ? 'ring-4 ring-[#C8D7C5] shadow-[5px_5px_0px_#242426] motion-safe:animate-winner-pop'
     : isSelected
       ? 'ring-4 ring-[#E4D976] -translate-y-3 shadow-[5px_5px_0px_#242426]'
       : onClick
