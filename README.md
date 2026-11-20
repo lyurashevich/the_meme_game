@@ -123,7 +123,7 @@ A port already taken? Change `DB_DOCKER_PORT`, `BACKEND_PORT` or `FRONTEND_PORT`
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-Only nginx is open to the outside (port `WEB_PORT`, 80 by default); the database and the backend are reachable by the other containers only, and everything restarts after a crash or a reboot.
+Set `SITE_ADDRESS` in `.env` first: the name the game is opened at (`game.example.org`), pointing to the server. Only Caddy is open to the outside (ports 80 and 443): it gets a Let's Encrypt certificate for that name, renews it and passes everything on to nginx; nginx, the database and the backend are reachable by the other containers only, and everything restarts after a crash or a reboot. Without a name (production on your own machine) set `SITE_ADDRESS=http://localhost`: plain HTTP, no certificate.
 
 The meme pictures live in the `media` Docker volume, which nginx gives out at `/media/`; it outlives the containers, so rebuilding the app keeps them. The cards are loaded by the same script, run in a one-off backend container that has the volume; the folder with the pictures is lent to it as `/import`:
 ```bash
