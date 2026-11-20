@@ -19,7 +19,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-app = FastAPI(title="The Meme Game", version="1.0.0")
+app = FastAPI(title="The Meme Game", version="1.1.0")
 
 
 @app.exception_handler(CustomException)

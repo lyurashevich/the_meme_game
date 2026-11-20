@@ -17,6 +17,9 @@ interface MemeCardProps {
   isWinner?: boolean;
   caption?: string; // shown under the picture, e.g. who played the card
   onClick?: () => void; // no handler: the card can't be clicked
+  // The second step of a choice: a button on the selected card, e.g. "Сыграть"
+  confirmLabel?: string;
+  onConfirm?: () => void;
   className?: string;
 }
 
@@ -27,51 +30,73 @@ export default function MemeCard({
   isWinner = false,
   caption,
   onClick,
+  confirmLabel,
+  onConfirm,
   className = '',
 }: MemeCardProps) {
   const base = `relative shrink-0 flex flex-col rounded-2xl border-2 border-[#242426] p-1.5 select-none transition-all duration-200 ${SIZE_CLASSES[size]} ${className}`;
 
   if (!card) {
+    // The back of a card: dots in the game's colors and a "?" in the middle, like a real deck. No text on it,
+    // so screen readers get the label instead
     return (
-      <div className={`${base} bg-[#D7D3C8] text-[#242426] shadow-[3px_3px_0px_#242426]`}>
-        <div className="flex-1 rounded-xl border border-dashed border-[#242426]/30 bg-[#C8C2B4] flex flex-col items-center justify-center p-2 text-center relative overflow-hidden">
-          <div className="text-3xl mb-1 opacity-80">🤫</div>
-          <span className="text-[12px] font-bold text-[#3B3A36]">Карта рубашкой</span>
-          {/* Subtle diagonal lines */}
-          <div className="absolute inset-0 opacity-5 pointer-events-none bg-[repeating-linear-gradient(45deg,#000,#000_2px,transparent_2px,transparent_8px)]" />
+      <div role="img" aria-label="Карта рубашкой вверх" className={`${base} bg-[#242426] shadow-[3px_3px_0px_#242426]`}>
+        <div className="flex-1 rounded-xl border-2 border-[#E4D976]/60 relative overflow-hidden flex items-center justify-center">
+          <div className="absolute inset-0 opacity-35 pointer-events-none bg-[radial-gradient(circle,#E4D976_1.5px,transparent_2px)] [background-size:12px_12px]" />
+          <div className="relative w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-[#E4D976] border-2 border-[#FAF7F2] flex items-center justify-center text-2xl lg:text-4xl font-black text-[#242426] shadow-[2px_2px_0px_#000]">
+            ?
+          </div>
         </div>
       </div>
     );
   }
 
   const highlight = isWinner
-    ? 'ring-4 ring-[#C8D7C5] shadow-[5px_5px_0px_#242426]'
+    ? 'ring-4 ring-[#C8D7C5] shadow-[5px_5px_0px_#242426] motion-safe:animate-winner-pop'
     : isSelected
       ? 'ring-4 ring-[#E4D976] -translate-y-3 shadow-[5px_5px_0px_#242426]'
       : onClick
         ? 'shadow-[3px_3px_0px_#242426] hover:-translate-y-2 hover:shadow-[4px_4px_0px_#242426] cursor-pointer'
         : 'shadow-[3px_3px_0px_#242426]';
 
+  const showConfirm = isSelected && confirmLabel !== undefined && onConfirm !== undefined;
+
   return (
-    // A real <button> can be reached with Tab and pressed with Enter; disabled when there's nothing to do
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className={`${base} ${highlight} bg-[#FAF7F2] text-left disabled:cursor-default`}
-    >
+    // A <div>, not a <button>: the confirm button lives on the card, and a button inside a button is invalid HTML
+    <div className={`${base} ${highlight} bg-[#FAF7F2]`}>
       <div className="flex-1 min-h-0 rounded-xl border border-[#242426] overflow-hidden bg-[#EBE7DF]">
         <MemeImage key={card.image_url} url={card.image_url} />
       </div>
 
       {caption && <div className="mt-1.5 text-center text-[11px] text-[#55524B] font-semibold truncate">{caption}</div>}
 
+      {/* Picking: a real <button> over the whole card, reachable with Tab and pressed with Enter */}
+      {onClick && (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label="Выбрать мем"
+          aria-pressed={isSelected}
+          className="absolute inset-0 rounded-2xl cursor-pointer"
+        />
+      )}
+
+      {showConfirm && (
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="absolute z-10 bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1.5 lg:px-4 lg:py-2 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs lg:text-sm text-[#242426] shadow-[2px_2px_0px_#242426] cursor-pointer active:translate-y-0.5"
+        >
+          {confirmLabel}
+        </button>
+      )}
+
       {(isSelected || isWinner) && (
         <div className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-[#E4D976] border-2 border-[#242426] flex items-center justify-center text-xs font-black shadow-[1px_1px_0px_#242426]">
           {isWinner ? '★' : '✓'}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 

@@ -5,6 +5,9 @@ export type RoundTimeLimit = 60 | 90 | 120;
 
 export const ROUND_TIME_LIMITS: RoundTimeLimit[] = [60, 90, 120];
 
+// The server won't start a game with fewer players in the room (MIN_PLAYERS)
+export const MIN_PLAYERS_TO_START = 3;
+
 // `session` event: who this browser tab is
 export interface Session {
   player_id: string;
@@ -30,6 +33,9 @@ export interface GameSettings {
   max_rounds: number | null;
   score_to_win: number | null;
 }
+
+// What a room gets when nothing is chosen; the same as the server's defaults
+export const DEFAULT_GAME_SETTINGS: GameSettings = { round_time_limit: 60, max_rounds: null, score_to_win: null };
 
 export interface RoomPlayer {
   id: string;
@@ -127,7 +133,10 @@ export interface Actions {
     payload: { username?: string; avatar_id?: string };
     result: { username: string; avatar_id: string };
   };
-  create_room: { payload: { name?: string; max_players?: number }; result: { room_id: string } };
+  create_room: {
+    payload: { name?: string; max_players?: number; settings?: GameSettings }; // no settings: the defaults
+    result: { room_id: string };
+  };
   join_room: { payload: { room_id: string }; result: { room_id: string } };
   leave_room: { payload: { confirm?: boolean }; result: { requires_confirmation: boolean } };
   update_settings: { payload: GameSettings; result: GameSettings };

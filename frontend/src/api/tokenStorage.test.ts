@@ -58,3 +58,28 @@ describe('token storage', () => {
     expect(storage.getItem('reconnect_token')).toBeNull();
   });
 });
+
+// localStorage: one storage for all the tabs of the site
+describe('token storage shared by the tabs', () => {
+  it('a tab opened after the closed one gets its token', () => {
+    const storage = fakeStorage();
+    const closedTab = new EventTarget();
+    createTokenStorage(storage, closedTab).set('t1');
+
+    closedTab.dispatchEvent(pageEvent('pagehide')); // closing the tab
+    const newTab = createTokenStorage(storage, new EventTarget());
+
+    expect(newTab.get()).toBe('t1');
+  });
+
+  it('a second tab gets no token while the first one is open', () => {
+    const storage = fakeStorage();
+    storage.setItem('reconnect_token', 't1'); // left by a tab closed before
+    const first = createTokenStorage(storage, new EventTarget());
+
+    const second = createTokenStorage(storage, new EventTarget());
+
+    expect(first.get()).toBe('t1');
+    expect(second.get()).toBeNull();
+  });
+});

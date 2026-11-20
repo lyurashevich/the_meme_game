@@ -1,13 +1,19 @@
-import { ArrowUpCircle, CheckCircle, Crown, Flag, Hourglass, LogOut, Sparkles, Trophy, WifiOff } from 'lucide-react';
+import { CheckCircle, Crown, Flag, Hourglass, LogOut, Sparkles, Trophy, WifiOff } from 'lucide-react';
 import { useState } from 'react';
 import Avatar from '../components/Avatar';
 import ChatPanel from '../components/ChatPanel';
+import Confetti from '../components/Confetti';
 import MemeCard from '../components/MemeCard';
 import RoundTimer from '../components/RoundTimer';
 import type { GameView, RoomPlayer, RoomState, Session } from '../protocol';
 
 const QUICK_REPLIES = ['💀 Ору', '🗿 База', '🤡 Кринж', '🔥 В яблочко', '📉'];
 const ROTATIONS = ['-rotate-2', 'rotate-1', '-rotate-1', 'rotate-2'];
+// The confirm buttons on a picked card; the hints name them, so they are kept in one place
+const PLAY_LABEL = 'Сыграть';
+const WINNER_LABEL = 'Победитель';
+// A short burst for a won round: the winner is shown for only a couple of seconds
+const ROUND_CONFETTI = { count: 40, spreadSeconds: 0.3 };
 
 interface GameScreenProps {
   me: Session;
@@ -51,6 +57,9 @@ export default function GameScreen({
 
   return (
     <div className="max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-3 flex flex-col gap-3 lg:h-[calc(100dvh-3.5rem)]">
+      {/* Shown while this round's winner is me; the next round clears `winner` and takes it away */}
+      {game.winner?.player_id === me.player_id && <Confetti {...ROUND_CONFETTI} />}
+
       {/* HUD */}
       <div className="shrink-0 rounded-2xl border-2 border-[#242426] bg-[#FAF7F2] px-4 py-2 shadow-[3px_3px_0px_#242426] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -99,7 +108,44 @@ export default function GameScreen({
             ))}
           </div>
 
-          {/* Situation */}
+          {/* Cards on the table: as tall as the space left; many of them scroll sideways */}
+          <div className="relative z-10 flex-1 min-h-44 lg:min-h-0 flex gap-3 sm:gap-4 justify-center-safe items-center overflow-x-auto px-2 py-2">
+            {phase === 'choosing_cards'
+              ? // Only who has played is known so far, not what: show the backs
+                game.submitted_player_ids.map((playerId, index) => (
+                  <MemeCard key={playerId} size="fill" className={ROTATIONS[index % ROTATIONS.length]} />
+                ))
+              : game.table.map((card, index) => {
+                  const isWinner = game.winner?.card_id === card.id;
+                  // Once the winner is known, the other memes step back
+                  const dimmed = game.winner && !isWinner ? 'opacity-50' : '';
+                  return (
+                    <MemeCard
+                      key={card.id}
+                      card={card}
+                      size="fill"
+                      className={`${ROTATIONS[index % ROTATIONS.length]} ${dimmed}`}
+                      isSelected={card.id === pickedTableCard?.id}
+                      isWinner={isWinner}
+                      caption={
+                        isWinner
+                          ? `от ${nameOf(game.winner?.player_id)}`
+                          : card.id === game.my_selected_card_id
+                            ? 'твой мем'
+                            : undefined
+                      }
+                      onClick={canChooseWinner ? () => setPickedTableCardId(card.id) : undefined}
+                      confirmLabel={`🏆 ${WINNER_LABEL}`}
+                      onConfirm={() => onChooseWinner(card.id)}
+                    />
+                  );
+                })}
+            {phase === 'choosing_cards' && game.submitted_player_ids.length === 0 && (
+              <p className="text-xs font-bold text-[#69655C]">Пока никто не сдал мем</p>
+            )}
+          </div>
+
+          {/* Situation: right above the hand, so it's read while picking a meme */}
           <div className="relative z-10 shrink-0 self-center w-full max-w-3xl rounded-2xl border-3 border-[#242426] bg-[#FAF7F2] px-5 py-3 shadow-[4px_4px_0px_#242426]">
             <p className="text-base sm:text-xl font-black leading-snug text-[#242426] text-center">
               {game.situation ? `«${game.situation.text}»` : 'Игра начинается...'}
@@ -111,52 +157,6 @@ export default function GameScreen({
               <span className="font-bold text-[#242426]">Ведущий: {nameOf(game.leader_id)} 👑</span>
             </div>
           </div>
-
-          {/* Cards on the table: as tall as the space left; many of them scroll sideways */}
-          <div className="relative z-10 flex-1 min-h-44 lg:min-h-0 flex gap-3 sm:gap-4 justify-center-safe items-center overflow-x-auto px-2 py-2">
-            {phase === 'choosing_cards'
-              ? // Only who has played is known so far, not what: show the backs
-                game.submitted_player_ids.map((playerId, index) => (
-                  <MemeCard key={playerId} size="fill" className={ROTATIONS[index % ROTATIONS.length]} />
-                ))
-              : game.table.map((card, index) => {
-                  const isWinner = game.winner?.card_id === card.id;
-                  return (
-                    <MemeCard
-                      key={card.id}
-                      card={card}
-                      size="fill"
-                      className={ROTATIONS[index % ROTATIONS.length]}
-                      isSelected={card.id === pickedTableCard?.id}
-                      isWinner={isWinner}
-                      caption={
-                        isWinner
-                          ? `от ${nameOf(game.winner?.player_id)}`
-                          : card.id === game.my_selected_card_id
-                            ? 'твой мем'
-                            : undefined
-                      }
-                      onClick={canChooseWinner ? () => setPickedTableCardId(card.id) : undefined}
-                    />
-                  );
-                })}
-            {phase === 'choosing_cards' && game.submitted_player_ids.length === 0 && (
-              <p className="text-xs font-bold text-[#69655C]">Пока никто не сдал мем</p>
-            )}
-          </div>
-
-          {pickedTableCard && (
-            <div className="absolute z-20 bottom-4 inset-x-0 flex justify-center pointer-events-none">
-              <button
-                type="button"
-                onClick={() => onChooseWinner(pickedTableCard.id)}
-                className="pointer-events-auto px-4 py-2 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1.5 cursor-pointer active:translate-y-0.5"
-              >
-                <Trophy className="w-3.5 h-3.5" />
-                ЭТОТ МЕМ ПОБЕЖДАЕТ
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Chat: takes the height of the table, a long chat scrolls inside */}
@@ -183,21 +183,16 @@ export default function GameScreen({
             <span className="text-[11px] bg-[#EAE5D9] px-2 py-0.5 rounded-full font-bold text-[#555148]">
               {game.my_hand.length} карт
             </span>
-            <span className="text-[10px] text-[#706B62] font-semibold hidden md:inline">
-              {canPlayCard ? '(Выбери мем и нажми «Сыграть»)' : iAmLeader ? '(Ведущий в этом раунде не играет)' : ''}
-            </span>
+            {canPlayCard ? (
+              <span className="text-xs font-bold text-[#242426] bg-[#E4D976] border border-[#242426] px-2 py-0.5 rounded-lg">
+                Нажми на мем, а потом «{PLAY_LABEL}» на нём
+              </span>
+            ) : (
+              iAmLeader && (
+                <span className="text-[11px] text-[#706B62] font-semibold">Ведущий в этом раунде не играет</span>
+              )
+            )}
           </div>
-
-          {pickedHandCard && (
-            <button
-              type="button"
-              onClick={() => onSelectCard(pickedHandCard.id)}
-              className="px-3.5 py-1.5 rounded-xl border-2 border-[#242426] bg-[#E4D976] hover:bg-[#DDD166] font-black text-xs text-[#242426] shadow-[2px_2px_0px_#242426] flex items-center gap-1 cursor-pointer transition-all active:translate-y-0.5"
-            >
-              <ArrowUpCircle className="w-3.5 h-3.5" />
-              <span>СЫГРАТЬ ЭТОТ МЕМ</span>
-            </button>
-          )}
         </div>
 
         {/* pt-4: room for the picked card, which rises a little. justify-center-safe: centered, but
@@ -211,6 +206,8 @@ export default function GameScreen({
               className={`${ROTATIONS[index % ROTATIONS.length]} ${canPlayCard ? '' : 'opacity-70'}`}
               isSelected={card.id === pickedHandCard?.id}
               onClick={canPlayCard ? () => setPickedHandCardId(card.id) : undefined}
+              confirmLabel={`${PLAY_LABEL} ✓`}
+              onConfirm={() => onSelectCard(card.id)}
             />
           ))}
         </div>
@@ -243,11 +240,13 @@ function StatusBanner({ game, iAmLeader, iHavePlayed, nameOf }: StatusBannerProp
       icon = <CheckCircle className="w-4 h-4" />;
       text = 'ТВОЙ МЕМ СДАН! Ждём остальных';
     } else {
-      text = 'ТВОЙ ХОД: выбери мем из руки внизу!';
+      text = `ТВОЙ ХОД: выбери мем внизу и нажми «${PLAY_LABEL}»`;
       pulse = true;
     }
   } else if (game.round_state === 'leader_choosing') {
-    text = iAmLeader ? 'ВЫБЕРИ ЛУЧШИЙ МЕМ НА СТОЛЕ!' : `${nameOf(game.leader_id)} выбирает лучший мем`;
+    text = iAmLeader
+      ? `ТЫ ВЕДУЩИЙ: выбери лучший мем и нажми «${WINNER_LABEL}»`
+      : `${nameOf(game.leader_id)} выбирает лучший мем`;
     pulse = iAmLeader;
   } else if (game.round_state === 'round_ended') {
     text = 'Раунд без победителя';
